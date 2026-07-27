@@ -53,7 +53,10 @@ class ProfessionalActivationControllerTest {
         mockMvc = MockMvcBuilders
             .standaloneSetup(controller)
             .setMessageConverters(new org.springframework.http.converter.json.MappingJackson2HttpMessageConverter(objectMapper))
-            .addFilter(new AuthFilter(tokenService, true, false, new MockEnvironment()))
+            .addFilter(new AuthFilter(
+                tokenService,
+                new ar.edu.uade.pfi.backend.auth.AuthAccountStateService(mock(ar.edu.uade.pfi.backend.auth.PostgresAuthStoreService.class), new MockEnvironment()),
+                true, false, new MockEnvironment()))
             .addFilter(new CorsResponseFilter("", ""))
             .setControllerAdvice(new ApiExceptionHandler(auditService))
             .build();
