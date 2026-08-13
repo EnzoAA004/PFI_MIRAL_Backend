@@ -38,6 +38,10 @@ public interface StudyRepository {
 
     List<Study> findStudiesBySubjectRef(String subjectRef);
 
+    List<Study> findStudiesByPatientId(String patientId);
+
+    Optional<Study> updatePatientIfExpected(String caseId, String targetPatientId, String expectedPatientId);
+
     List<InputResource> findInputsByStudyId(String studyId);
 
     List<StudyRun> findRunsByStudyId(String studyId);

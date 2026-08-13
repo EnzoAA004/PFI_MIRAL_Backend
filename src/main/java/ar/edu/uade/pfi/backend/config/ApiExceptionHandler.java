@@ -18,6 +18,7 @@ import ar.edu.uade.pfi.backend.service.OperationalMetricsService;
 import ar.edu.uade.pfi.backend.service.RunReviewException;
 import ar.edu.uade.pfi.backend.service.StudyMetadataException;
 import ar.edu.uade.pfi.backend.service.StudyNotFoundException;
+import ar.edu.uade.pfi.backend.service.exception.PatientDomainException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Map;
@@ -125,6 +126,12 @@ public class ApiExceptionHandler {
     @ExceptionHandler(StudyNotFoundException.class)
     public ResponseEntity<Map<String, Object>> handleStudyNotFound(StudyNotFoundException ex, HttpServletRequest request) {
         return buildError(HttpStatus.NOT_FOUND, "STUDY_NOT_FOUND", "Estudio no encontrado", request, ex);
+    }
+
+    /** PATIENT-PR2: el dominio de paciente ya trae su propio status/code publico. */
+    @ExceptionHandler(PatientDomainException.class)
+    public ResponseEntity<Map<String, Object>> handlePatientDomain(PatientDomainException ex, HttpServletRequest request) {
+        return buildError(ex.status(), ex.code(), ex.getMessage(), request, ex);
     }
 
     /** Stage 76-B: Study exists but has no analyzable sagittal/axial input to resolve — functional, not a 5xx. */

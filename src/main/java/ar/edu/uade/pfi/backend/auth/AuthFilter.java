@@ -42,6 +42,20 @@ public class AuthFilter extends OncePerRequestFilter {
     );
     /** Only a minimal, no-detail liveness endpoint is anonymously reachable — see P10-A.1 §7. */
     private static final Set<String> PUBLIC_LIVENESS_PATHS = Set.of("/api/system/health");
+
+    /**
+     * Documentacion OpenAPI, cuando esta habilitada. Son prefijos y no rutas exactas porque
+     * springdoc sirve un pequeno arbol bajo cada una (los documentos agrupados bajo
+     * {@code /v3/api-docs/**} y los assets propios de la UI bajo {@code /swagger-ui/**}).
+     *
+     * <p>Lo que exponen es la forma de la API -paths, esquemas, codigos-, nunca datos y nunca una
+     * forma de llamar a nada: toda operacion documentada sigue pasando por este mismo filtro.
+     * Estan atadas a {@code springdoc.api-docs.enabled}, asi un despliegue que no quiera publicar
+     * su referencia apaga la documentacion y la excepcion a la vez, en vez de dejar un path
+     * abierto apuntando a algo que ya no responde.
+     */
+    private static final List<String> OPENAPI_PATH_PREFIXES =
+        List.of("/v3/api-docs", "/swagger-ui", "/swagger-ui.html");
     private static final Set<String> PENDING_ALLOWED_PATHS = Set.of("/api/auth/me", "/api/auth/settings");
     private final TokenService tokenService;
     private final AuthAccountStateService accountStateService;
@@ -154,6 +168,30 @@ public class AuthFilter extends OncePerRequestFilter {
         if (PUBLIC_AUTH_PATHS.contains(path)) return true;
         if (PUBLIC_LIVENESS_PATHS.contains(path)) return true;
         if (DEMO_DOCTOR_PATH.equals(path)) return isDemoEffectivelyEnabled();
+        if (isOpenApiEnabled() && isOpenApiPath(path)) return true;
+        return false;
+    }
+
+    /**
+     * Se lee del {@link Environment} ya inyectado en vez de agregar un parametro al constructor,
+     * para no romper a los llamadores del constructor sin Spring. Sin Environment se asume
+     * apagada: el filtro es fail-closed y la documentacion no se vuelve publica por defecto.
+     */
+    private boolean isOpenApiEnabled() {
+        if (environment == null) return false;
+        return Boolean.TRUE.equals(environment.getProperty("springdoc.api-docs.enabled", Boolean.class, Boolean.TRUE));
+    }
+
+    /**
+     * Match por prefijo pero solo en un limite de path: {@code /v3/api-docs} y
+     * {@code /v3/api-docs/x} son documentacion, {@code /v3/api-docsomething} no. Un
+     * {@code startsWith} pelado volveria publico cualquier endpoint futuro cuyo path empiece
+     * con una de estas cadenas.
+     */
+    private boolean isOpenApiPath(String path) {
+        for (String prefix : OPENAPI_PATH_PREFIXES) {
+            if (path.equals(prefix) || path.startsWith(prefix + "/")) return true;
+        }
         return false;
     }
 

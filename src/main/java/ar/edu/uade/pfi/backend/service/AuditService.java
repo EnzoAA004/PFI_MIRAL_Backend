@@ -25,6 +25,12 @@ public class AuditService {
     private static final Set<String> SENSITIVE_KEY_PARTS = Set.of(
         "token", "secret", "password", "credential", "authorization", "path", "filename", "file", "email", "patient"
     );
+    /**
+     * PATIENT-PR2: estas tres claves llevan el UUID de-identificado del paciente, no un
+     * identificador directo, y deben poder auditarse. Sin esta allowlist quedarian redactadas
+     * porque SENSITIVE_KEY_PARTS incluye "patient".
+     */
+    private static final Set<String> SAFE_PATIENT_ID_KEYS = Set.of("patientid", "frompatientid", "topatientid");
     /** Defense-in-depth caps against accidental metadata growth — see P10-B §11. */
     private static final int MAX_METADATA_ENTRIES = 40;
     private static final int MAX_DEPTH = 5;
@@ -151,6 +157,7 @@ public class AuditService {
 
     private boolean isSensitiveKey(String key) {
         String normalized = key.toLowerCase(Locale.ROOT);
+        if (SAFE_PATIENT_ID_KEYS.contains(normalized)) return false;
         return SENSITIVE_KEY_PARTS.stream().anyMatch(normalized::contains);
     }
 
