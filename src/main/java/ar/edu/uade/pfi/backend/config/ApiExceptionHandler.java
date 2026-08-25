@@ -10,6 +10,7 @@ import ar.edu.uade.pfi.backend.service.AiMultiplanarUpstreamException;
 import ar.edu.uade.pfi.backend.service.AiProductContractViolationException;
 import ar.edu.uade.pfi.backend.service.AiProductSafetyViolationException;
 import ar.edu.uade.pfi.backend.service.AiProductUpstreamException;
+import ar.edu.uade.pfi.backend.service.AiStudyInputUnresolvedException;
 import ar.edu.uade.pfi.backend.service.AssetContentUnavailableException;
 import ar.edu.uade.pfi.backend.service.AuditService;
 import ar.edu.uade.pfi.backend.service.DatabaseUnavailableException;
@@ -124,6 +125,12 @@ public class ApiExceptionHandler {
     @ExceptionHandler(StudyNotFoundException.class)
     public ResponseEntity<Map<String, Object>> handleStudyNotFound(StudyNotFoundException ex, HttpServletRequest request) {
         return buildError(HttpStatus.NOT_FOUND, "STUDY_NOT_FOUND", "Estudio no encontrado", request, ex);
+    }
+
+    /** Stage 76-B: Study exists but has no analyzable sagittal/axial input to resolve — functional, not a 5xx. */
+    @ExceptionHandler(AiStudyInputUnresolvedException.class)
+    public ResponseEntity<Map<String, Object>> handleAiStudyInputUnresolved(AiStudyInputUnresolvedException ex, HttpServletRequest request) {
+        return buildError(HttpStatus.UNPROCESSABLE_ENTITY, "AI_STUDY_INPUT_UNRESOLVED", ApiErrorCode.AI_STUDY_INPUT_UNRESOLVED.publicMessage(), request, ex);
     }
 
     @ExceptionHandler(AssetContentUnavailableException.class)

@@ -416,5 +416,10 @@ class StudyWorklistServicePostgresTest {
         @Override public List<DomainAuditEvent> findAuditEventsByTraceId(String traceId) { throw new UnsupportedOperationException(); }
         @Override public List<DomainAuditEvent> findAuditEventsByEntityId(String entityId) { throw new UnsupportedOperationException(); }
         @Override public List<DomainAuditEvent> findAuditEventsByStudyId(String studyId) { throw new UnsupportedOperationException(); }
+        @Override public ar.edu.uade.pfi.backend.domain.AiProductAnalysisRun saveAiProductAnalysisRun(ar.edu.uade.pfi.backend.domain.AiProductAnalysisRun run, List<ar.edu.uade.pfi.backend.domain.AiDiscLevelResult> discLevels, List<ar.edu.uade.pfi.backend.domain.AiMeasurementResult> measurements) { throw new UnsupportedOperationException(); }
+        @Override public List<ar.edu.uade.pfi.backend.domain.AiProductAnalysisRun> findAiProductAnalysisRunsByStudyId(String studyId) { throw new UnsupportedOperationException(); }
+        @Override public Optional<ar.edu.uade.pfi.backend.domain.AiProductAnalysisRun> findAiProductAnalysisRunById(String id) { throw new UnsupportedOperationException(); }
+        @Override public List<ar.edu.uade.pfi.backend.domain.AiDiscLevelResult> findAiDiscLevelResultsByAnalysisRunId(String analysisRunId) { throw new UnsupportedOperationException(); }
+        @Override public List<ar.edu.uade.pfi.backend.domain.AiMeasurementResult> findAiMeasurementResultsByAnalysisRunId(String analysisRunId) { throw new UnsupportedOperationException(); }
     }
 }

@@ -1,5 +1,8 @@
 package ar.edu.uade.pfi.backend.repository;
 
+import ar.edu.uade.pfi.backend.domain.AiDiscLevelResult;
+import ar.edu.uade.pfi.backend.domain.AiMeasurementResult;
+import ar.edu.uade.pfi.backend.domain.AiProductAnalysisRun;
 import ar.edu.uade.pfi.backend.domain.DomainAuditEvent;
 import ar.edu.uade.pfi.backend.domain.InputResource;
 import ar.edu.uade.pfi.backend.domain.MeasurementCorrection;
@@ -75,4 +78,22 @@ public interface StudyRepository {
     List<DomainAuditEvent> findAuditEventsByEntityId(String entityId);
 
     List<DomainAuditEvent> findAuditEventsByStudyId(String studyId);
+
+    // ---- Stage 76: pfi.ai-product-result.v1 structured persistence ----
+
+    /**
+     * Persists one product-analysis run together with its disc-level results and measurements in
+     * a single transaction (stage 76-J) — never a half-persisted run. Each call creates a NEW
+     * run; there is no upsert-by-study semantics (stage 76-I/76-V: a Study can have many runs,
+     * each with its own identity).
+     */
+    AiProductAnalysisRun saveAiProductAnalysisRun(AiProductAnalysisRun run, List<AiDiscLevelResult> discLevels, List<AiMeasurementResult> measurements);
+
+    List<AiProductAnalysisRun> findAiProductAnalysisRunsByStudyId(String studyId);
+
+    Optional<AiProductAnalysisRun> findAiProductAnalysisRunById(String id);
+
+    List<AiDiscLevelResult> findAiDiscLevelResultsByAnalysisRunId(String analysisRunId);
+
+    List<AiMeasurementResult> findAiMeasurementResultsByAnalysisRunId(String analysisRunId);
 }

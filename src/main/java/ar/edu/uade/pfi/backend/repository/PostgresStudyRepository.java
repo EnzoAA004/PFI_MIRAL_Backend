@@ -1,5 +1,8 @@
 package ar.edu.uade.pfi.backend.repository;
 
+import ar.edu.uade.pfi.backend.domain.AiDiscLevelResult;
+import ar.edu.uade.pfi.backend.domain.AiMeasurementResult;
+import ar.edu.uade.pfi.backend.domain.AiProductAnalysisRun;
 import ar.edu.uade.pfi.backend.domain.DomainAuditEvent;
 import ar.edu.uade.pfi.backend.domain.InputResource;
 import ar.edu.uade.pfi.backend.domain.MeasurementCorrection;
@@ -36,6 +39,7 @@ import org.springframework.stereotype.Repository;
 public class PostgresStudyRepository implements StudyRepository {
     private static final TypeReference<Map<String, Object>> JSON_MAP = new TypeReference<>() {};
     private static final TypeReference<List<Map<String, Object>>> JSON_MAP_LIST = new TypeReference<>() {};
+    private static final TypeReference<List<String>> JSON_STRING_LIST = new TypeReference<>() {};
 
     private final String jdbcUrl;
     private final ObjectMapper objectMapper;
@@ -960,5 +964,257 @@ public class PostgresStudyRepository implements StudyRepository {
         } catch (Exception ex) {
             return databaseUrl;
         }
+    }
+
+    // ---- Stage 76: pfi.ai-product-result.v1 structured persistence ----
+
+    @Override
+    public AiProductAnalysisRun saveAiProductAnalysisRun(AiProductAnalysisRun run, List<AiDiscLevelResult> discLevels, List<AiMeasurementResult> measurements) {
+        try (Connection connection = connection()) {
+            connection.setAutoCommit(false);
+            try {
+                insertAiAnalysisRun(connection, run);
+                for (AiDiscLevelResult level : discLevels == null ? List.<AiDiscLevelResult>of() : discLevels) {
+                    insertAiDiscLevelResult(connection, level);
+                }
+                for (AiMeasurementResult measurement : measurements == null ? List.<AiMeasurementResult>of() : measurements) {
+                    insertAiMeasurementResult(connection, measurement);
+                }
+                connection.commit();
+                return run;
+            } catch (Exception ex) {
+                connection.rollback();
+                throw ex;
+            } finally {
+                connection.setAutoCommit(true);
+            }
+        } catch (Exception ex) {
+            throw new IllegalStateException("Could not save AI product analysis run", ex);
+        }
+    }
+
+    private void insertAiAnalysisRun(Connection connection, AiProductAnalysisRun run) throws Exception {
+        try (PreparedStatement statement = connection.prepareStatement("""
+            INSERT INTO domain_ai_analysis_runs(
+                id, study_id, case_id, schema_version, release_id, status,
+                human_review_required, not_clinical_diagnosis, autonomous_diagnosis,
+                trace_id, sagittal_input_id, axial_input_id, warnings, raw_response,
+                created_at, completed_at
+            ) VALUES (?::uuid, ?::uuid, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, ?, ?)
+            """)) {
+            statement.setString(1, run.id());
+            statement.setString(2, run.studyId());
+            statement.setString(3, run.caseId());
+            statement.setString(4, run.schemaVersion());
+            statement.setString(5, run.releaseId());
+            statement.setString(6, run.status());
+            statement.setBoolean(7, run.humanReviewRequired());
+            statement.setBoolean(8, run.notClinicalDiagnosis());
+            statement.setBoolean(9, run.autonomousDiagnosis());
+            statement.setString(10, run.traceId());
+            statement.setString(11, run.sagittalInputId());
+            statement.setString(12, run.axialInputId());
+            statement.setString(13, objectMapper.writeValueAsString(run.warnings() == null ? List.of() : run.warnings()));
+            statement.setString(14, run.rawResponseSanitized() == null ? null : objectMapper.writeValueAsString(run.rawResponseSanitized()));
+            statement.setTimestamp(15, Timestamp.from(run.createdAt()));
+            statement.setTimestamp(16, run.completedAt() == null ? null : Timestamp.from(run.completedAt()));
+            statement.executeUpdate();
+        }
+    }
+
+    private void insertAiDiscLevelResult(Connection connection, AiDiscLevelResult level) throws Exception {
+        try (PreparedStatement statement = connection.prepareStatement("""
+            INSERT INTO domain_ai_disc_level_results(
+                id, analysis_run_id, rank_index, level, localization_status, localization_source,
+                localization_validated, abstention_preserved, axial_pairing_status, axial_pairing_validated,
+                axial_pairing_experimental, axial_pairing_review_required, degenerative_findings_status,
+                automatic_inference_enabled
+            ) VALUES (?::uuid, ?::uuid, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """)) {
+            statement.setString(1, level.id());
+            statement.setString(2, level.analysisRunId());
+            statement.setInt(3, level.rankIndex());
+            statement.setString(4, level.level());
+            statement.setString(5, level.localizationStatus());
+            statement.setString(6, level.localizationSource());
+            statement.setBoolean(7, level.localizationValidated());
+            statement.setBoolean(8, level.abstentionPreserved());
+            statement.setString(9, level.axialPairingStatus());
+            statement.setBoolean(10, level.axialPairingValidated());
+            statement.setBoolean(11, level.axialPairingExperimental());
+            statement.setBoolean(12, level.axialPairingReviewRequired());
+            statement.setString(13, level.degenerativeFindingsStatus());
+            statement.setBoolean(14, level.automaticInferenceEnabled());
+            statement.executeUpdate();
+        }
+    }
+
+    private void insertAiMeasurementResult(Connection connection, AiMeasurementResult measurement) throws Exception {
+        try (PreparedStatement statement = connection.prepareStatement("""
+            INSERT INTO domain_ai_measurement_results(
+                id, analysis_run_id, disc_level_result_id, plane, level, structure,
+                area_mm2, major_axis_mm, minor_axis_mm, review_required
+            ) VALUES (?::uuid, ?::uuid, ?::uuid, ?, ?, ?, ?, ?, ?, ?)
+            """)) {
+            statement.setString(1, measurement.id());
+            statement.setString(2, measurement.analysisRunId());
+            statement.setString(3, measurement.discLevelResultId());
+            statement.setString(4, measurement.plane());
+            statement.setString(5, measurement.level());
+            statement.setString(6, measurement.structure());
+            setNullableDouble(statement, 7, measurement.areaMm2());
+            setNullableDouble(statement, 8, measurement.majorAxisMm());
+            setNullableDouble(statement, 9, measurement.minorAxisMm());
+            statement.setBoolean(10, measurement.reviewRequired());
+            statement.executeUpdate();
+        }
+    }
+
+    private void setNullableDouble(PreparedStatement statement, int index, Double value) throws Exception {
+        if (value == null) {
+            statement.setNull(index, java.sql.Types.DOUBLE);
+        } else {
+            statement.setDouble(index, value);
+        }
+    }
+
+    @Override
+    public List<AiProductAnalysisRun> findAiProductAnalysisRunsByStudyId(String studyId) {
+        try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
+            SELECT id, study_id, case_id, schema_version, release_id, status,
+                   human_review_required, not_clinical_diagnosis, autonomous_diagnosis,
+                   trace_id, sagittal_input_id, axial_input_id, warnings, raw_response,
+                   created_at, completed_at
+            FROM domain_ai_analysis_runs WHERE study_id = ?::uuid ORDER BY created_at DESC
+            """)) {
+            statement.setString(1, studyId);
+            try (ResultSet rs = statement.executeQuery()) {
+                List<AiProductAnalysisRun> runs = new ArrayList<>();
+                while (rs.next()) runs.add(readAiProductAnalysisRun(rs));
+                return runs;
+            }
+        } catch (Exception ex) {
+            throw new IllegalStateException("Could not list AI product analysis runs", ex);
+        }
+    }
+
+    @Override
+    public Optional<AiProductAnalysisRun> findAiProductAnalysisRunById(String id) {
+        try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
+            SELECT id, study_id, case_id, schema_version, release_id, status,
+                   human_review_required, not_clinical_diagnosis, autonomous_diagnosis,
+                   trace_id, sagittal_input_id, axial_input_id, warnings, raw_response,
+                   created_at, completed_at
+            FROM domain_ai_analysis_runs WHERE id = ?::uuid
+            """)) {
+            statement.setString(1, id);
+            try (ResultSet rs = statement.executeQuery()) {
+                if (!rs.next()) return Optional.empty();
+                return Optional.of(readAiProductAnalysisRun(rs));
+            }
+        } catch (Exception ex) {
+            throw new IllegalStateException("Could not find AI product analysis run", ex);
+        }
+    }
+
+    private AiProductAnalysisRun readAiProductAnalysisRun(ResultSet rs) throws Exception {
+        String warningsJson = rs.getString("warnings");
+        String rawResponseJson = rs.getString("raw_response");
+        Timestamp completedAt = rs.getTimestamp("completed_at");
+        return new AiProductAnalysisRun(
+            rs.getObject("id", UUID.class).toString(),
+            rs.getObject("study_id", UUID.class).toString(),
+            rs.getString("case_id"),
+            rs.getString("schema_version"),
+            rs.getString("release_id"),
+            rs.getString("status"),
+            rs.getBoolean("human_review_required"),
+            rs.getBoolean("not_clinical_diagnosis"),
+            rs.getBoolean("autonomous_diagnosis"),
+            rs.getString("trace_id"),
+            rs.getString("sagittal_input_id"),
+            rs.getString("axial_input_id"),
+            warningsJson == null ? List.of() : objectMapper.readValue(warningsJson, JSON_STRING_LIST),
+            rawResponseJson == null ? null : objectMapper.readValue(rawResponseJson, JSON_MAP),
+            rs.getTimestamp("created_at").toInstant(),
+            completedAt == null ? null : completedAt.toInstant()
+        );
+    }
+
+    @Override
+    public List<AiDiscLevelResult> findAiDiscLevelResultsByAnalysisRunId(String analysisRunId) {
+        try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
+            SELECT id, analysis_run_id, rank_index, level, localization_status, localization_source,
+                   localization_validated, abstention_preserved, axial_pairing_status, axial_pairing_validated,
+                   axial_pairing_experimental, axial_pairing_review_required, degenerative_findings_status,
+                   automatic_inference_enabled
+            FROM domain_ai_disc_level_results WHERE analysis_run_id = ?::uuid ORDER BY rank_index
+            """)) {
+            statement.setString(1, analysisRunId);
+            try (ResultSet rs = statement.executeQuery()) {
+                List<AiDiscLevelResult> results = new ArrayList<>();
+                while (rs.next()) results.add(readAiDiscLevelResult(rs));
+                return results;
+            }
+        } catch (Exception ex) {
+            throw new IllegalStateException("Could not list AI disc level results", ex);
+        }
+    }
+
+    private AiDiscLevelResult readAiDiscLevelResult(ResultSet rs) throws Exception {
+        return new AiDiscLevelResult(
+            rs.getObject("id", UUID.class).toString(),
+            rs.getObject("analysis_run_id", UUID.class).toString(),
+            rs.getInt("rank_index"),
+            rs.getString("level"),
+            rs.getString("localization_status"),
+            rs.getString("localization_source"),
+            rs.getBoolean("localization_validated"),
+            rs.getBoolean("abstention_preserved"),
+            rs.getString("axial_pairing_status"),
+            rs.getBoolean("axial_pairing_validated"),
+            rs.getBoolean("axial_pairing_experimental"),
+            rs.getBoolean("axial_pairing_review_required"),
+            rs.getString("degenerative_findings_status"),
+            rs.getBoolean("automatic_inference_enabled")
+        );
+    }
+
+    @Override
+    public List<AiMeasurementResult> findAiMeasurementResultsByAnalysisRunId(String analysisRunId) {
+        try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
+            SELECT id, analysis_run_id, disc_level_result_id, plane, level, structure,
+                   area_mm2, major_axis_mm, minor_axis_mm, review_required
+            FROM domain_ai_measurement_results WHERE analysis_run_id = ?::uuid
+            """)) {
+            statement.setString(1, analysisRunId);
+            try (ResultSet rs = statement.executeQuery()) {
+                List<AiMeasurementResult> results = new ArrayList<>();
+                while (rs.next()) results.add(readAiMeasurementResult(rs));
+                return results;
+            }
+        } catch (Exception ex) {
+            throw new IllegalStateException("Could not list AI measurement results", ex);
+        }
+    }
+
+    private AiMeasurementResult readAiMeasurementResult(ResultSet rs) throws Exception {
+        return new AiMeasurementResult(
+            rs.getObject("id", UUID.class).toString(),
+            rs.getObject("analysis_run_id", UUID.class).toString(),
+            rs.getObject("disc_level_result_id", UUID.class).toString(),
+            rs.getString("plane"),
+            rs.getString("level"),
+            rs.getString("structure"),
+            getNullableDouble(rs, "area_mm2"),
+            getNullableDouble(rs, "major_axis_mm"),
+            getNullableDouble(rs, "minor_axis_mm"),
+            rs.getBoolean("review_required")
+        );
+    }
+
+    private Double getNullableDouble(ResultSet rs, String column) throws Exception {
+        double value = rs.getDouble(column);
+        return rs.wasNull() ? null : value;
     }
 }

@@ -1,5 +1,8 @@
 package ar.edu.uade.pfi.backend.repository;
 
+import ar.edu.uade.pfi.backend.domain.AiDiscLevelResult;
+import ar.edu.uade.pfi.backend.domain.AiMeasurementResult;
+import ar.edu.uade.pfi.backend.domain.AiProductAnalysisRun;
 import ar.edu.uade.pfi.backend.domain.DomainAuditEvent;
 import ar.edu.uade.pfi.backend.domain.InputResource;
 import ar.edu.uade.pfi.backend.domain.MeasurementCorrection;
@@ -31,6 +34,9 @@ public class InMemoryStudyRepository implements StudyRepository {
     private final ConcurrentMap<String, List<MeasurementCorrection>> correctionsByRunId = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, List<ReviewerAnnotation>> annotationsByRunId = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, DomainAuditEvent> auditEventsById = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, AiProductAnalysisRun> aiAnalysisRunsById = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, List<AiDiscLevelResult>> aiDiscLevelResultsByRunId = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, List<AiMeasurementResult>> aiMeasurementResultsByRunId = new ConcurrentHashMap<>();
 
     @Override
     public Study saveStudy(Study study) {
@@ -316,5 +322,40 @@ public class InMemoryStudyRepository implements StudyRepository {
         return auditEventsById.values().stream()
             .filter(event -> runIds.contains(event.entityId()) || studyId.equals(event.entityId()))
             .toList();
+    }
+
+    // ---- Stage 76: pfi.ai-product-result.v1 structured persistence ----
+
+    @Override
+    public AiProductAnalysisRun saveAiProductAnalysisRun(AiProductAnalysisRun run, List<AiDiscLevelResult> discLevels, List<AiMeasurementResult> measurements) {
+        aiAnalysisRunsById.put(run.id(), run);
+        aiDiscLevelResultsByRunId.put(run.id(), discLevels == null ? List.of() : List.copyOf(discLevels));
+        aiMeasurementResultsByRunId.put(run.id(), measurements == null ? List.of() : List.copyOf(measurements));
+        return run;
+    }
+
+    @Override
+    public List<AiProductAnalysisRun> findAiProductAnalysisRunsByStudyId(String studyId) {
+        return aiAnalysisRunsById.values().stream()
+            .filter(run -> run.studyId().equals(studyId))
+            .sorted(Comparator.comparing(AiProductAnalysisRun::createdAt).reversed())
+            .toList();
+    }
+
+    @Override
+    public Optional<AiProductAnalysisRun> findAiProductAnalysisRunById(String id) {
+        return Optional.ofNullable(aiAnalysisRunsById.get(id));
+    }
+
+    @Override
+    public List<AiDiscLevelResult> findAiDiscLevelResultsByAnalysisRunId(String analysisRunId) {
+        return aiDiscLevelResultsByRunId.getOrDefault(analysisRunId, List.of()).stream()
+            .sorted(Comparator.comparingInt(AiDiscLevelResult::rankIndex))
+            .toList();
+    }
+
+    @Override
+    public List<AiMeasurementResult> findAiMeasurementResultsByAnalysisRunId(String analysisRunId) {
+        return aiMeasurementResultsByRunId.getOrDefault(analysisRunId, List.of());
     }
 }
