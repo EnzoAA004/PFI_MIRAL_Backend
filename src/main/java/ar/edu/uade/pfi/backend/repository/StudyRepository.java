@@ -1,8 +1,11 @@
 package ar.edu.uade.pfi.backend.repository;
 
 import ar.edu.uade.pfi.backend.domain.AiDiscLevelResult;
+import ar.edu.uade.pfi.backend.domain.AiDiscLevelReview;
+import ar.edu.uade.pfi.backend.domain.AiMeasurementCorrection;
 import ar.edu.uade.pfi.backend.domain.AiMeasurementResult;
 import ar.edu.uade.pfi.backend.domain.AiProductAnalysisRun;
+import ar.edu.uade.pfi.backend.domain.AiProductAnalysisRunReview;
 import ar.edu.uade.pfi.backend.domain.DomainAuditEvent;
 import ar.edu.uade.pfi.backend.domain.InputResource;
 import ar.edu.uade.pfi.backend.domain.MeasurementCorrection;
@@ -96,4 +99,30 @@ public interface StudyRepository {
     List<AiDiscLevelResult> findAiDiscLevelResultsByAnalysisRunId(String analysisRunId);
 
     List<AiMeasurementResult> findAiMeasurementResultsByAnalysisRunId(String analysisRunId);
+
+    // ---- Stage 78: professional review / correction workflow ----
+
+    /**
+     * Insert-or-update: exactly one review row per run. Never appends a second row for the same
+     * {@code analysisRunId} — the profession's *current* decision, not a history (that lives in
+     * {@code domain_audit_events} via the caller).
+     */
+    AiProductAnalysisRunReview upsertAiProductAnalysisRunReview(String analysisRunId, String reviewStatus, String reviewComment, String reviewedBy, Instant reviewedAt);
+
+    Optional<AiProductAnalysisRunReview> findAiProductAnalysisRunReview(String analysisRunId);
+
+    AiDiscLevelReview upsertAiDiscLevelReview(String discLevelResultId, String reviewStatus, String reviewComment, String reviewedBy, Instant reviewedAt);
+
+    Optional<AiDiscLevelReview> findAiDiscLevelReview(String discLevelResultId);
+
+    List<AiDiscLevelReview> findAiDiscLevelReviewsByAnalysisRunId(String analysisRunId);
+
+    /**
+     * Always inserts a new row — {@code domain_ai_measurement_results} is never updated by a
+     * correction (stage 76's immutability guarantee). The "current" corrected value for a
+     * measurement/field pair is the latest row by {@code createdAt}.
+     */
+    AiMeasurementCorrection saveAiMeasurementCorrection(AiMeasurementCorrection correction);
+
+    List<AiMeasurementCorrection> findAiMeasurementCorrectionsByAnalysisRunId(String analysisRunId);
 }

@@ -165,7 +165,7 @@ class AiProductAnalysisMapperTest {
         AiDiscLevelResult levelOne = new AiDiscLevelResult("level-1", "run-1", 0, "L4-L5", "localized", "67B2", true, false, "paired", true, false, false, null, false);
         AiMeasurementResult measurement = new AiMeasurementResult("measurement-1", "run-1", "level-1", "sagittal", "L4-L5", "disc", 1.0, 2.0, 3.0, true);
 
-        AiProductAnalysisResultDto dto = mapper.toResultDto(run, List.of(levelZero, levelOne), List.of(measurement));
+        AiProductAnalysisResultDto dto = mapper.toResultDto(run, List.of(levelZero, levelOne), List.of(measurement), null, List.of(), List.of());
 
         assertEquals("L4-L5", dto.discLevels().get(0).level());
         assertEquals("L5-S1", dto.discLevels().get(1).level());

@@ -5,11 +5,20 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+import ar.edu.uade.pfi.backend.auth.AuthFilter;
+import ar.edu.uade.pfi.backend.auth.RoleAuthorizationService;
+import ar.edu.uade.pfi.backend.auth.TokenService;
 import ar.edu.uade.pfi.backend.client.AiServiceOperations;
+import ar.edu.uade.pfi.backend.domain.AiMeasurementResult;
 import ar.edu.uade.pfi.backend.domain.InputResource;
 import ar.edu.uade.pfi.backend.domain.Study;
+import ar.edu.uade.pfi.backend.dto.AiMeasurementCorrectionRequestDto;
 import ar.edu.uade.pfi.backend.dto.AiProductAnalysisApiRequestDto;
 import ar.edu.uade.pfi.backend.dto.AiProductAnalysisResultDto;
+import ar.edu.uade.pfi.backend.dto.AiProductAnalysisReviewRequestDto;
 import ar.edu.uade.pfi.backend.dto.AiProductAnalyzeRequestDto;
 import ar.edu.uade.pfi.backend.dto.AiProductAnalyzeResponseDto;
 import ar.edu.uade.pfi.backend.dto.PipelineRunRequestDto;
@@ -17,13 +26,18 @@ import ar.edu.uade.pfi.backend.repository.InMemoryStudyRepository;
 import ar.edu.uade.pfi.backend.service.AiAnalysisService;
 import ar.edu.uade.pfi.backend.service.AiProductAnalysisMapper;
 import ar.edu.uade.pfi.backend.service.AiProductAnalysisPersistenceService;
+import ar.edu.uade.pfi.backend.service.AiProductAnalysisReviewService;
 import ar.edu.uade.pfi.backend.service.AiProductContractViolationException;
 import ar.edu.uade.pfi.backend.service.AiStudyInputResolver;
+import ar.edu.uade.pfi.backend.service.AuditService;
+import ar.edu.uade.pfi.backend.service.RunReviewException;
+import jakarta.servlet.http.HttpServletRequest;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.springframework.web.server.ResponseStatusException;
 
 /**
  * Stage 76-M — controller stays thin, delegates input resolution and persistence to
@@ -109,8 +123,15 @@ class AiProductAnalysisControllerTest {
         );
     }
 
+    private record Harness(AiProductAnalysisController controller, InMemoryStudyRepository repository) {
+    }
+
     /** Seeds a Study with one analyzable sagittal input so the resolver has something to find. */
     private AiProductAnalysisController buildController(FakeAi fakeAi, String caseId) {
+        return buildHarness(fakeAi, caseId).controller();
+    }
+
+    private Harness buildHarness(FakeAi fakeAi, String caseId) {
         InMemoryStudyRepository repository = new InMemoryStudyRepository();
         Instant now = Instant.now();
         Study study = new Study(UUID.randomUUID().toString(), caseId, "registered", now, now);
@@ -123,7 +144,21 @@ class AiProductAnalysisControllerTest {
         AiStudyInputResolver resolver = new AiStudyInputResolver(repository);
         AiProductAnalysisMapper mapper = new AiProductAnalysisMapper();
         AiProductAnalysisPersistenceService persistenceService = new AiProductAnalysisPersistenceService(analysisService, resolver, repository, mapper);
-        return new AiProductAnalysisController(persistenceService);
+        AiProductAnalysisReviewService reviewService = new AiProductAnalysisReviewService(repository, persistenceService, null);
+        RoleAuthorizationService authorizationService = new RoleAuthorizationService(new AuditService(repository));
+        AiProductAnalysisController controller = new AiProductAnalysisController(persistenceService, reviewService, authorizationService);
+        return new Harness(controller, repository);
+    }
+
+    private HttpServletRequest professionalRequest() {
+        HttpServletRequest request = mock(HttpServletRequest.class);
+        when(request.getAttribute(AuthFilter.AUTH_CLAIMS_ATTRIBUTE))
+            .thenReturn(new TokenService.Claims("doctor-1", "doctor@example.test", "Doctor Uno", List.of("DOCTOR")));
+        return request;
+    }
+
+    private HttpServletRequest anonymousRequest() {
+        return mock(HttpServletRequest.class);
     }
 
     @Test
@@ -201,5 +236,136 @@ class AiProductAnalysisControllerTest {
 
         AiProductAnalysisResultDto detail = controller.detail("case-1", created.analysisRunId());
         assertEquals(created.analysisRunId(), detail.analysisRunId());
+    }
+
+    @Test
+    void reviewRunRequiresProfessionalRole() {
+        Harness harness = buildHarness(new FakeAi(sampleResponse("completed")), "case-1");
+        AiProductAnalysisResultDto created = harness.controller().analyze("case-1", new AiProductAnalysisApiRequestDto(null, null, null));
+
+        assertThrows(ResponseStatusException.class, () -> harness.controller().reviewRun(
+            "case-1", created.analysisRunId(), new AiProductAnalysisReviewRequestDto("accepted", null), anonymousRequest()
+        ));
+    }
+
+    @Test
+    void reviewRunAcceptedIsVisibleInResponse() {
+        Harness harness = buildHarness(new FakeAi(sampleResponse("completed")), "case-1");
+        AiProductAnalysisResultDto created = harness.controller().analyze("case-1", new AiProductAnalysisApiRequestDto(null, null, null));
+
+        AiProductAnalysisResultDto reviewed = harness.controller().reviewRun(
+            "case-1", created.analysisRunId(), new AiProductAnalysisReviewRequestDto("accepted", null), professionalRequest()
+        );
+
+        assertEquals("accepted", reviewed.review().status());
+        assertEquals("doctor@example.test", reviewed.review().reviewedBy());
+    }
+
+    @Test
+    void reviewRunInvalidStatusThrows() {
+        Harness harness = buildHarness(new FakeAi(sampleResponse("completed")), "case-1");
+        AiProductAnalysisResultDto created = harness.controller().analyze("case-1", new AiProductAnalysisApiRequestDto(null, null, null));
+
+        assertThrows(RunReviewException.class, () -> harness.controller().reviewRun(
+            "case-1", created.analysisRunId(), new AiProductAnalysisReviewRequestDto("not_a_status", null), professionalRequest()
+        ));
+    }
+
+    @Test
+    void reviewDiscLevelDoesNotAffectRunReview() {
+        AiProductAnalyzeResponseDto.DiscLevel level = new AiProductAnalyzeResponseDto.DiscLevel(
+            "L4-L5",
+            new AiProductAnalyzeResponseDto.Localization("localized", true, "67B2", false, false, List.of()),
+            new AiProductAnalyzeResponseDto.AxialPairing("paired", false, true, true, false, "67C", List.of()),
+            List.of(),
+            null
+        );
+        AiProductAnalyzeResponseDto response = new AiProductAnalyzeResponseDto(
+            "pfi.ai-product-result.v1", "product-1", "trace-1", "case-1",
+            new AiProductAnalyzeResponseDto.Release("post-e50-ai-product-freeze-v1"), "completed", null,
+            List.of(level), List.of(), new AiProductAnalyzeResponseDto.Review(true, "pending", true), true, false, true
+        );
+        Harness harness = buildHarness(new FakeAi(response), "case-1");
+        AiProductAnalysisResultDto created = harness.controller().analyze("case-1", new AiProductAnalysisApiRequestDto(null, null, null));
+        String discLevelId = created.discLevels().get(0).discLevelId();
+
+        AiProductAnalysisResultDto reviewed = harness.controller().reviewDiscLevel(
+            "case-1", created.analysisRunId(), discLevelId,
+            new AiProductAnalysisReviewRequestDto("accepted", "revisado"), professionalRequest()
+        );
+
+        assertEquals("accepted", reviewed.discLevels().get(0).review().status());
+        assertEquals("pending", reviewed.review().status());
+        // 67C's own AI-output fields are untouched by the professional review.
+        assertEquals(false, reviewed.discLevels().get(0).axialPairingValidated());
+        assertEquals(true, reviewed.discLevels().get(0).axialPairingExperimental());
+    }
+
+    @Test
+    void correctMeasurementPreservesOriginalAlongsideCorrected() {
+        AiProductAnalyzeResponseDto.Measurement measurement = new AiProductAnalyzeResponseDto.Measurement("sagittal", "L4-L5", "disc", 12.3, 5.0, 3.0, true);
+        AiProductAnalyzeResponseDto.DiscLevel level = new AiProductAnalyzeResponseDto.DiscLevel(
+            "L4-L5", null, null, List.of(measurement), null
+        );
+        AiProductAnalyzeResponseDto response = new AiProductAnalyzeResponseDto(
+            "pfi.ai-product-result.v1", "product-1", "trace-1", "case-1",
+            new AiProductAnalyzeResponseDto.Release("post-e50-ai-product-freeze-v1"), "completed", null,
+            List.of(level), List.of(), new AiProductAnalyzeResponseDto.Review(true, "pending", true), true, false, true
+        );
+        Harness harness = buildHarness(new FakeAi(response), "case-1");
+        AiProductAnalysisResultDto created = harness.controller().analyze("case-1", new AiProductAnalysisApiRequestDto(null, null, null));
+        String measurementId = created.discLevels().get(0).measurements().get(0).measurementId();
+
+        AiProductAnalysisResultDto corrected = harness.controller().correctMeasurement(
+            "case-1", created.analysisRunId(), measurementId,
+            new AiMeasurementCorrectionRequestDto("areaMm2", 11.8, "ajuste manual"), professionalRequest()
+        );
+
+        AiMeasurementResult stillOriginal = harness.repository().findAiMeasurementResultsByAnalysisRunId(created.analysisRunId()).get(0);
+        assertEquals(12.3, stillOriginal.areaMm2());
+
+        var correctionView = corrected.discLevels().get(0).measurements().get(0).corrections().get(0);
+        assertEquals(12.3, correctionView.originalValue());
+        assertEquals(11.8, correctionView.correctedValue());
+        assertEquals("mm2", correctionView.unit());
+        // The raw AI value itself must remain visible, not hidden by the correction.
+        assertEquals(12.3, corrected.discLevels().get(0).measurements().get(0).areaMm2());
+    }
+
+    @Test
+    void correctMeasurementRejectsNonFiniteValue() {
+        AiProductAnalyzeResponseDto.Measurement measurement = new AiProductAnalyzeResponseDto.Measurement("sagittal", "L4-L5", "disc", 12.3, 5.0, 3.0, true);
+        AiProductAnalyzeResponseDto.DiscLevel level = new AiProductAnalyzeResponseDto.DiscLevel("L4-L5", null, null, List.of(measurement), null);
+        AiProductAnalyzeResponseDto response = new AiProductAnalyzeResponseDto(
+            "pfi.ai-product-result.v1", "product-1", "trace-1", "case-1",
+            new AiProductAnalyzeResponseDto.Release("post-e50-ai-product-freeze-v1"), "completed", null,
+            List.of(level), List.of(), new AiProductAnalyzeResponseDto.Review(true, "pending", true), true, false, true
+        );
+        Harness harness = buildHarness(new FakeAi(response), "case-1");
+        AiProductAnalysisResultDto created = harness.controller().analyze("case-1", new AiProductAnalysisApiRequestDto(null, null, null));
+        String measurementId = created.discLevels().get(0).measurements().get(0).measurementId();
+
+        assertThrows(RunReviewException.class, () -> harness.controller().correctMeasurement(
+            "case-1", created.analysisRunId(), measurementId,
+            new AiMeasurementCorrectionRequestDto("areaMm2", Double.NaN, null), professionalRequest()
+        ));
+        assertThrows(RunReviewException.class, () -> harness.controller().correctMeasurement(
+            "case-1", created.analysisRunId(), measurementId,
+            new AiMeasurementCorrectionRequestDto("areaMm2", Double.POSITIVE_INFINITY, null), professionalRequest()
+        ));
+    }
+
+    @Test
+    void reviewOfAnalysisFromAnotherStudy404s() {
+        Harness harness = buildHarness(new FakeAi(sampleResponse("completed")), "case-1");
+        AiProductAnalysisResultDto created = harness.controller().analyze("case-1", new AiProductAnalysisApiRequestDto(null, null, null));
+
+        Instant now = Instant.now();
+        Study other = new Study(UUID.randomUUID().toString(), "case-2", "registered", now, now);
+        harness.repository().saveStudy(other);
+
+        assertThrows(ResponseStatusException.class, () -> harness.controller().reviewRun(
+            "case-2", created.analysisRunId(), new AiProductAnalysisReviewRequestDto("accepted", null), professionalRequest()
+        ));
     }
 }

@@ -52,7 +52,8 @@ public class AiProductAnalysisPersistenceService {
         );
         AiProductAnalysisMapper.Mapped mapped = mapper.toDomain(resolved.studyId(), response, resolved.sagittalInputId(), resolved.axialInputId());
         repository.saveAiProductAnalysisRun(mapped.run(), mapped.discLevels(), mapped.measurements());
-        return mapper.toResultDto(mapped.run(), mapped.discLevels(), mapped.measurements());
+        // Freshly persisted: no review/correction can exist yet for this run.
+        return mapper.toResultDto(mapped.run(), mapped.discLevels(), mapped.measurements(), null, List.of(), List.of());
     }
 
     public List<AiProductAnalysisResultDto> history(String caseId) {
@@ -63,11 +64,20 @@ public class AiProductAnalysisPersistenceService {
     }
 
     public AiProductAnalysisResultDto detail(String caseId, String analysisId) {
+        return hydrate(resolveAnalysisRun(caseId, analysisId));
+    }
+
+    /**
+     * Stage 78: shared IDOR-safe lookup — an {@code analysisId} that exists but belongs to a
+     * different Study's {@code caseId} 404s exactly like one that doesn't exist at all, never
+     * leaking cross-Study existence. Reused by {@link AiProductAnalysisReviewService} so the
+     * review/correction endpoints enforce the identical rule rather than a second copy of it.
+     */
+    public AiProductAnalysisRun resolveAnalysisRun(String caseId, String analysisId) {
         String studyId = resolveStudyId(caseId);
-        AiProductAnalysisRun run = repository.findAiProductAnalysisRunById(analysisId)
+        return repository.findAiProductAnalysisRunById(analysisId)
             .filter(candidate -> candidate.studyId().equals(studyId))
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Analisis no encontrado"));
-        return hydrate(run);
     }
 
     private String resolveStudyId(String caseId) {
@@ -80,7 +90,10 @@ public class AiProductAnalysisPersistenceService {
         return mapper.toResultDto(
             run,
             repository.findAiDiscLevelResultsByAnalysisRunId(run.id()),
-            repository.findAiMeasurementResultsByAnalysisRunId(run.id())
+            repository.findAiMeasurementResultsByAnalysisRunId(run.id()),
+            repository.findAiProductAnalysisRunReview(run.id()).orElse(null),
+            repository.findAiDiscLevelReviewsByAnalysisRunId(run.id()),
+            repository.findAiMeasurementCorrectionsByAnalysisRunId(run.id())
         );
     }
 }

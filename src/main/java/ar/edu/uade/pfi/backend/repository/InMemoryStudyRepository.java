@@ -1,8 +1,11 @@
 package ar.edu.uade.pfi.backend.repository;
 
 import ar.edu.uade.pfi.backend.domain.AiDiscLevelResult;
+import ar.edu.uade.pfi.backend.domain.AiDiscLevelReview;
+import ar.edu.uade.pfi.backend.domain.AiMeasurementCorrection;
 import ar.edu.uade.pfi.backend.domain.AiMeasurementResult;
 import ar.edu.uade.pfi.backend.domain.AiProductAnalysisRun;
+import ar.edu.uade.pfi.backend.domain.AiProductAnalysisRunReview;
 import ar.edu.uade.pfi.backend.domain.DomainAuditEvent;
 import ar.edu.uade.pfi.backend.domain.InputResource;
 import ar.edu.uade.pfi.backend.domain.MeasurementCorrection;
@@ -17,6 +20,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -37,6 +41,9 @@ public class InMemoryStudyRepository implements StudyRepository {
     private final ConcurrentMap<String, AiProductAnalysisRun> aiAnalysisRunsById = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, List<AiDiscLevelResult>> aiDiscLevelResultsByRunId = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, List<AiMeasurementResult>> aiMeasurementResultsByRunId = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, AiProductAnalysisRunReview> aiRunReviewsByRunId = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, AiDiscLevelReview> aiDiscLevelReviewsByDiscLevelId = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, List<AiMeasurementCorrection>> aiMeasurementCorrectionsByRunId = new ConcurrentHashMap<>();
 
     @Override
     public Study saveStudy(Study study) {
@@ -357,5 +364,60 @@ public class InMemoryStudyRepository implements StudyRepository {
     @Override
     public List<AiMeasurementResult> findAiMeasurementResultsByAnalysisRunId(String analysisRunId) {
         return aiMeasurementResultsByRunId.getOrDefault(analysisRunId, List.of());
+    }
+
+    // ---- Stage 78: professional review / correction workflow ----
+
+    @Override
+    public AiProductAnalysisRunReview upsertAiProductAnalysisRunReview(String analysisRunId, String reviewStatus, String reviewComment, String reviewedBy, Instant reviewedAt) {
+        AiProductAnalysisRunReview review = new AiProductAnalysisRunReview(
+            UUID.randomUUID().toString(), analysisRunId, reviewStatus, reviewComment, reviewedBy, reviewedAt, Instant.now()
+        );
+        aiRunReviewsByRunId.put(analysisRunId, review);
+        return review;
+    }
+
+    @Override
+    public Optional<AiProductAnalysisRunReview> findAiProductAnalysisRunReview(String analysisRunId) {
+        return Optional.ofNullable(aiRunReviewsByRunId.get(analysisRunId));
+    }
+
+    @Override
+    public AiDiscLevelReview upsertAiDiscLevelReview(String discLevelResultId, String reviewStatus, String reviewComment, String reviewedBy, Instant reviewedAt) {
+        AiDiscLevelReview review = new AiDiscLevelReview(
+            UUID.randomUUID().toString(), discLevelResultId, reviewStatus, reviewComment, reviewedBy, reviewedAt, Instant.now()
+        );
+        aiDiscLevelReviewsByDiscLevelId.put(discLevelResultId, review);
+        return review;
+    }
+
+    @Override
+    public Optional<AiDiscLevelReview> findAiDiscLevelReview(String discLevelResultId) {
+        return Optional.ofNullable(aiDiscLevelReviewsByDiscLevelId.get(discLevelResultId));
+    }
+
+    @Override
+    public List<AiDiscLevelReview> findAiDiscLevelReviewsByAnalysisRunId(String analysisRunId) {
+        List<String> discLevelIds = aiDiscLevelResultsByRunId.getOrDefault(analysisRunId, List.of()).stream()
+            .map(AiDiscLevelResult::id)
+            .toList();
+        return aiDiscLevelReviewsByDiscLevelId.values().stream()
+            .filter(review -> discLevelIds.contains(review.discLevelResultId()))
+            .toList();
+    }
+
+    @Override
+    public AiMeasurementCorrection saveAiMeasurementCorrection(AiMeasurementCorrection correction) {
+        aiMeasurementCorrectionsByRunId.compute(correction.analysisRunId(), (key, existing) -> {
+            List<AiMeasurementCorrection> updated = new ArrayList<>(existing == null ? List.of() : existing);
+            updated.add(correction);
+            return updated;
+        });
+        return correction;
+    }
+
+    @Override
+    public List<AiMeasurementCorrection> findAiMeasurementCorrectionsByAnalysisRunId(String analysisRunId) {
+        return aiMeasurementCorrectionsByRunId.getOrDefault(analysisRunId, List.of());
     }
 }

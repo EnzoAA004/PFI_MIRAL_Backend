@@ -1,8 +1,11 @@
 package ar.edu.uade.pfi.backend.service;
 
 import ar.edu.uade.pfi.backend.domain.AiDiscLevelResult;
+import ar.edu.uade.pfi.backend.domain.AiDiscLevelReview;
+import ar.edu.uade.pfi.backend.domain.AiMeasurementCorrection;
 import ar.edu.uade.pfi.backend.domain.AiMeasurementResult;
 import ar.edu.uade.pfi.backend.domain.AiProductAnalysisRun;
+import ar.edu.uade.pfi.backend.domain.AiProductAnalysisRunReview;
 import ar.edu.uade.pfi.backend.dto.AiProductAnalysisResultDto;
 import ar.edu.uade.pfi.backend.dto.AiProductAnalyzeResponseDto;
 import java.time.Instant;
@@ -15,15 +18,16 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
 
 /**
- * Stage 76-C/76-E/76-F: translates a validated {@link AiProductAnalyzeResponseDto} into the
- * structured persistence records, and translates persisted records back into the Frontend-facing
- * {@link AiProductAnalysisResultDto} — the two directions live together so the shape returned by
- * POST and the shape returned by GET are built from the exact same rules.
+ * Stage 76-C/76-E/76-F, extended in stage 78: translates a validated
+ * {@link AiProductAnalyzeResponseDto} into the structured persistence records, and translates
+ * persisted records — together with their professional-review overlay (stage 78) — back into the
+ * Frontend-facing {@link AiProductAnalysisResultDto}.
  *
  * <p>Never reinterprets a value: a {@code null} {@code level} stays {@code null}, a {@code null}
  * boolean from the AI Module is treated as {@code false} (its absence is not evidence of a
  * negative finding, it is simply "not asserted"), and {@code status}/{@code structure} strings are
- * copied verbatim.
+ * copied verbatim. The stage-78 review/correction overlay is purely additive — it never rewrites
+ * an {@link AiDiscLevelResult}/{@link AiMeasurementResult} field.
  */
 @Component
 public class AiProductAnalysisMapper {
@@ -98,35 +102,64 @@ public class AiProductAnalysisMapper {
         return new Mapped(run, discLevels, measurements);
     }
 
-    public AiProductAnalysisResultDto toResultDto(AiProductAnalysisRun run, List<AiDiscLevelResult> discLevels, List<AiMeasurementResult> measurements) {
+    /**
+     * Stage 78: {@code runReview}/{@code discLevelReviews}/{@code corrections} may be empty/null
+     * (a freshly-persisted run has no review yet) — an absent review renders as
+     * {@code status="pending"}, never as an error or an omitted section.
+     */
+    public AiProductAnalysisResultDto toResultDto(
+        AiProductAnalysisRun run,
+        List<AiDiscLevelResult> discLevels,
+        List<AiMeasurementResult> measurements,
+        AiProductAnalysisRunReview runReview,
+        List<AiDiscLevelReview> discLevelReviews,
+        List<AiMeasurementCorrection> corrections
+    ) {
         Map<String, List<AiMeasurementResult>> measurementsByLevel = measurements.stream()
             .collect(Collectors.groupingBy(AiMeasurementResult::discLevelResultId));
+        Map<String, AiDiscLevelReview> discLevelReviewsById = (discLevelReviews == null ? List.<AiDiscLevelReview>of() : discLevelReviews).stream()
+            .collect(Collectors.toMap(AiDiscLevelReview::discLevelResultId, review -> review));
+        Map<String, List<AiMeasurementCorrection>> correctionsByMeasurement = (corrections == null ? List.<AiMeasurementCorrection>of() : corrections).stream()
+            .collect(Collectors.groupingBy(AiMeasurementCorrection::measurementId));
 
         List<AiProductAnalysisResultDto.DiscLevelView> discLevelViews = discLevels.stream()
             .sorted(Comparator.comparingInt(AiDiscLevelResult::rankIndex))
-            .map(level -> new AiProductAnalysisResultDto.DiscLevelView(
-                level.level(),
-                level.localizationStatus(),
-                level.localizationValidated(),
-                level.abstentionPreserved(),
-                level.axialPairingStatus(),
-                level.axialPairingValidated(),
-                level.axialPairingExperimental(),
-                level.axialPairingReviewRequired(),
-                level.degenerativeFindingsStatus(),
-                level.automaticInferenceEnabled(),
-                measurementsByLevel.getOrDefault(level.id(), List.of()).stream()
-                    .map(measurement -> new AiProductAnalysisResultDto.MeasurementView(
-                        measurement.plane(),
-                        measurement.level(),
-                        measurement.structure(),
-                        measurement.areaMm2(),
-                        measurement.majorAxisMm(),
-                        measurement.minorAxisMm(),
-                        measurement.reviewRequired()
-                    ))
-                    .toList()
-            ))
+            .map(level -> {
+                AiDiscLevelReview levelReview = discLevelReviewsById.get(level.id());
+                return new AiProductAnalysisResultDto.DiscLevelView(
+                    level.id(),
+                    level.level(),
+                    level.localizationStatus(),
+                    level.localizationValidated(),
+                    level.abstentionPreserved(),
+                    level.axialPairingStatus(),
+                    level.axialPairingValidated(),
+                    level.axialPairingExperimental(),
+                    level.axialPairingReviewRequired(),
+                    level.degenerativeFindingsStatus(),
+                    level.automaticInferenceEnabled(),
+                    measurementsByLevel.getOrDefault(level.id(), List.of()).stream()
+                        .map(measurement -> new AiProductAnalysisResultDto.MeasurementView(
+                            measurement.id(),
+                            measurement.plane(),
+                            measurement.level(),
+                            measurement.structure(),
+                            measurement.areaMm2(),
+                            measurement.majorAxisMm(),
+                            measurement.minorAxisMm(),
+                            measurement.reviewRequired(),
+                            latestCorrectionsPerField(correctionsByMeasurement.getOrDefault(measurement.id(), List.of()))
+                        ))
+                        .toList(),
+                    reviewView(
+                        run.humanReviewRequired(),
+                        levelReview == null ? null : levelReview.reviewStatus(),
+                        levelReview == null ? null : levelReview.reviewComment(),
+                        levelReview == null ? null : levelReview.reviewedBy(),
+                        levelReview == null ? null : levelReview.reviewedAt()
+                    )
+                );
+            })
             .toList();
 
         return new AiProductAnalysisResultDto(
@@ -136,12 +169,40 @@ public class AiProductAnalysisMapper {
             run.status(),
             run.warnings() == null ? List.of() : run.warnings(),
             discLevelViews,
-            new AiProductAnalysisResultDto.ReviewView(run.humanReviewRequired(), run.humanReviewRequired() ? "pending" : "not_required"),
+            reviewView(
+                run.humanReviewRequired(),
+                runReview == null ? null : runReview.reviewStatus(),
+                runReview == null ? null : runReview.reviewComment(),
+                runReview == null ? null : runReview.reviewedBy(),
+                runReview == null ? null : runReview.reviewedAt()
+            ),
             run.humanReviewRequired(),
             run.notClinicalDiagnosis(),
             run.autonomousDiagnosis(),
             run.createdAt(),
             run.completedAt()
         );
+    }
+
+    private AiProductAnalysisResultDto.ReviewView reviewView(boolean required, String status, String comment, String reviewedBy, Instant reviewedAt) {
+        return new AiProductAnalysisResultDto.ReviewView(required, status == null ? "pending" : status, comment, reviewedBy, reviewedAt);
+    }
+
+    /** One correction per {@code field} — the latest by {@code createdAt} when a field was corrected more than once. */
+    private List<AiProductAnalysisResultDto.MeasurementCorrectionView> latestCorrectionsPerField(List<AiMeasurementCorrection> measurementCorrections) {
+        return measurementCorrections.stream()
+            .collect(Collectors.groupingBy(AiMeasurementCorrection::field))
+            .values().stream()
+            .map(sameFieldCorrections -> sameFieldCorrections.stream().max(Comparator.comparing(AiMeasurementCorrection::createdAt)).orElseThrow())
+            .map(correction -> new AiProductAnalysisResultDto.MeasurementCorrectionView(
+                correction.field(),
+                correction.originalValue(),
+                correction.correctedValue(),
+                correction.unit(),
+                correction.comment(),
+                correction.reviewedBy(),
+                correction.createdAt()
+            ))
+            .toList();
     }
 }

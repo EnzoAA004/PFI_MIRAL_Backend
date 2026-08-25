@@ -51,6 +51,11 @@ public enum ApiErrorCode {
     AI_PRODUCT_SAFETY_VIOLATION(ApiErrorCategory.AI_CONTRACT, false, "La respuesta del analisis de producto no cumple las condiciones de seguridad requeridas."),
     /** Stage 76-B: Study has no analyzable sagittal/axial input to resolve — functional 422, not a contract/upstream failure. */
     AI_STUDY_INPUT_UNRESOLVED(ApiErrorCategory.VALIDATION, false, "El estudio no tiene entradas analizables disponibles."),
+
+    // ---- Stage 78: professional review / correction workflow on AiProductAnalysisRun ----
+    AI_PRODUCT_REVIEW_INVALID_STATUS(ApiErrorCategory.VALIDATION, false, "El estado de revision no es valido."),
+    AI_PRODUCT_REVIEW_COMMENT_INVALID(ApiErrorCategory.VALIDATION, false, "El comentario de revision no es valido."),
+    AI_PRODUCT_CORRECTION_INVALID_VALUE(ApiErrorCategory.VALIDATION, false, "El valor de la correccion no es valido."),
     INPUT_TOO_LARGE(ApiErrorCategory.VALIDATION, false, "El archivo medico supera el tamano maximo permitido para carga."),
     /** Reserved/historical: no current code path emits this literal code — RunReviewException always carries a more specific code (RUN_NOT_FOUND, INVALID_REVIEW_STATUS, ...). Kept as a generic fallback bucket. */
     RUN_REVIEW_ERROR(ApiErrorCategory.RESOURCE, false, "No fue posible procesar la revision."),

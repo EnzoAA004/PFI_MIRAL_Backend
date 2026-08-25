@@ -52,11 +52,19 @@ class PostgresStudyRepositoryAiProductAnalysisTest {
     }
 
     private AiProductAnalysisRun buildRun(String status) {
-        Instant now = Instant.now();
+        return buildRun(status, Instant.now());
+    }
+
+    /**
+     * {@code createdAt} is accepted explicitly so tests asserting ORDER BY created_at DESC
+     * (e.g. {@link #multipleRunsAllowedForTheSameStudyNoUniqueConstraintOnStudyId}) don't rely on
+     * two back-to-back {@code Instant.now()} calls landing in different timestamp buckets.
+     */
+    private AiProductAnalysisRun buildRun(String status, Instant createdAt) {
         return new AiProductAnalysisRun(
             UUID.randomUUID().toString(), study.id(), study.caseId(), "pfi.ai-product-result.v1",
             "post-e50-ai-product-freeze-v1", status, true, true, false, "trace-1",
-            "input-sag-1", "input-ax-1", List.of("67B2_RUNTIME_PARITY_NOT_PROVEN"), null, now, now
+            "input-sag-1", "input-ax-1", List.of("67B2_RUNTIME_PARITY_NOT_PROVEN"), null, createdAt, createdAt
         );
     }
 
@@ -105,8 +113,8 @@ class PostgresStudyRepositoryAiProductAnalysisTest {
 
     @Test
     void multipleRunsAllowedForTheSameStudyNoUniqueConstraintOnStudyId() {
-        AiProductAnalysisRun first = buildRun("completed");
-        AiProductAnalysisRun second = buildRun("partial");
+        AiProductAnalysisRun first = buildRun("completed", Instant.parse("2026-08-25T10:00:00Z"));
+        AiProductAnalysisRun second = buildRun("partial", Instant.parse("2026-08-25T11:00:00Z"));
 
         repository.saveAiProductAnalysisRun(first, List.of(), List.of());
         repository.saveAiProductAnalysisRun(second, List.of(), List.of());

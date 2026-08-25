@@ -1,8 +1,11 @@
 package ar.edu.uade.pfi.backend.repository;
 
 import ar.edu.uade.pfi.backend.domain.AiDiscLevelResult;
+import ar.edu.uade.pfi.backend.domain.AiDiscLevelReview;
+import ar.edu.uade.pfi.backend.domain.AiMeasurementCorrection;
 import ar.edu.uade.pfi.backend.domain.AiMeasurementResult;
 import ar.edu.uade.pfi.backend.domain.AiProductAnalysisRun;
+import ar.edu.uade.pfi.backend.domain.AiProductAnalysisRunReview;
 import ar.edu.uade.pfi.backend.domain.DomainAuditEvent;
 import ar.edu.uade.pfi.backend.domain.InputResource;
 import ar.edu.uade.pfi.backend.domain.MeasurementCorrection;
@@ -1216,5 +1219,216 @@ public class PostgresStudyRepository implements StudyRepository {
     private Double getNullableDouble(ResultSet rs, String column) throws Exception {
         double value = rs.getDouble(column);
         return rs.wasNull() ? null : value;
+    }
+
+    // ---- Stage 78: professional review / correction workflow ----
+
+    @Override
+    public AiProductAnalysisRunReview upsertAiProductAnalysisRunReview(String analysisRunId, String reviewStatus, String reviewComment, String reviewedBy, Instant reviewedAt) {
+        String id = UUID.randomUUID().toString();
+        Instant updatedAt = Instant.now();
+        try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
+            INSERT INTO domain_ai_analysis_run_reviews(id, analysis_run_id, review_status, review_comment, reviewed_by, reviewed_at, updated_at)
+            VALUES (?::uuid, ?::uuid, ?, ?, ?, ?, ?)
+            ON CONFLICT (analysis_run_id) DO UPDATE SET
+                review_status = EXCLUDED.review_status,
+                review_comment = EXCLUDED.review_comment,
+                reviewed_by = EXCLUDED.reviewed_by,
+                reviewed_at = EXCLUDED.reviewed_at,
+                updated_at = EXCLUDED.updated_at
+            RETURNING id, updated_at
+            """)) {
+            statement.setString(1, id);
+            statement.setString(2, analysisRunId);
+            statement.setString(3, reviewStatus);
+            statement.setString(4, reviewComment);
+            statement.setString(5, reviewedBy);
+            statement.setTimestamp(6, reviewedAt == null ? null : Timestamp.from(reviewedAt));
+            statement.setTimestamp(7, Timestamp.from(updatedAt));
+            try (ResultSet rs = statement.executeQuery()) {
+                rs.next();
+                return new AiProductAnalysisRunReview(
+                    rs.getObject("id", UUID.class).toString(),
+                    analysisRunId,
+                    reviewStatus,
+                    reviewComment,
+                    reviewedBy,
+                    reviewedAt,
+                    rs.getTimestamp("updated_at").toInstant()
+                );
+            }
+        } catch (Exception ex) {
+            throw new IllegalStateException("Could not save AI product analysis run review", ex);
+        }
+    }
+
+    @Override
+    public Optional<AiProductAnalysisRunReview> findAiProductAnalysisRunReview(String analysisRunId) {
+        try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
+            SELECT id, analysis_run_id, review_status, review_comment, reviewed_by, reviewed_at, updated_at
+            FROM domain_ai_analysis_run_reviews WHERE analysis_run_id = ?::uuid
+            """)) {
+            statement.setString(1, analysisRunId);
+            try (ResultSet rs = statement.executeQuery()) {
+                if (!rs.next()) return Optional.empty();
+                return Optional.of(readAiProductAnalysisRunReview(rs));
+            }
+        } catch (Exception ex) {
+            throw new IllegalStateException("Could not find AI product analysis run review", ex);
+        }
+    }
+
+    private AiProductAnalysisRunReview readAiProductAnalysisRunReview(ResultSet rs) throws Exception {
+        Timestamp reviewedAt = rs.getTimestamp("reviewed_at");
+        return new AiProductAnalysisRunReview(
+            rs.getObject("id", UUID.class).toString(),
+            rs.getObject("analysis_run_id", UUID.class).toString(),
+            rs.getString("review_status"),
+            rs.getString("review_comment"),
+            rs.getString("reviewed_by"),
+            reviewedAt == null ? null : reviewedAt.toInstant(),
+            rs.getTimestamp("updated_at").toInstant()
+        );
+    }
+
+    @Override
+    public AiDiscLevelReview upsertAiDiscLevelReview(String discLevelResultId, String reviewStatus, String reviewComment, String reviewedBy, Instant reviewedAt) {
+        String id = UUID.randomUUID().toString();
+        Instant updatedAt = Instant.now();
+        try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
+            INSERT INTO domain_ai_disc_level_reviews(id, disc_level_result_id, review_status, review_comment, reviewed_by, reviewed_at, updated_at)
+            VALUES (?::uuid, ?::uuid, ?, ?, ?, ?, ?)
+            ON CONFLICT (disc_level_result_id) DO UPDATE SET
+                review_status = EXCLUDED.review_status,
+                review_comment = EXCLUDED.review_comment,
+                reviewed_by = EXCLUDED.reviewed_by,
+                reviewed_at = EXCLUDED.reviewed_at,
+                updated_at = EXCLUDED.updated_at
+            RETURNING id, updated_at
+            """)) {
+            statement.setString(1, id);
+            statement.setString(2, discLevelResultId);
+            statement.setString(3, reviewStatus);
+            statement.setString(4, reviewComment);
+            statement.setString(5, reviewedBy);
+            statement.setTimestamp(6, reviewedAt == null ? null : Timestamp.from(reviewedAt));
+            statement.setTimestamp(7, Timestamp.from(updatedAt));
+            try (ResultSet rs = statement.executeQuery()) {
+                rs.next();
+                return new AiDiscLevelReview(
+                    rs.getObject("id", UUID.class).toString(),
+                    discLevelResultId,
+                    reviewStatus,
+                    reviewComment,
+                    reviewedBy,
+                    reviewedAt,
+                    rs.getTimestamp("updated_at").toInstant()
+                );
+            }
+        } catch (Exception ex) {
+            throw new IllegalStateException("Could not save AI disc level review", ex);
+        }
+    }
+
+    @Override
+    public Optional<AiDiscLevelReview> findAiDiscLevelReview(String discLevelResultId) {
+        try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
+            SELECT id, disc_level_result_id, review_status, review_comment, reviewed_by, reviewed_at, updated_at
+            FROM domain_ai_disc_level_reviews WHERE disc_level_result_id = ?::uuid
+            """)) {
+            statement.setString(1, discLevelResultId);
+            try (ResultSet rs = statement.executeQuery()) {
+                if (!rs.next()) return Optional.empty();
+                return Optional.of(readAiDiscLevelReview(rs));
+            }
+        } catch (Exception ex) {
+            throw new IllegalStateException("Could not find AI disc level review", ex);
+        }
+    }
+
+    @Override
+    public List<AiDiscLevelReview> findAiDiscLevelReviewsByAnalysisRunId(String analysisRunId) {
+        try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
+            SELECT r.id, r.disc_level_result_id, r.review_status, r.review_comment, r.reviewed_by, r.reviewed_at, r.updated_at
+            FROM domain_ai_disc_level_reviews r
+            JOIN domain_ai_disc_level_results d ON d.id = r.disc_level_result_id
+            WHERE d.analysis_run_id = ?::uuid
+            """)) {
+            statement.setString(1, analysisRunId);
+            try (ResultSet rs = statement.executeQuery()) {
+                List<AiDiscLevelReview> results = new ArrayList<>();
+                while (rs.next()) results.add(readAiDiscLevelReview(rs));
+                return results;
+            }
+        } catch (Exception ex) {
+            throw new IllegalStateException("Could not list AI disc level reviews", ex);
+        }
+    }
+
+    private AiDiscLevelReview readAiDiscLevelReview(ResultSet rs) throws Exception {
+        Timestamp reviewedAt = rs.getTimestamp("reviewed_at");
+        return new AiDiscLevelReview(
+            rs.getObject("id", UUID.class).toString(),
+            rs.getObject("disc_level_result_id", UUID.class).toString(),
+            rs.getString("review_status"),
+            rs.getString("review_comment"),
+            rs.getString("reviewed_by"),
+            reviewedAt == null ? null : reviewedAt.toInstant(),
+            rs.getTimestamp("updated_at").toInstant()
+        );
+    }
+
+    @Override
+    public AiMeasurementCorrection saveAiMeasurementCorrection(AiMeasurementCorrection correction) {
+        try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
+            INSERT INTO domain_ai_measurement_corrections(
+                id, measurement_id, analysis_run_id, field, original_value, corrected_value, unit, comment, reviewed_by, created_at
+            ) VALUES (?::uuid, ?::uuid, ?::uuid, ?, ?, ?, ?, ?, ?, ?)
+            """)) {
+            statement.setString(1, correction.id());
+            statement.setString(2, correction.measurementId());
+            statement.setString(3, correction.analysisRunId());
+            statement.setString(4, correction.field());
+            setNullableDouble(statement, 5, correction.originalValue());
+            statement.setDouble(6, correction.correctedValue());
+            statement.setString(7, correction.unit());
+            statement.setString(8, correction.comment());
+            statement.setString(9, correction.reviewedBy());
+            statement.setTimestamp(10, Timestamp.from(correction.createdAt()));
+            statement.executeUpdate();
+            return correction;
+        } catch (Exception ex) {
+            throw new IllegalStateException("Could not save AI measurement correction", ex);
+        }
+    }
+
+    @Override
+    public List<AiMeasurementCorrection> findAiMeasurementCorrectionsByAnalysisRunId(String analysisRunId) {
+        try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
+            SELECT id, measurement_id, analysis_run_id, field, original_value, corrected_value, unit, comment, reviewed_by, created_at
+            FROM domain_ai_measurement_corrections WHERE analysis_run_id = ?::uuid ORDER BY created_at ASC
+            """)) {
+            statement.setString(1, analysisRunId);
+            try (ResultSet rs = statement.executeQuery()) {
+                List<AiMeasurementCorrection> results = new ArrayList<>();
+                while (rs.next()) {
+                    results.add(new AiMeasurementCorrection(
+                        rs.getObject("id", UUID.class).toString(),
+                        rs.getObject("measurement_id", UUID.class).toString(),
+                        rs.getObject("analysis_run_id", UUID.class).toString(),
+                        rs.getString("field"),
+                        getNullableDouble(rs, "original_value"),
+                        rs.getDouble("corrected_value"),
+                        rs.getString("unit"),
+                        rs.getString("comment"),
+                        rs.getString("reviewed_by"),
+                        rs.getTimestamp("created_at").toInstant()
+                    ));
+                }
+                return results;
+            }
+        } catch (Exception ex) {
+            throw new IllegalStateException("Could not list AI measurement corrections", ex);
+        }
     }
 }

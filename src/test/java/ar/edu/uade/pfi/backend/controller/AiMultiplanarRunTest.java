@@ -571,5 +571,12 @@ class AiMultiplanarRunTest {
         @Override public Optional<ar.edu.uade.pfi.backend.domain.AiProductAnalysisRun> findAiProductAnalysisRunById(String id) { throw new UnsupportedOperationException(); }
         @Override public List<ar.edu.uade.pfi.backend.domain.AiDiscLevelResult> findAiDiscLevelResultsByAnalysisRunId(String analysisRunId) { throw new UnsupportedOperationException(); }
         @Override public List<ar.edu.uade.pfi.backend.domain.AiMeasurementResult> findAiMeasurementResultsByAnalysisRunId(String analysisRunId) { throw new UnsupportedOperationException(); }
+        @Override public ar.edu.uade.pfi.backend.domain.AiProductAnalysisRunReview upsertAiProductAnalysisRunReview(String analysisRunId, String reviewStatus, String reviewComment, String reviewedBy, Instant reviewedAt) { throw new UnsupportedOperationException(); }
+        @Override public Optional<ar.edu.uade.pfi.backend.domain.AiProductAnalysisRunReview> findAiProductAnalysisRunReview(String analysisRunId) { throw new UnsupportedOperationException(); }
+        @Override public ar.edu.uade.pfi.backend.domain.AiDiscLevelReview upsertAiDiscLevelReview(String discLevelResultId, String reviewStatus, String reviewComment, String reviewedBy, Instant reviewedAt) { throw new UnsupportedOperationException(); }
+        @Override public Optional<ar.edu.uade.pfi.backend.domain.AiDiscLevelReview> findAiDiscLevelReview(String discLevelResultId) { throw new UnsupportedOperationException(); }
+        @Override public List<ar.edu.uade.pfi.backend.domain.AiDiscLevelReview> findAiDiscLevelReviewsByAnalysisRunId(String analysisRunId) { throw new UnsupportedOperationException(); }
+        @Override public ar.edu.uade.pfi.backend.domain.AiMeasurementCorrection saveAiMeasurementCorrection(ar.edu.uade.pfi.backend.domain.AiMeasurementCorrection correction) { throw new UnsupportedOperationException(); }
+        @Override public List<ar.edu.uade.pfi.backend.domain.AiMeasurementCorrection> findAiMeasurementCorrectionsByAnalysisRunId(String analysisRunId) { throw new UnsupportedOperationException(); }
     }
 }
