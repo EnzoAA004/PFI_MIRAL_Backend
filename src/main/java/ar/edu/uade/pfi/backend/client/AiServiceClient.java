@@ -1,6 +1,7 @@
 package ar.edu.uade.pfi.backend.client;
 
 import ar.edu.uade.pfi.backend.config.AiMultiplanarContractVersion;
+import ar.edu.uade.pfi.backend.config.AiProductContractProperties;
 import ar.edu.uade.pfi.backend.config.AiServiceProperties;
 import ar.edu.uade.pfi.backend.config.SafeLogSanitizer;
 import ar.edu.uade.pfi.backend.config.TraceIdFilter;
@@ -9,6 +10,8 @@ import ar.edu.uade.pfi.backend.domain.CanonicalMultiplanarRun;
 import ar.edu.uade.pfi.backend.dto.AiInputResponseDto;
 import ar.edu.uade.pfi.backend.dto.AiMultiplanarV2RequestDto;
 import ar.edu.uade.pfi.backend.dto.AiMultiplanarV2ResponseDto;
+import ar.edu.uade.pfi.backend.dto.AiProductAnalyzeRequestDto;
+import ar.edu.uade.pfi.backend.dto.AiProductAnalyzeResponseDto;
 import ar.edu.uade.pfi.backend.dto.AiStructuredErrorV2Dto;
 import ar.edu.uade.pfi.backend.dto.AiSubarticularPredictRequestDto;
 import ar.edu.uade.pfi.backend.dto.MultiplanarRunRequestDto;
@@ -17,6 +20,10 @@ import ar.edu.uade.pfi.backend.dto.PipelineRunRequestDto;
 import ar.edu.uade.pfi.backend.dto.SubarticularPredictionResponseDto;
 import ar.edu.uade.pfi.backend.service.AiMultiplanarContractViolationException;
 import ar.edu.uade.pfi.backend.service.AiMultiplanarUpstreamException;
+import ar.edu.uade.pfi.backend.service.AiProductContractValidator;
+import ar.edu.uade.pfi.backend.service.AiProductContractViolationException;
+import ar.edu.uade.pfi.backend.service.AiProductSafetyViolationException;
+import ar.edu.uade.pfi.backend.service.AiProductUpstreamException;
 import ar.edu.uade.pfi.backend.service.MultiplanarRealBaselineContractValidator;
 import ar.edu.uade.pfi.backend.service.MultiplanarV2RealBaselineValidator;
 import ar.edu.uade.pfi.backend.service.OperationalMetricsService;
@@ -79,6 +86,7 @@ public class AiServiceClient implements AiServiceOperations {
     private final MultiplanarV2RealBaselineValidator v2StrictValidator;
     private final ObjectMapper objectMapper;
     private final OperationalMetricsService metrics;
+    private final AiProductContractValidator productContractValidator;
 
     public AiServiceClient(
         WebClient aiWebClient,
@@ -90,7 +98,7 @@ public class AiServiceClient implements AiServiceOperations {
         MultiplanarV2RealBaselineValidator v2StrictValidator,
         ObjectMapper objectMapper
     ) {
-        this(aiWebClient, properties, v2RequestMapper, v2ResponseAdapter, v1ResponseAdapter, v1StrictValidator, v2StrictValidator, objectMapper, null);
+        this(aiWebClient, properties, v2RequestMapper, v2ResponseAdapter, v1ResponseAdapter, v1StrictValidator, v2StrictValidator, objectMapper, null, null);
     }
 
     @Autowired
@@ -103,7 +111,8 @@ public class AiServiceClient implements AiServiceOperations {
         MultiplanarRealBaselineContractValidator v1StrictValidator,
         MultiplanarV2RealBaselineValidator v2StrictValidator,
         ObjectMapper objectMapper,
-        @Nullable OperationalMetricsService metrics
+        @Nullable OperationalMetricsService metrics,
+        @Nullable AiProductContractValidator productContractValidator
     ) {
         this.aiWebClient = aiWebClient;
         this.timeout = Duration.ofSeconds(properties.resolvedTimeoutSeconds());
@@ -116,6 +125,9 @@ public class AiServiceClient implements AiServiceOperations {
         this.v2StrictValidator = v2StrictValidator;
         this.objectMapper = objectMapper;
         this.metrics = metrics;
+        this.productContractValidator = productContractValidator == null
+            ? new AiProductContractValidator(AiProductContractProperties.defaults())
+            : productContractValidator;
     }
 
     /**
@@ -505,6 +517,71 @@ public class AiServiceClient implements AiServiceOperations {
     @Override
     public Map<String, Object> getMultiplanarContract() {
         return getDiagnosticMap("/multiplanar/contract");
+    }
+
+    /**
+     * POST /v1/product/analyze. Same shape as {@link #runMultiplanarV2}: trace id propagated by
+     * header, HTTP/transport failures translated to {@link AiProductUpstreamException}, and a
+     * success is only recorded once the whole pipeline — HTTP, deserialization, AND the 75-F
+     * contract/safety validation — has produced a result Spring is willing to hand back. A 200
+     * response that fails contract validation is a failure, not a success.
+     */
+    @Override
+    public AiProductAnalyzeResponseDto analyzeProduct(AiProductAnalyzeRequestDto request) {
+        String traceId = resolveTraceId();
+        AiProductAnalyzeRequestDto tracedRequest = withProductTraceMetadata(request, traceId);
+        long startedAt = System.currentTimeMillis();
+        try {
+            AiProductAnalyzeResponseDto response = dispatchProductHttp(() -> aiWebClient.post()
+                .uri("/v1/product/analyze")
+                .headers(headers -> applyTraceHeader(headers, traceId))
+                .bodyValue(tracedRequest)
+                .exchangeToMono(clientResponse -> {
+                    if (clientResponse.statusCode().is2xxSuccessful()) {
+                        return clientResponse.bodyToMono(AiProductAnalyzeResponseDto.class);
+                    }
+                    return clientResponse.releaseBody().then(Mono.error(buildProductError(clientResponse.statusCode(), traceId)));
+                })
+                .block(timeout), traceId);
+            productContractValidator.validate(response);
+            recordAiCall(true, startedAt);
+            return response;
+        } catch (RuntimeException ex) {
+            recordAiCall(false, startedAt);
+            if (ex instanceof AiProductContractViolationException || ex instanceof AiProductSafetyViolationException) {
+                incrementContractViolations();
+            }
+            throw ex;
+        }
+    }
+
+    private AiProductAnalyzeRequestDto withProductTraceMetadata(AiProductAnalyzeRequestDto request, String traceId) {
+        Map<String, Object> metadata = mergedTraceMetadata(request.metadata(), traceId);
+        return new AiProductAnalyzeRequestDto(request.caseId(), request.sagittalInputId(), request.axialInputId(), metadata);
+    }
+
+    /** Preserves the upstream 4xx status as-is (same convention as {@link #mapResponseOrError}) — never surfaces the body. */
+    private RuntimeException buildProductError(org.springframework.http.HttpStatusCode statusCode, String traceId) {
+        if (statusCode.is4xxClientError()) {
+            return new AiProductUpstreamException(HttpStatus.valueOf(statusCode.value()), ApiErrorCode.AI_INVALID_REQUEST.name(), ApiErrorCode.AI_INVALID_REQUEST.publicMessage(), traceId);
+        }
+        return new AiProductUpstreamException(HttpStatus.BAD_GATEWAY, ApiErrorCode.AI_MODULE_ERROR.name(), ApiErrorCode.AI_MODULE_ERROR.publicMessage(), traceId);
+    }
+
+    /** Like {@link #dispatchV2Http}, for the product-analyze pipeline. */
+    private <T> T dispatchProductHttp(Supplier<T> supplier, String traceId) {
+        try {
+            return supplier.get();
+        } catch (RuntimeException ex) {
+            Throwable unwrapped = Exceptions.unwrap(ex);
+            if (unwrapped instanceof AiProductUpstreamException upstream) {
+                throw upstream;
+            }
+            if (isTimeout(unwrapped)) {
+                throw new AiProductUpstreamException(HttpStatus.GATEWAY_TIMEOUT, ApiErrorCode.AI_MODULE_TIMEOUT.name(), ApiErrorCode.AI_MODULE_TIMEOUT.publicMessage(), traceId);
+            }
+            throw new AiProductUpstreamException(HttpStatus.BAD_GATEWAY, ApiErrorCode.AI_MODULE_ERROR.name(), ApiErrorCode.AI_MODULE_ERROR.publicMessage(), traceId);
+        }
     }
 
     private Map<String, Object> getMap(String path) {

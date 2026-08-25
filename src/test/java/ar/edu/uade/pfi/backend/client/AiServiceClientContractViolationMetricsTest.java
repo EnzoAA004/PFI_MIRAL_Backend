@@ -67,7 +67,8 @@ class AiServiceClientContractViolationMetricsTest {
             new MultiplanarRealBaselineContractValidator(),
             failingValidator,
             objectMapper,
-            metrics
+            metrics,
+            null
         );
 
         assertThrows(AiMultiplanarContractViolationException.class,
@@ -102,7 +103,8 @@ class AiServiceClientContractViolationMetricsTest {
             new MultiplanarRealBaselineContractValidator(),
             failingValidator,
             objectMapper,
-            metrics
+            metrics,
+            null
         );
 
         assertThrows(AiMultiplanarContractViolationException.class,

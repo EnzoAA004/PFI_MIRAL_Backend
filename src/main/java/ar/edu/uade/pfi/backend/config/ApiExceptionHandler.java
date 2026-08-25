@@ -7,6 +7,9 @@ import ar.edu.uade.pfi.backend.config.error.ApiErrorWriter;
 import ar.edu.uade.pfi.backend.service.AiContractViolationException;
 import ar.edu.uade.pfi.backend.service.AiMultiplanarContractViolationException;
 import ar.edu.uade.pfi.backend.service.AiMultiplanarUpstreamException;
+import ar.edu.uade.pfi.backend.service.AiProductContractViolationException;
+import ar.edu.uade.pfi.backend.service.AiProductSafetyViolationException;
+import ar.edu.uade.pfi.backend.service.AiProductUpstreamException;
 import ar.edu.uade.pfi.backend.service.AssetContentUnavailableException;
 import ar.edu.uade.pfi.backend.service.AuditService;
 import ar.edu.uade.pfi.backend.service.DatabaseUnavailableException;
@@ -93,6 +96,23 @@ public class ApiExceptionHandler {
      */
     @ExceptionHandler(AiMultiplanarUpstreamException.class)
     public ResponseEntity<Map<String, Object>> handleAiMultiplanarUpstream(AiMultiplanarUpstreamException ex, HttpServletRequest request) {
+        return buildError(ex.status(), ex.code(), ApiErrorCode.fromCode(ex.code()).publicMessage(), request, ex);
+    }
+
+    /** Stage 75: schemaVersion/release.releaseId mismatch on POST /v1/product/analyze — never exposed as a valid result. */
+    @ExceptionHandler(AiProductContractViolationException.class)
+    public ResponseEntity<Map<String, Object>> handleAiProductContractViolation(AiProductContractViolationException ex, HttpServletRequest request) {
+        return buildError(HttpStatus.BAD_GATEWAY, "AI_PRODUCT_CONTRACT_VIOLATION", ApiErrorCode.AI_PRODUCT_CONTRACT_VIOLATION.publicMessage(), request, ex);
+    }
+
+    /** Stage 75: fail-closed safety contract violation (autonomousDiagnosis/notClinicalDiagnosis/humanReviewRequired). */
+    @ExceptionHandler(AiProductSafetyViolationException.class)
+    public ResponseEntity<Map<String, Object>> handleAiProductSafetyViolation(AiProductSafetyViolationException ex, HttpServletRequest request) {
+        return buildError(HttpStatus.BAD_GATEWAY, "AI_PRODUCT_SAFETY_VIOLATION", ApiErrorCode.AI_PRODUCT_SAFETY_VIOLATION.publicMessage(), request, ex);
+    }
+
+    @ExceptionHandler(AiProductUpstreamException.class)
+    public ResponseEntity<Map<String, Object>> handleAiProductUpstream(AiProductUpstreamException ex, HttpServletRequest request) {
         return buildError(ex.status(), ex.code(), ApiErrorCode.fromCode(ex.code()).publicMessage(), request, ex);
     }
 

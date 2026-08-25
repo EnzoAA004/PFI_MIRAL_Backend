@@ -2,6 +2,8 @@ package ar.edu.uade.pfi.backend.client;
 
 import ar.edu.uade.pfi.backend.domain.CanonicalMultiplanarRun;
 import ar.edu.uade.pfi.backend.dto.AiInputResponseDto;
+import ar.edu.uade.pfi.backend.dto.AiProductAnalyzeRequestDto;
+import ar.edu.uade.pfi.backend.dto.AiProductAnalyzeResponseDto;
 import ar.edu.uade.pfi.backend.dto.AiSubarticularPredictRequestDto;
 import ar.edu.uade.pfi.backend.dto.MultiplanarRunRequestDto;
 import ar.edu.uade.pfi.backend.dto.PipelineRunRequestDto;
@@ -89,5 +91,15 @@ public interface AiServiceOperations {
 
     default Map<String, Object> getMultiplanarContract() {
         return Map.of("status", "multiplanar_unavailable", "humanReviewRequired", true, "notClinicalDiagnosis", true);
+    }
+
+    /**
+     * POST /v1/product/analyze — pfi.ai-product-result.v1 (post-e50-ai-product-freeze-v1). See
+     * {@code AiAnalysisService} for how {@code completed}/{@code partial}/{@code failed} are
+     * interpreted; this call itself only performs the HTTP request, deserialization, and the
+     * 75-F contract/safety validation (fail closed).
+     */
+    default AiProductAnalyzeResponseDto analyzeProduct(AiProductAnalyzeRequestDto request) {
+        throw new UnsupportedOperationException("product_analyze_unavailable");
     }
 }

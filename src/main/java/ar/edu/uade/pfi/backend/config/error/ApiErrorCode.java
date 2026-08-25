@@ -45,6 +45,10 @@ public enum ApiErrorCode {
     AI_TIMEOUT(ApiErrorCategory.AI_UPSTREAM, true, "El modulo de IA no respondio a tiempo."),
     AI_CONTRACT_VIOLATION(ApiErrorCategory.AI_CONTRACT, false, "La respuesta del modulo de IA no cumple el contrato esperado."),
     AI_MULTIPLANAR_CONTRACT_VIOLATION(ApiErrorCategory.AI_CONTRACT, false, "La respuesta multiplanar no cumple el contrato esperado."),
+    /** Stage 75: schemaVersion/release.releaseId mismatch, or a missing required section, on POST /v1/product/analyze. */
+    AI_PRODUCT_CONTRACT_VIOLATION(ApiErrorCategory.AI_CONTRACT, false, "La respuesta del analisis de producto no cumple el contrato esperado."),
+    /** Stage 75: autonomousDiagnosis=true, notClinicalDiagnosis=false, or humanReviewRequired=false. Fail closed — never relaxed. */
+    AI_PRODUCT_SAFETY_VIOLATION(ApiErrorCategory.AI_CONTRACT, false, "La respuesta del analisis de producto no cumple las condiciones de seguridad requeridas."),
     INPUT_TOO_LARGE(ApiErrorCategory.VALIDATION, false, "El archivo medico supera el tamano maximo permitido para carga."),
     /** Reserved/historical: no current code path emits this literal code — RunReviewException always carries a more specific code (RUN_NOT_FOUND, INVALID_REVIEW_STATUS, ...). Kept as a generic fallback bucket. */
     RUN_REVIEW_ERROR(ApiErrorCategory.RESOURCE, false, "No fue posible procesar la revision."),
