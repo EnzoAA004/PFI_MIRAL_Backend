@@ -1,0 +1,48 @@
+{
+  "modelName": "Qwen/Qwen2.5-7B-Instruct",
+  "modelRevisionCommit": "a09a35458c702b33eeacc393d103063234e8bc28",
+  "modelRevisionLastModified": "2025-01-12T02:10:10Z",
+  "source": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct",
+  "sourceApiVerification": "https://huggingface.co/api/models/Qwen/Qwen2.5-7B-Instruct",
+  "license": "Apache-2.0",
+  "licenseFile": "LICENSE (present in the model repository root)",
+  "downloadDate": "not yet downloaded (Stage 82 is planning-only, USD 0 target -- see 82_QWEN_REAL_DEPLOYMENT.md)",
+  "verifiedFileInventory": {
+    "totalSizeBytes": 15242807270,
+    "totalSizeApproxGB": 15.24,
+    "format": "safetensors, BF16",
+    "shardCount": 4,
+    "shards": [
+      { "file": "model-00001-of-00004.safetensors", "sizeGB": 3.95 },
+      { "file": "model-00002-of-00004.safetensors", "sizeGB": 3.86 },
+      { "file": "model-00003-of-00004.safetensors", "sizeGB": 3.86 },
+      { "file": "model-00004-of-00004.safetensors", "sizeGB": 3.56 }
+    ]
+  },
+  "sha256PerFile": "not computed -- requires downloading the weights first (deliberately not done in this planning-only stage); to compute once downloaded: `sha256sum model-*.safetensors` and record here before first real deployment",
+  "architecture": {
+    "type": "Qwen2ForCausalLM",
+    "totalParameters": "7.61B",
+    "nonEmbeddingParameters": "6.53B",
+    "layers": 28,
+    "attentionHeads": 28,
+    "kvHeads": 4,
+    "headDim": 128,
+    "hiddenSize": 3584
+  },
+  "contextLength": {
+    "modelSupportedMax": 131072,
+    "defaultConfig": 32768,
+    "plannedDeploymentMaxModelLen": 8192,
+    "rationale": "This product's chat context (Stage 80 StudyChatContextBuilder) is a small structured JSON payload, not a long document -- 8192 tokens comfortably covers system prompt + context + a bounded Stage-81 history window (8 turns) + question, with no need to reserve KV-cache memory for 32K/128K."
+  },
+  "recommendedRuntime": {
+    "name": "vLLM",
+    "version": "v0.27.1",
+    "versionSource": "https://github.com/vllm-project/vllm/releases (verified via GitHub Releases API on 2026-08-26)",
+    "servingMode": "OpenAI-compatible server (vllm serve)",
+    "notes": "Model card (huggingface.co/Qwen/Qwen2.5-7B-Instruct) explicitly recommends vLLM for deployment, especially for long-input handling."
+  },
+  "trainingModifications": "none -- no fine-tuning, no LoRA/QLoRA, official weights used as-is",
+  "verificationDate": "2026-08-26"
+}
