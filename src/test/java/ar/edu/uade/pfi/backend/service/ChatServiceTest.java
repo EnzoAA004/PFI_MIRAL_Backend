@@ -70,7 +70,7 @@ class ChatServiceTest {
 
     private final InMemoryStudyRepository repository = new InMemoryStudyRepository();
     private final EffectiveAnalysisRunSelector runSelector = new EffectiveAnalysisRunSelector(repository);
-    private final LongitudinalComparisonService longitudinalComparisonService = new LongitudinalComparisonService(repository, runSelector);
+    private final LongitudinalComparisonService longitudinalComparisonService = new LongitudinalComparisonService(repository, runSelector, new EffectiveMeasurementResolver(repository));
     private final AiProductAnalysisPersistenceService persistenceService = new AiProductAnalysisPersistenceService(
         new AiAnalysisService(new FakeAi()), new AiStudyInputResolver(repository), repository, new AiProductAnalysisMapper()
     );

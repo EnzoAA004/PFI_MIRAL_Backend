@@ -10,6 +10,7 @@ import ar.edu.uade.pfi.backend.domain.Study;
 import ar.edu.uade.pfi.backend.dto.LongitudinalComparisonResultDto;
 import ar.edu.uade.pfi.backend.repository.InMemoryStudyRepository;
 import ar.edu.uade.pfi.backend.service.EffectiveAnalysisRunSelector;
+import ar.edu.uade.pfi.backend.service.EffectiveMeasurementResolver;
 import ar.edu.uade.pfi.backend.service.LongitudinalComparisonService;
 import ar.edu.uade.pfi.backend.service.StudyNotFoundException;
 import java.time.Instant;
@@ -22,7 +23,7 @@ import org.junit.jupiter.api.Test;
 class LongitudinalComparisonControllerTest {
     private final InMemoryStudyRepository repository = new InMemoryStudyRepository();
     private final LongitudinalComparisonController controller = new LongitudinalComparisonController(
-        new LongitudinalComparisonService(repository, new EffectiveAnalysisRunSelector(repository))
+        new LongitudinalComparisonService(repository, new EffectiveAnalysisRunSelector(repository), new EffectiveMeasurementResolver(repository))
     );
 
     private Study seedStudy(String caseId, String subjectRef) {

@@ -1,5 +1,9 @@
 package ar.edu.uade.pfi.backend.service;
 
+import ar.edu.uade.pfi.backend.domain.AiMeasurementCorrection;
+import ar.edu.uade.pfi.backend.domain.AiMeasurementResult;
+import ar.edu.uade.pfi.backend.domain.AiProductAnalysisRun;
+import ar.edu.uade.pfi.backend.domain.AiProductAnalysisRunReview;
 import ar.edu.uade.pfi.backend.domain.MeasurementCorrection;
 import ar.edu.uade.pfi.backend.domain.Study;
 import ar.edu.uade.pfi.backend.domain.StudyRun;
@@ -10,18 +14,16 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Pattern;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 @Service
 public class PatientHistoryService {
-    private static final Pattern SUBJECT_REF_PATTERN = Pattern.compile("^[A-Za-z0-9._-]{3,64}$");
-
     private final StudyRepository repository;
+    private final EffectiveAnalysisRunSelector runSelector;
 
-    public PatientHistoryService(StudyRepository repository) {
+    public PatientHistoryService(StudyRepository repository, EffectiveAnalysisRunSelector runSelector) {
         this.repository = repository;
+        this.runSelector = runSelector;
     }
 
     public Map<String, Object> history(String subjectRef) {
@@ -67,7 +69,43 @@ public class PatientHistoryService {
         item.put("corrections", latestRun == null ? List.of() : corrections(latestRun.id()));
         item.put("createdAt", study.createdAt().toString());
         item.put("updatedAt", study.updatedAt().toString());
+        // Stage 84-C: the post-e50 AI product analysis summary (Stage 76/78/79's own concept,
+        // distinct from the legacy StudyRun above) always uses EffectiveAnalysisRunSelector --
+        // the exact same rule Stage 79's comparison and Stage 80's chat already use -- so a
+        // Study's "current" analysis is never a second, divergent selection rule.
+        item.put("productAnalysis", productAnalysisSummary(study));
         return item;
+    }
+
+    /**
+     * Stage 84-D: {@code null} when the Study has no effective run yet -- this is a normal state
+     * ("Sin análisis"), never an error, and the Study is never hidden because of it.
+     */
+    private Map<String, Object> productAnalysisSummary(Study study) {
+        return runSelector.selectEffectiveRun(study.id()).map(this::toProductAnalysisSummary).orElse(null);
+    }
+
+    private Map<String, Object> toProductAnalysisSummary(AiProductAnalysisRun run) {
+        List<AiMeasurementResult> measurements = repository.findAiMeasurementResultsByAnalysisRunId(run.id());
+        List<AiMeasurementCorrection> corrections = repository.findAiMeasurementCorrectionsByAnalysisRunId(run.id());
+        long correctedMeasurementCount = corrections.stream().map(AiMeasurementCorrection::measurementId).distinct().count();
+        String reviewStatus = repository.findAiProductAnalysisRunReview(run.id())
+            .map(AiProductAnalysisRunReview::reviewStatus)
+            .orElse("pending");
+
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("analysisRunId", run.id());
+        summary.put("status", run.status());
+        summary.put("reviewStatus", reviewStatus);
+        summary.put("measurementCount", measurements.size());
+        summary.put("correctedMeasurementCount", (int) correctedMeasurementCount);
+        // 84-H: the warnings are shown, never reinterpreted (e.g. 67B2_RUNTIME_PARITY_NOT_PROVEN
+        // stays exactly that string -- the Frontend, per Stage 77's convention, is the only layer
+        // that maps it to human-readable text).
+        summary.put("warnings", run.warnings());
+        summary.put("humanReviewRequired", run.humanReviewRequired());
+        summary.put("notClinicalDiagnosis", run.notClinicalDiagnosis());
+        return summary;
     }
 
     private Map<String, Object> summary(List<Map<String, Object>> studies) {
@@ -131,15 +169,7 @@ public class PatientHistoryService {
     }
 
     private String normalizeSubjectRef(String subjectRef) {
-        String value = subjectRef == null ? "" : subjectRef.trim();
-        if (!SUBJECT_REF_PATTERN.matcher(value).matches() || value.contains("..")) {
-            throw new StudyMetadataException(
-                HttpStatus.BAD_REQUEST,
-                "INVALID_SUBJECT_REFERENCE",
-                "subjectRef debe ser una referencia academica de-identificada valida."
-            );
-        }
-        return value;
+        return SubjectReferenceValidator.normalize(subjectRef);
     }
 
     private String firstNonBlank(String first, String second) {

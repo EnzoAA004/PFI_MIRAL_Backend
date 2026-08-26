@@ -28,7 +28,7 @@ class LongitudinalComparisonServiceTest {
     private final InMemoryStudyRepository repository = new InMemoryStudyRepository();
     private final EffectiveAnalysisRunSelector selector = new EffectiveAnalysisRunSelector(repository);
     private final Clock clock = Clock.fixed(Instant.parse("2026-08-25T12:00:00Z"), ZoneOffset.UTC);
-    private final LongitudinalComparisonService service = new LongitudinalComparisonService(repository, selector, clock);
+    private final LongitudinalComparisonService service = new LongitudinalComparisonService(repository, selector, new EffectiveMeasurementResolver(repository), clock);
 
     private record SeededMeasurement(AiProductAnalysisRun run, AiDiscLevelResult discLevel, AiMeasurementResult measurement) {
     }

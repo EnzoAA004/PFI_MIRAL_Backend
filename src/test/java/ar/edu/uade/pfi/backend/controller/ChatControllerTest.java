@@ -23,6 +23,7 @@ import ar.edu.uade.pfi.backend.service.AiProductAnalysisPersistenceService;
 import ar.edu.uade.pfi.backend.service.AiStudyInputResolver;
 import ar.edu.uade.pfi.backend.service.ChatService;
 import ar.edu.uade.pfi.backend.service.EffectiveAnalysisRunSelector;
+import ar.edu.uade.pfi.backend.service.EffectiveMeasurementResolver;
 import ar.edu.uade.pfi.backend.service.LongitudinalComparisonService;
 import ar.edu.uade.pfi.backend.service.RunReviewException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -63,7 +64,7 @@ class ChatControllerTest {
 
     private ChatController buildController() {
         EffectiveAnalysisRunSelector runSelector = new EffectiveAnalysisRunSelector(repository);
-        LongitudinalComparisonService longitudinalComparisonService = new LongitudinalComparisonService(repository, runSelector);
+        LongitudinalComparisonService longitudinalComparisonService = new LongitudinalComparisonService(repository, runSelector, new EffectiveMeasurementResolver(repository));
         AiProductAnalysisPersistenceService persistenceService = new AiProductAnalysisPersistenceService(
             new AiAnalysisService(new FakeAi()), new AiStudyInputResolver(repository), repository, new AiProductAnalysisMapper()
         );

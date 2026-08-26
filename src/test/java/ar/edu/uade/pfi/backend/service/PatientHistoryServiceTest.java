@@ -2,8 +2,13 @@ package ar.edu.uade.pfi.backend.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import ar.edu.uade.pfi.backend.domain.AiDiscLevelResult;
+import ar.edu.uade.pfi.backend.domain.AiMeasurementCorrection;
+import ar.edu.uade.pfi.backend.domain.AiMeasurementResult;
+import ar.edu.uade.pfi.backend.domain.AiProductAnalysisRun;
 import ar.edu.uade.pfi.backend.domain.MeasurementCorrection;
 import ar.edu.uade.pfi.backend.domain.Study;
 import ar.edu.uade.pfi.backend.repository.InMemoryStudyRepository;
@@ -116,7 +121,7 @@ class PatientHistoryServiceTest {
             ))
         );
 
-        Map<String, Object> history = new PatientHistoryService(repository).history("SPIDER-101");
+        Map<String, Object> history = new PatientHistoryService(repository, new EffectiveAnalysisRunSelector(repository)).history("SPIDER-101");
         List<Map<String, Object>> studies = (List<Map<String, Object>>) history.get("studies");
 
         assertEquals("postgres-domain", history.get("source"));
@@ -136,10 +141,175 @@ class PatientHistoryServiceTest {
 
     @Test
     void missingSubjectRefReturnsEmptyDomainResponse() {
-        Map<String, Object> history = new PatientHistoryService(new InMemoryStudyRepository()).history("SPIDER-404");
+        InMemoryStudyRepository emptyRepository = new InMemoryStudyRepository();
+        Map<String, Object> history = new PatientHistoryService(emptyRepository, new EffectiveAnalysisRunSelector(emptyRepository)).history("SPIDER-404");
         assertEquals("ok", history.get("status"));
         assertEquals("postgres-domain", history.get("source"));
         assertEquals(List.of(), history.get("studies"));
         assertEquals(0, ((Map<?, ?>) history.get("summary")).get("totalStudies"));
+    }
+
+    // ---- Stage 84-C through 84-H: post-e50 productAnalysis summary, reusing EffectiveAnalysisRunSelector ----
+
+    private Study seedDomainStudy(InMemoryStudyRepository repository, String caseId, String subjectRef, LocalDate studyDate) {
+        Instant now = Instant.now();
+        Study study = new Study(UUID.randomUUID().toString(), caseId, "registered", subjectRef, studyDate, "MRI", "desc", "medium", now, now);
+        repository.saveStudy(study);
+        return study;
+    }
+
+    private record SeededProductRun(AiProductAnalysisRun run, AiMeasurementResult measurement) {
+    }
+
+    private SeededProductRun seedProductRun(InMemoryStudyRepository repository, Study study, String status, List<String> warnings) {
+        String runId = UUID.randomUUID().toString();
+        Instant now = Instant.now();
+        AiProductAnalysisRun run = new AiProductAnalysisRun(
+            runId, study.id(), study.caseId(), "pfi.ai-product-result.v1", "post-e50-ai-product-freeze-v1",
+            status, true, true, false, "trace-1", "sag-1", "ax-1", warnings, null, now, now
+        );
+        AiDiscLevelResult discLevel = new AiDiscLevelResult(
+            UUID.randomUUID().toString(), runId, 0, "L4-L5", "localized", "67B2", true, false,
+            "paired", true, false, false, null, false
+        );
+        AiMeasurementResult measurement = new AiMeasurementResult(
+            UUID.randomUUID().toString(), runId, discLevel.id(), "sagittal", "L4-L5", "disc", 12.3, 12.3, 8.0, true
+        );
+        repository.saveAiProductAnalysisRun(run, List.of(discLevel), List.of(measurement));
+        return new SeededProductRun(run, measurement);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> productAnalysisOf(Map<String, Object> history, String caseId) {
+        List<Map<String, Object>> studies = (List<Map<String, Object>>) history.get("studies");
+        return (Map<String, Object>) studies.stream()
+            .filter(item -> caseId.equals(item.get("caseId")))
+            .findFirst().orElseThrow()
+            .get("productAnalysis");
+    }
+
+    @Test
+    void studyWithoutAnyProductAnalysisRunReportsNullNotAnError() {
+        InMemoryStudyRepository repository = new InMemoryStudyRepository();
+        seedDomainStudy(repository, "CASE-84-A", "PAT-84H-1", LocalDate.of(2026, 2, 1));
+
+        Map<String, Object> history = new PatientHistoryService(repository, new EffectiveAnalysisRunSelector(repository)).history("PAT-84H-1");
+        assertNull(productAnalysisOf(history, "CASE-84-A"));
+    }
+
+    @Test
+    void completedEffectiveRunIsSummarizedWithItsStatus() {
+        InMemoryStudyRepository repository = new InMemoryStudyRepository();
+        Study study = seedDomainStudy(repository, "CASE-84-B", "PAT-84H-2", LocalDate.of(2026, 2, 1));
+        seedProductRun(repository, study, "completed", List.of());
+
+        Map<String, Object> history = new PatientHistoryService(repository, new EffectiveAnalysisRunSelector(repository)).history("PAT-84H-2");
+        Map<String, Object> productAnalysis = productAnalysisOf(history, "CASE-84-B");
+        assertEquals("completed", productAnalysis.get("status"));
+    }
+
+    @Test
+    void partialEffectiveRunIsSummarizedWithItsStatus() {
+        InMemoryStudyRepository repository = new InMemoryStudyRepository();
+        Study study = seedDomainStudy(repository, "CASE-84-C", "PAT-84H-3", LocalDate.of(2026, 2, 1));
+        seedProductRun(repository, study, "partial", List.of());
+
+        Map<String, Object> history = new PatientHistoryService(repository, new EffectiveAnalysisRunSelector(repository)).history("PAT-84H-3");
+        assertEquals("partial", productAnalysisOf(history, "CASE-84-C").get("status"));
+    }
+
+    @Test
+    void failedRunIsNeverSelectedAsTheEffectiveSummary() {
+        InMemoryStudyRepository repository = new InMemoryStudyRepository();
+        Study study = seedDomainStudy(repository, "CASE-84-D", "PAT-84H-4", LocalDate.of(2026, 2, 1));
+        seedProductRun(repository, study, "failed", List.of());
+
+        Map<String, Object> history = new PatientHistoryService(repository, new EffectiveAnalysisRunSelector(repository)).history("PAT-84H-4");
+        assertNull(productAnalysisOf(history, "CASE-84-D"));
+    }
+
+    @Test
+    void measurementCountReflectsThePersistedMeasurements() {
+        InMemoryStudyRepository repository = new InMemoryStudyRepository();
+        Study study = seedDomainStudy(repository, "CASE-84-E", "PAT-84H-5", LocalDate.of(2026, 2, 1));
+        seedProductRun(repository, study, "completed", List.of());
+
+        Map<String, Object> history = new PatientHistoryService(repository, new EffectiveAnalysisRunSelector(repository)).history("PAT-84H-5");
+        assertEquals(1, productAnalysisOf(history, "CASE-84-E").get("measurementCount"));
+    }
+
+    @Test
+    void correctedMeasurementCountReflectsDistinctCorrectedMeasurements() {
+        InMemoryStudyRepository repository = new InMemoryStudyRepository();
+        Study study = seedDomainStudy(repository, "CASE-84-F", "PAT-84H-6", LocalDate.of(2026, 2, 1));
+        SeededProductRun seeded = seedProductRun(repository, study, "completed", List.of());
+        repository.saveAiMeasurementCorrection(new AiMeasurementCorrection(
+            UUID.randomUUID().toString(), seeded.measurement().id(), seeded.run().id(), "majorAxisMm",
+            12.3, 12.9, "mm", null, "doctor-1", Instant.now()
+        ));
+
+        Map<String, Object> history = new PatientHistoryService(repository, new EffectiveAnalysisRunSelector(repository)).history("PAT-84H-6");
+        Map<String, Object> productAnalysis = productAnalysisOf(history, "CASE-84-F");
+        assertEquals(1, productAnalysis.get("measurementCount"));
+        assertEquals(1, productAnalysis.get("correctedMeasurementCount"));
+    }
+
+    @Test
+    void warningsArePreservedVerbatimNeverReinterpreted() {
+        InMemoryStudyRepository repository = new InMemoryStudyRepository();
+        Study study = seedDomainStudy(repository, "CASE-84-G", "PAT-84H-7", LocalDate.of(2026, 2, 1));
+        seedProductRun(repository, study, "partial", List.of("67B2_RUNTIME_PARITY_NOT_PROVEN", "67C_RUNTIME_PARITY_NOT_PROVEN"));
+
+        Map<String, Object> history = new PatientHistoryService(repository, new EffectiveAnalysisRunSelector(repository)).history("PAT-84H-7");
+        @SuppressWarnings("unchecked")
+        List<String> warnings = (List<String>) productAnalysisOf(history, "CASE-84-G").get("warnings");
+        assertTrue(warnings.contains("67B2_RUNTIME_PARITY_NOT_PROVEN"));
+        assertTrue(warnings.contains("67C_RUNTIME_PARITY_NOT_PROVEN"));
+    }
+
+    @Test
+    void reviewStatusDefaultsToPendingWhenNoReviewWasRecorded() {
+        InMemoryStudyRepository repository = new InMemoryStudyRepository();
+        Study study = seedDomainStudy(repository, "CASE-84-H", "PAT-84H-8", LocalDate.of(2026, 2, 1));
+        seedProductRun(repository, study, "completed", List.of());
+
+        Map<String, Object> history = new PatientHistoryService(repository, new EffectiveAnalysisRunSelector(repository)).history("PAT-84H-8");
+        assertEquals("pending", productAnalysisOf(history, "CASE-84-H").get("reviewStatus"));
+    }
+
+    @Test
+    void reviewedRunReflectsItsReviewStatusInTheSummary() {
+        InMemoryStudyRepository repository = new InMemoryStudyRepository();
+        Study study = seedDomainStudy(repository, "CASE-84-I", "PAT-84H-9", LocalDate.of(2026, 2, 1));
+        SeededProductRun seeded = seedProductRun(repository, study, "completed", List.of());
+        repository.upsertAiProductAnalysisRunReview(seeded.run().id(), "accepted", null, "doctor-1", Instant.now());
+
+        Map<String, Object> history = new PatientHistoryService(repository, new EffectiveAnalysisRunSelector(repository)).history("PAT-84H-9");
+        assertEquals("accepted", productAnalysisOf(history, "CASE-84-I").get("reviewStatus"));
+    }
+
+    @Test
+    void productAnalysisSummaryNeverIncludesHumanReviewRequiredFalse() {
+        InMemoryStudyRepository repository = new InMemoryStudyRepository();
+        Study study = seedDomainStudy(repository, "CASE-84-J", "PAT-84H-10", LocalDate.of(2026, 2, 1));
+        seedProductRun(repository, study, "completed", List.of());
+
+        Map<String, Object> history = new PatientHistoryService(repository, new EffectiveAnalysisRunSelector(repository)).history("PAT-84H-10");
+        Map<String, Object> productAnalysis = productAnalysisOf(history, "CASE-84-J");
+        assertEquals(true, productAnalysis.get("humanReviewRequired"));
+        assertEquals(true, productAnalysis.get("notClinicalDiagnosis"));
+    }
+
+    @Test
+    void multipleStudiesEachGetTheirOwnIndependentProductAnalysisSummary() {
+        InMemoryStudyRepository repository = new InMemoryStudyRepository();
+        Study older = seedDomainStudy(repository, "CASE-84-K1", "PAT-84H-11", LocalDate.of(2026, 2, 1));
+        Study newer = seedDomainStudy(repository, "CASE-84-K2", "PAT-84H-11", LocalDate.of(2026, 5, 10));
+        seedProductRun(repository, older, "completed", List.of());
+        seedProductRun(repository, newer, "partial", List.of("67B2_RUNTIME_PARITY_NOT_PROVEN"));
+
+        Map<String, Object> history = new PatientHistoryService(repository, new EffectiveAnalysisRunSelector(repository)).history("PAT-84H-11");
+        assertEquals("completed", productAnalysisOf(history, "CASE-84-K1").get("status"));
+        assertEquals("partial", productAnalysisOf(history, "CASE-84-K2").get("status"));
     }
 }
