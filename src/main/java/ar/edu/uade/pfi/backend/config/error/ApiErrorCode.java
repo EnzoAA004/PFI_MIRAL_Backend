@@ -61,6 +61,16 @@ public enum ApiErrorCode {
     LONGITUDINAL_SAME_STUDY(ApiErrorCategory.VALIDATION, false, "No se puede comparar un estudio consigo mismo."),
     LONGITUDINAL_NO_USABLE_ANALYSIS_BASELINE(ApiErrorCategory.VALIDATION, false, "El estudio de referencia no tiene un analisis utilizable."),
     LONGITUDINAL_NO_USABLE_ANALYSIS_CURRENT(ApiErrorCategory.VALIDATION, false, "El estudio actual no tiene un analisis utilizable."),
+
+    // ---- Stage 80: contextual chat / self-hosted LLM ----
+    CHAT_QUESTION_REQUIRED(ApiErrorCategory.VALIDATION, false, "La pregunta no puede estar vacia."),
+    CHAT_QUESTION_TOO_LONG(ApiErrorCategory.VALIDATION, false, "La pregunta supera el largo maximo permitido."),
+    LLM_PROVIDER_DISABLED(ApiErrorCategory.AI_UPSTREAM, false, "El asistente conversacional no esta habilitado en este entorno."),
+    /** Not auto-retried (see ApiErrorWriter's non-idempotent-POST override) -- a chat call is not idempotent from the user's perspective. */
+    LLM_PROVIDER_UNAVAILABLE(ApiErrorCategory.AI_UPSTREAM, true, "El asistente conversacional no esta disponible en este momento."),
+    LLM_PROVIDER_TIMEOUT(ApiErrorCategory.AI_UPSTREAM, true, "El asistente conversacional no respondio a tiempo."),
+    LLM_CONTRACT_VIOLATION(ApiErrorCategory.AI_CONTRACT, false, "La respuesta del asistente conversacional no cumple el contrato esperado."),
+    CHAT_CONVERSATION_NOT_FOUND(ApiErrorCategory.RESOURCE, false, "Conversacion no encontrada."),
     INPUT_TOO_LARGE(ApiErrorCategory.VALIDATION, false, "El archivo medico supera el tamano maximo permitido para carga."),
     /** Reserved/historical: no current code path emits this literal code — RunReviewException always carries a more specific code (RUN_NOT_FOUND, INVALID_REVIEW_STATUS, ...). Kept as a generic fallback bucket. */
     RUN_REVIEW_ERROR(ApiErrorCategory.RESOURCE, false, "No fue posible procesar la revision."),

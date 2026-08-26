@@ -6,6 +6,8 @@ import ar.edu.uade.pfi.backend.domain.AiMeasurementCorrection;
 import ar.edu.uade.pfi.backend.domain.AiMeasurementResult;
 import ar.edu.uade.pfi.backend.domain.AiProductAnalysisRun;
 import ar.edu.uade.pfi.backend.domain.AiProductAnalysisRunReview;
+import ar.edu.uade.pfi.backend.domain.ChatConversation;
+import ar.edu.uade.pfi.backend.domain.ChatMessage;
 import ar.edu.uade.pfi.backend.domain.DomainAuditEvent;
 import ar.edu.uade.pfi.backend.domain.InputResource;
 import ar.edu.uade.pfi.backend.domain.MeasurementCorrection;
@@ -44,6 +46,8 @@ public class InMemoryStudyRepository implements StudyRepository {
     private final ConcurrentMap<String, AiProductAnalysisRunReview> aiRunReviewsByRunId = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, AiDiscLevelReview> aiDiscLevelReviewsByDiscLevelId = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, List<AiMeasurementCorrection>> aiMeasurementCorrectionsByRunId = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, ChatConversation> chatConversationsById = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, List<ChatMessage>> chatMessagesByConversationId = new ConcurrentHashMap<>();
 
     @Override
     public Study saveStudy(Study study) {
@@ -419,5 +423,41 @@ public class InMemoryStudyRepository implements StudyRepository {
     @Override
     public List<AiMeasurementCorrection> findAiMeasurementCorrectionsByAnalysisRunId(String analysisRunId) {
         return aiMeasurementCorrectionsByRunId.getOrDefault(analysisRunId, List.of());
+    }
+
+    // ---- Stage 80: contextual chat ----
+
+    @Override
+    public ChatConversation saveChatConversation(ChatConversation conversation) {
+        chatConversationsById.put(conversation.id(), conversation);
+        return conversation;
+    }
+
+    @Override
+    public ChatMessage saveChatMessage(ChatMessage message) {
+        chatMessagesByConversationId.compute(message.conversationId(), (key, existing) -> {
+            List<ChatMessage> updated = new ArrayList<>(existing == null ? List.of() : existing);
+            updated.add(message);
+            return updated;
+        });
+        return message;
+    }
+
+    @Override
+    public List<ChatConversation> findChatConversationsByStudyId(String studyId) {
+        return chatConversationsById.values().stream()
+            .filter(conversation -> conversation.studyId().equals(studyId))
+            .sorted(Comparator.comparing(ChatConversation::createdAt).reversed())
+            .toList();
+    }
+
+    @Override
+    public Optional<ChatConversation> findChatConversationById(String conversationId) {
+        return Optional.ofNullable(chatConversationsById.get(conversationId));
+    }
+
+    @Override
+    public List<ChatMessage> findChatMessagesByConversationId(String conversationId) {
+        return chatMessagesByConversationId.getOrDefault(conversationId, List.of());
     }
 }

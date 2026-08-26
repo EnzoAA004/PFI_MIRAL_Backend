@@ -49,6 +49,21 @@ public class WebClientConfig {
             .build();
     }
 
+    /** Stage 80: a separate bean/connection pool from {@code aiWebClient} — the LLM provider is a distinct upstream with its own timeout floor. */
+    @Bean
+    public WebClient llmWebClient(LlmProperties properties) {
+        int timeoutSeconds = properties.resolvedTimeoutSeconds();
+        HttpClient httpClient = HttpClient.create()
+            .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, (int) CONNECT_TIMEOUT.toMillis())
+            .responseTimeout(Duration.ofSeconds(timeoutSeconds));
+
+        return WebClient.builder()
+            .baseUrl(properties.resolvedBaseUrl())
+            .clientConnector(new ReactorClientHttpConnector(httpClient))
+            .filter(traceIdPropagationFilter())
+            .build();
+    }
+
     private ExchangeFilterFunction traceIdPropagationFilter() {
         return ExchangeFilterFunction.ofRequestProcessor(request -> {
             String traceId = MDC.get(TraceIdFilter.TRACE_ID_MDC_KEY);

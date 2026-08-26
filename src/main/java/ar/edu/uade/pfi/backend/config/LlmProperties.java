@@ -1,0 +1,53 @@
+package ar.edu.uade.pfi.backend.config;
+
+import org.springframework.boot.context.properties.ConfigurationProperties;
+
+/**
+ * Stage 80: configuration for the self-hosted LLM provider (Qwen2.5-7B-Instruct behind an
+ * OpenAI-chat-completions-shaped HTTP API — see {@code SelfHostedLlmProvider}). Everything is
+ * env-var overridable, nothing hardcoded — matching {@code AiServiceProperties}'s convention.
+ *
+ * <p>{@code enabled} defaults to {@code false} (stage 80-AF: "diseñar para poder apagar el LLM
+ * runtime en desarrollo") — chat is an explicitly opt-in, complementary capability, never a
+ * dependency the rest of the product needs to boot.
+ */
+@ConfigurationProperties(prefix = "pfi.llm")
+public record LlmProperties(
+    Boolean enabled,
+    String provider,
+    String baseUrl,
+    String model,
+    Integer timeoutSeconds,
+    Double temperature,
+    Integer maxOutputTokens
+) {
+    public boolean resolvedEnabled() {
+        return Boolean.TRUE.equals(enabled);
+    }
+
+    public String resolvedProvider() {
+        return provider == null || provider.isBlank() ? "self-hosted" : provider;
+    }
+
+    public String resolvedBaseUrl() {
+        return baseUrl == null || baseUrl.isBlank() ? "http://localhost:8001" : baseUrl;
+    }
+
+    public String resolvedModel() {
+        return model == null || model.isBlank() ? "Qwen2.5-7B-Instruct" : model;
+    }
+
+    /** Floor of 10s — a self-hosted model can be slower than a conventional API but must never be unbounded (80-Q). */
+    public int resolvedTimeoutSeconds() {
+        return timeoutSeconds == null ? 90 : Math.max(timeoutSeconds, 10);
+    }
+
+    /** Default 0.1 — consistency/fidelity prioritized over creativity (80-AH). */
+    public double resolvedTemperature() {
+        return temperature == null ? 0.1 : temperature;
+    }
+
+    public int resolvedMaxOutputTokens() {
+        return maxOutputTokens == null ? 512 : maxOutputTokens;
+    }
+}

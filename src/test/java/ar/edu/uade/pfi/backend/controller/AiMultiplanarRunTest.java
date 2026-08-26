@@ -578,5 +578,10 @@ class AiMultiplanarRunTest {
         @Override public List<ar.edu.uade.pfi.backend.domain.AiDiscLevelReview> findAiDiscLevelReviewsByAnalysisRunId(String analysisRunId) { throw new UnsupportedOperationException(); }
         @Override public ar.edu.uade.pfi.backend.domain.AiMeasurementCorrection saveAiMeasurementCorrection(ar.edu.uade.pfi.backend.domain.AiMeasurementCorrection correction) { throw new UnsupportedOperationException(); }
         @Override public List<ar.edu.uade.pfi.backend.domain.AiMeasurementCorrection> findAiMeasurementCorrectionsByAnalysisRunId(String analysisRunId) { throw new UnsupportedOperationException(); }
+        @Override public ar.edu.uade.pfi.backend.domain.ChatConversation saveChatConversation(ar.edu.uade.pfi.backend.domain.ChatConversation conversation) { throw new UnsupportedOperationException(); }
+        @Override public ar.edu.uade.pfi.backend.domain.ChatMessage saveChatMessage(ar.edu.uade.pfi.backend.domain.ChatMessage message) { throw new UnsupportedOperationException(); }
+        @Override public List<ar.edu.uade.pfi.backend.domain.ChatConversation> findChatConversationsByStudyId(String studyId) { throw new UnsupportedOperationException(); }
+        @Override public Optional<ar.edu.uade.pfi.backend.domain.ChatConversation> findChatConversationById(String conversationId) { throw new UnsupportedOperationException(); }
+        @Override public List<ar.edu.uade.pfi.backend.domain.ChatMessage> findChatMessagesByConversationId(String conversationId) { throw new UnsupportedOperationException(); }
     }
 }

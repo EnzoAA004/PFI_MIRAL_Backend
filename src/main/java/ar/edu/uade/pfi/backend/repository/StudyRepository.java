@@ -6,6 +6,8 @@ import ar.edu.uade.pfi.backend.domain.AiMeasurementCorrection;
 import ar.edu.uade.pfi.backend.domain.AiMeasurementResult;
 import ar.edu.uade.pfi.backend.domain.AiProductAnalysisRun;
 import ar.edu.uade.pfi.backend.domain.AiProductAnalysisRunReview;
+import ar.edu.uade.pfi.backend.domain.ChatConversation;
+import ar.edu.uade.pfi.backend.domain.ChatMessage;
 import ar.edu.uade.pfi.backend.domain.DomainAuditEvent;
 import ar.edu.uade.pfi.backend.domain.InputResource;
 import ar.edu.uade.pfi.backend.domain.MeasurementCorrection;
@@ -125,4 +127,17 @@ public interface StudyRepository {
     AiMeasurementCorrection saveAiMeasurementCorrection(AiMeasurementCorrection correction);
 
     List<AiMeasurementCorrection> findAiMeasurementCorrectionsByAnalysisRunId(String analysisRunId);
+
+    // ---- Stage 80: contextual chat ----
+
+    /** Always inserts a new conversation — a Study can have many (80-U), never overwritten. */
+    ChatConversation saveChatConversation(ChatConversation conversation);
+
+    ChatMessage saveChatMessage(ChatMessage message);
+
+    List<ChatConversation> findChatConversationsByStudyId(String studyId);
+
+    Optional<ChatConversation> findChatConversationById(String conversationId);
+
+    List<ChatMessage> findChatMessagesByConversationId(String conversationId);
 }

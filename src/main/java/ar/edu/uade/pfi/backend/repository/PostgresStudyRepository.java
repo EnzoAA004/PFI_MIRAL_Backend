@@ -6,6 +6,8 @@ import ar.edu.uade.pfi.backend.domain.AiMeasurementCorrection;
 import ar.edu.uade.pfi.backend.domain.AiMeasurementResult;
 import ar.edu.uade.pfi.backend.domain.AiProductAnalysisRun;
 import ar.edu.uade.pfi.backend.domain.AiProductAnalysisRunReview;
+import ar.edu.uade.pfi.backend.domain.ChatConversation;
+import ar.edu.uade.pfi.backend.domain.ChatMessage;
 import ar.edu.uade.pfi.backend.domain.DomainAuditEvent;
 import ar.edu.uade.pfi.backend.domain.InputResource;
 import ar.edu.uade.pfi.backend.domain.MeasurementCorrection;
@@ -1399,6 +1401,116 @@ public class PostgresStudyRepository implements StudyRepository {
             return correction;
         } catch (Exception ex) {
             throw new IllegalStateException("Could not save AI measurement correction", ex);
+        }
+    }
+
+    // ---- Stage 80: contextual chat ----
+
+    @Override
+    public ChatConversation saveChatConversation(ChatConversation conversation) {
+        try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
+            INSERT INTO domain_chat_conversations(id, study_id, created_at) VALUES (?::uuid, ?::uuid, ?)
+            """)) {
+            statement.setString(1, conversation.id());
+            statement.setString(2, conversation.studyId());
+            statement.setTimestamp(3, Timestamp.from(conversation.createdAt()));
+            statement.executeUpdate();
+            return conversation;
+        } catch (Exception ex) {
+            throw new IllegalStateException("Could not save chat conversation", ex);
+        }
+    }
+
+    @Override
+    public ChatMessage saveChatMessage(ChatMessage message) {
+        try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
+            INSERT INTO domain_chat_messages(
+                id, conversation_id, role, content, created_at, model, provider, prompt_version, analysis_run_id, baseline_study_id
+            ) VALUES (?::uuid, ?::uuid, ?, ?, ?, ?, ?, ?, ?::uuid, ?::uuid)
+            """)) {
+            statement.setString(1, message.id());
+            statement.setString(2, message.conversationId());
+            statement.setString(3, message.role());
+            statement.setString(4, message.content());
+            statement.setTimestamp(5, Timestamp.from(message.createdAt()));
+            statement.setString(6, message.model());
+            statement.setString(7, message.provider());
+            statement.setString(8, message.promptVersion());
+            statement.setString(9, message.analysisRunId());
+            statement.setString(10, message.baselineStudyId());
+            statement.executeUpdate();
+            return message;
+        } catch (Exception ex) {
+            throw new IllegalStateException("Could not save chat message", ex);
+        }
+    }
+
+    @Override
+    public List<ChatConversation> findChatConversationsByStudyId(String studyId) {
+        try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
+            SELECT id, study_id, created_at FROM domain_chat_conversations WHERE study_id = ?::uuid ORDER BY created_at DESC
+            """)) {
+            statement.setString(1, studyId);
+            try (ResultSet rs = statement.executeQuery()) {
+                List<ChatConversation> conversations = new ArrayList<>();
+                while (rs.next()) conversations.add(readChatConversation(rs));
+                return conversations;
+            }
+        } catch (Exception ex) {
+            throw new IllegalStateException("Could not list chat conversations", ex);
+        }
+    }
+
+    @Override
+    public Optional<ChatConversation> findChatConversationById(String conversationId) {
+        try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
+            SELECT id, study_id, created_at FROM domain_chat_conversations WHERE id = ?::uuid
+            """)) {
+            statement.setString(1, conversationId);
+            try (ResultSet rs = statement.executeQuery()) {
+                if (!rs.next()) return Optional.empty();
+                return Optional.of(readChatConversation(rs));
+            }
+        } catch (Exception ex) {
+            throw new IllegalStateException("Could not find chat conversation", ex);
+        }
+    }
+
+    private ChatConversation readChatConversation(ResultSet rs) throws Exception {
+        return new ChatConversation(
+            rs.getObject("id", UUID.class).toString(),
+            rs.getObject("study_id", UUID.class).toString(),
+            rs.getTimestamp("created_at").toInstant()
+        );
+    }
+
+    @Override
+    public List<ChatMessage> findChatMessagesByConversationId(String conversationId) {
+        try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
+            SELECT id, conversation_id, role, content, created_at, model, provider, prompt_version, analysis_run_id, baseline_study_id
+            FROM domain_chat_messages WHERE conversation_id = ?::uuid ORDER BY created_at ASC
+            """)) {
+            statement.setString(1, conversationId);
+            try (ResultSet rs = statement.executeQuery()) {
+                List<ChatMessage> messages = new ArrayList<>();
+                while (rs.next()) {
+                    messages.add(new ChatMessage(
+                        rs.getObject("id", UUID.class).toString(),
+                        rs.getObject("conversation_id", UUID.class).toString(),
+                        rs.getString("role"),
+                        rs.getString("content"),
+                        rs.getTimestamp("created_at").toInstant(),
+                        rs.getString("model"),
+                        rs.getString("provider"),
+                        rs.getString("prompt_version"),
+                        rs.getString("analysis_run_id"),
+                        rs.getString("baseline_study_id")
+                    ));
+                }
+                return messages;
+            }
+        } catch (Exception ex) {
+            throw new IllegalStateException("Could not list chat messages", ex);
         }
     }
 
