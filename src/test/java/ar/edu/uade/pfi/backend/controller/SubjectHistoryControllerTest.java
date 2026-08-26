@@ -16,6 +16,7 @@ import ar.edu.uade.pfi.backend.service.PatientHistoryService;
 import ar.edu.uade.pfi.backend.service.PatientMeasurementSeriesService;
 import ar.edu.uade.pfi.backend.service.ProfessionalAccessAuditService;
 import ar.edu.uade.pfi.backend.service.ReviewStoreService;
+import ar.edu.uade.pfi.backend.service.SubjectListService;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -23,7 +24,7 @@ import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
-/** Stage 84: wiring test for the new N-Study endpoints alongside the pre-existing /history one. */
+/** Stage 84: wiring test for the new N-Study endpoints alongside the pre-existing /history one. Stage 85: extended with the subject-list endpoint. */
 class SubjectHistoryControllerTest {
     private final InMemoryStudyRepository repository = new InMemoryStudyRepository();
     private final EffectiveAnalysisRunSelector runSelector = new EffectiveAnalysisRunSelector(repository);
@@ -34,6 +35,7 @@ class SubjectHistoryControllerTest {
         return new SubjectHistoryController(
             new PatientHistoryService(repository, runSelector),
             new PatientMeasurementSeriesService(repository, runSelector, resolver),
+            new SubjectListService(repository, runSelector),
             auditService
         );
     }
@@ -105,6 +107,15 @@ class SubjectHistoryControllerTest {
         MeasurementSeriesDto series = buildController().measurementSeries("PAT-84CTRL-4", "L4-L5", "sagittal", "disc", "majorAxisMm", fakeRequest());
         assertEquals(1, series.points().size());
         assertEquals("CASE-84-CTRL-6", series.points().get(0).caseId());
+    }
+
+    @Test
+    void listEndpointReturnsSubjectSummaries() {
+        seedStudy("CASE-85-CTRL-1", "PAT-85CTRL-1", LocalDate.of(2026, 1, 1));
+        seedStudy("CASE-85-CTRL-2", null, LocalDate.of(2026, 1, 1));
+        var summaries = buildController().list(fakeRequest());
+        assertEquals(1, summaries.size());
+        assertEquals("PAT-85CTRL-1", summaries.get(0).subjectRef());
     }
 
     @Test

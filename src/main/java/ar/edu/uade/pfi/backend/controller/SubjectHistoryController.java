@@ -1,9 +1,11 @@
 package ar.edu.uade.pfi.backend.controller;
 
 import ar.edu.uade.pfi.backend.dto.MeasurementSeriesDto;
+import ar.edu.uade.pfi.backend.dto.SubjectSummaryDto;
 import ar.edu.uade.pfi.backend.service.PatientHistoryService;
 import ar.edu.uade.pfi.backend.service.PatientMeasurementSeriesService;
 import ar.edu.uade.pfi.backend.service.ProfessionalAccessAuditService;
+import ar.edu.uade.pfi.backend.service.SubjectListService;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.Map;
@@ -18,16 +20,30 @@ import org.springframework.web.bind.annotation.RestController;
 public class SubjectHistoryController {
     private final PatientHistoryService patientHistoryService;
     private final PatientMeasurementSeriesService measurementSeriesService;
+    private final SubjectListService subjectListService;
     private final ProfessionalAccessAuditService accessAuditService;
 
     public SubjectHistoryController(
         PatientHistoryService patientHistoryService,
         PatientMeasurementSeriesService measurementSeriesService,
+        SubjectListService subjectListService,
         ProfessionalAccessAuditService accessAuditService
     ) {
         this.patientHistoryService = patientHistoryService;
         this.measurementSeriesService = measurementSeriesService;
+        this.subjectListService = subjectListService;
         this.accessAuditService = accessAuditService;
+    }
+
+    /**
+     * Stage 85-B: the "patient list" projection -- grouped by {@code Study.subjectRef}, never a
+     * persisted entity. Replaces the never-implemented {@code GET /api/patients} the old,
+     * now-retired {@code PatientDetailView}/{@code PatientsView} called (Stage 84 finding).
+     */
+    @GetMapping
+    public List<SubjectSummaryDto> list(HttpServletRequest request) {
+        accessAuditService.record(request, "access_subject_list", "Listado de pacientes de-identificado consultado");
+        return subjectListService.list();
     }
 
     @GetMapping("/{subjectRef}/history")
