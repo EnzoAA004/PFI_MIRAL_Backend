@@ -19,7 +19,8 @@ public record LlmProperties(
     String model,
     Integer timeoutSeconds,
     Double temperature,
-    Integer maxOutputTokens
+    Integer maxOutputTokens,
+    Integer historyWindowTurns
 ) {
     public boolean resolvedEnabled() {
         return Boolean.TRUE.equals(enabled);
@@ -49,5 +50,14 @@ public record LlmProperties(
 
     public int resolvedMaxOutputTokens() {
         return maxOutputTokens == null ? 512 : maxOutputTokens;
+    }
+
+    /**
+     * Stage 81-C: bounded conversation-history window for multi-turn chat, in turns (one turn =
+     * one USER message + its ASSISTANT reply). Default 8, floor 1 — a continued conversation
+     * never reinjects unlimited history (81 "NO mandar conversación ilimitada").
+     */
+    public int resolvedHistoryWindowTurns() {
+        return historyWindowTurns == null ? 8 : Math.max(historyWindowTurns, 1);
     }
 }

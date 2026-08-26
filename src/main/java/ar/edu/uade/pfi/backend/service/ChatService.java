@@ -17,6 +17,7 @@ import ar.edu.uade.pfi.backend.repository.StudyRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -24,7 +25,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
 
 /**
  * Stage 80: orchestrates a chat turn — validate the question, resolve the Study, build context
@@ -84,6 +84,14 @@ public class ChatService {
         }
         Study study = repository.findStudyByCaseId(caseId).orElseThrow(() -> new StudyNotFoundException(caseId));
 
+        // Stage 81-C: an existing conversationId must belong to this Study -- same cross-Study
+        // IDOR convention as every other lookup in this codebase (404, never 403).
+        String requestedConversationId = request.conversationId();
+        ChatConversation existingConversation = requestedConversationId == null ? null
+            : repository.findChatConversationById(requestedConversationId)
+                .filter(candidate -> candidate.studyId().equals(study.id()))
+                .orElseThrow(() -> conversationNotFound());
+
         ChatContextResult context = contextBuilder.build(study, request.analysisId(), request.baselineCaseId());
         String contextJson = writeContextJson(context);
         // Resolved (and IDOR/same-patient-checked) as a side effect of context building above --
@@ -92,25 +100,28 @@ public class ChatService {
             ? null
             : repository.findStudyByCaseId(request.baselineCaseId()).map(Study::id).orElse(null);
 
-        List<LlmChatMessage> messages = List.of(
-            new LlmChatMessage("system", ChatSystemPrompts.V1),
-            new LlmChatMessage("user", "CONTEXTO (JSON):\n" + contextJson),
-            new LlmChatMessage("user", question)
-        );
+        List<LlmChatMessage> messages = new ArrayList<>();
+        messages.add(new LlmChatMessage("system", ChatSystemPrompts.V1));
+        if (existingConversation != null) messages.addAll(historyWindow(existingConversation.id()));
+        messages.add(new LlmChatMessage("user", "CONTEXTO (JSON):\n" + contextJson));
+        messages.add(new LlmChatMessage("user", question));
         LlmChatResult result = provider.complete(new LlmChatRequest(messages, properties.resolvedTemperature(), properties.resolvedMaxOutputTokens()));
 
         Instant now = clock.instant();
-        String conversationId = UUID.randomUUID().toString();
-        repository.saveChatConversation(new ChatConversation(conversationId, study.id(), now));
-        repository.saveChatMessage(new ChatMessage(
+        String conversationId = existingConversation != null ? existingConversation.id() : UUID.randomUUID().toString();
+        ChatConversation conversationToCreate = existingConversation != null ? null : new ChatConversation(conversationId, study.id(), now);
+        ChatMessage userMessage = new ChatMessage(
             UUID.randomUUID().toString(), conversationId, "USER", question, now, null, null,
             ChatSystemPrompts.CURRENT_VERSION, request.analysisId(), baselineStudyId
-        ));
+        );
         String assistantMessageId = UUID.randomUUID().toString();
-        repository.saveChatMessage(new ChatMessage(
+        ChatMessage assistantMessage = new ChatMessage(
             assistantMessageId, conversationId, "ASSISTANT", result.content(), now, result.model(), result.provider(),
             ChatSystemPrompts.CURRENT_VERSION, request.analysisId(), baselineStudyId
-        ));
+        );
+        // 81-M: both messages (and the conversation row, if new) are written in one transaction --
+        // a Stage-80 gap where three independent writes could leave an orphan user-only turn.
+        repository.saveChatTurn(conversationToCreate, userMessage, assistantMessage);
 
         audit("chat.answered", study.id(), traceId, context.contextSources());
 
@@ -143,13 +154,33 @@ public class ChatService {
         Study study = repository.findStudyByCaseId(caseId).orElseThrow(() -> new StudyNotFoundException(caseId));
         ChatConversation conversation = repository.findChatConversationById(conversationId)
             .filter(candidate -> candidate.studyId().equals(study.id()))
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Conversacion no encontrada."));
+            .orElseThrow(this::conversationNotFound);
         List<ChatConversationDetailDto.Message> messages = repository.findChatMessagesByConversationId(conversation.id()).stream()
             .map(message -> new ChatConversationDetailDto.Message(
                 message.id(), message.role(), message.content(), message.createdAt(), message.model(), message.provider(), message.promptVersion()
             ))
             .toList();
         return new ChatConversationDetailDto(conversation.id(), caseId, conversation.createdAt(), messages);
+    }
+
+    /**
+     * Stage 81-C: the last {@code resolvedHistoryWindowTurns()} turns (USER+ASSISTANT pairs) of
+     * an existing conversation, mapped to the provider's role vocabulary. Never includes a
+     * historical system-prompt message (81: "NO incluir system prompts históricos completos") --
+     * only the current {@link ChatSystemPrompts#V1} (added separately, once, by the caller) is
+     * ever sent as the system role.
+     */
+    private List<LlmChatMessage> historyWindow(String conversationId) {
+        List<ChatMessage> all = repository.findChatMessagesByConversationId(conversationId);
+        int windowMessages = properties.resolvedHistoryWindowTurns() * 2;
+        int from = Math.max(0, all.size() - windowMessages);
+        return all.subList(from, all.size()).stream()
+            .map(message -> new LlmChatMessage("ASSISTANT".equals(message.role()) ? "assistant" : "user", message.content()))
+            .toList();
+    }
+
+    private RunReviewException conversationNotFound() {
+        return new RunReviewException(HttpStatus.NOT_FOUND, "CHAT_CONVERSATION_NOT_FOUND", "Conversacion no encontrada.");
     }
 
     private String validateQuestion(String question) {

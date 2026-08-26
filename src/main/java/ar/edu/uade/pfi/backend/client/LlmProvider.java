@@ -10,4 +10,13 @@ package ar.edu.uade.pfi.backend.client;
  */
 public interface LlmProvider {
     LlmChatResult complete(LlmChatRequest request);
+
+    /**
+     * Stage 81-T: a cheap, side-effect-free liveness probe — never generates tokens, never
+     * throws. Used only by {@code SystemDiagnosticsService} to distinguish
+     * enabled+reachable/enabled+unreachable in {@code /api/system/diagnostics}, so an operator
+     * can tell "LLM disabled" apart from "LLM enabled but the runtime is down" without waiting
+     * for a real chat request to fail first.
+     */
+    boolean checkAvailability();
 }

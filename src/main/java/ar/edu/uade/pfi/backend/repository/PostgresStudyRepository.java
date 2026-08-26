@@ -1408,13 +1408,8 @@ public class PostgresStudyRepository implements StudyRepository {
 
     @Override
     public ChatConversation saveChatConversation(ChatConversation conversation) {
-        try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
-            INSERT INTO domain_chat_conversations(id, study_id, created_at) VALUES (?::uuid, ?::uuid, ?)
-            """)) {
-            statement.setString(1, conversation.id());
-            statement.setString(2, conversation.studyId());
-            statement.setTimestamp(3, Timestamp.from(conversation.createdAt()));
-            statement.executeUpdate();
+        try (Connection connection = connection()) {
+            insertChatConversation(connection, conversation);
             return conversation;
         } catch (Exception ex) {
             throw new IllegalStateException("Could not save chat conversation", ex);
@@ -1423,7 +1418,47 @@ public class PostgresStudyRepository implements StudyRepository {
 
     @Override
     public ChatMessage saveChatMessage(ChatMessage message) {
-        try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
+        try (Connection connection = connection()) {
+            insertChatMessage(connection, message);
+            return message;
+        } catch (Exception ex) {
+            throw new IllegalStateException("Could not save chat message", ex);
+        }
+    }
+
+    @Override
+    public void saveChatTurn(ChatConversation conversationToCreate, ChatMessage userMessage, ChatMessage assistantMessage) {
+        try (Connection connection = connection()) {
+            connection.setAutoCommit(false);
+            try {
+                if (conversationToCreate != null) insertChatConversation(connection, conversationToCreate);
+                insertChatMessage(connection, userMessage);
+                insertChatMessage(connection, assistantMessage);
+                connection.commit();
+            } catch (Exception ex) {
+                connection.rollback();
+                throw ex;
+            } finally {
+                connection.setAutoCommit(true);
+            }
+        } catch (Exception ex) {
+            throw new IllegalStateException("Could not save chat turn", ex);
+        }
+    }
+
+    private void insertChatConversation(Connection connection, ChatConversation conversation) throws Exception {
+        try (PreparedStatement statement = connection.prepareStatement("""
+            INSERT INTO domain_chat_conversations(id, study_id, created_at) VALUES (?::uuid, ?::uuid, ?)
+            """)) {
+            statement.setString(1, conversation.id());
+            statement.setString(2, conversation.studyId());
+            statement.setTimestamp(3, Timestamp.from(conversation.createdAt()));
+            statement.executeUpdate();
+        }
+    }
+
+    private void insertChatMessage(Connection connection, ChatMessage message) throws Exception {
+        try (PreparedStatement statement = connection.prepareStatement("""
             INSERT INTO domain_chat_messages(
                 id, conversation_id, role, content, created_at, model, provider, prompt_version, analysis_run_id, baseline_study_id
             ) VALUES (?::uuid, ?::uuid, ?, ?, ?, ?, ?, ?, ?::uuid, ?::uuid)
@@ -1439,9 +1474,6 @@ public class PostgresStudyRepository implements StudyRepository {
             statement.setString(9, message.analysisRunId());
             statement.setString(10, message.baselineStudyId());
             statement.executeUpdate();
-            return message;
-        } catch (Exception ex) {
-            throw new IllegalStateException("Could not save chat message", ex);
         }
     }
 

@@ -2,8 +2,10 @@ package ar.edu.uade.pfi.backend.service;
 
 import ar.edu.uade.pfi.backend.auth.AuthService;
 import ar.edu.uade.pfi.backend.client.AiServiceOperations;
+import ar.edu.uade.pfi.backend.client.LlmProvider;
 import ar.edu.uade.pfi.backend.config.AiMultiplanarContractVersion;
 import ar.edu.uade.pfi.backend.config.AiServiceProperties;
+import ar.edu.uade.pfi.backend.config.LlmProperties;
 import ar.edu.uade.pfi.backend.util.AiReportEvidence;
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -26,6 +28,8 @@ public class SystemDiagnosticsService {
     private final AiMultiplanarContractVersion multiplanarContractVersion;
     private final boolean adminBootstrapEnabled;
     private final OperationalMetricsService metrics;
+    private final LlmProvider llmProvider;
+    private final LlmProperties llmProperties;
 
     SystemDiagnosticsService(
         AiServiceOperations aiServiceClient,
@@ -54,6 +58,8 @@ public class SystemDiagnosticsService {
         this.multiplanarContractVersion = multiplanarContractVersion;
         this.adminBootstrapEnabled = false;
         this.metrics = null;
+        this.llmProvider = null;
+        this.llmProperties = null;
     }
 
     @Autowired
@@ -66,7 +72,9 @@ public class SystemDiagnosticsService {
         @Value("${pfi.auth.enabled:true}") boolean authEnabled,
         @Value("${pfi.persistence.mode:memory}") String persistenceMode,
         @Value("${pfi.auth.bootstrap-admin-enabled:false}") boolean adminBootstrapEnabled,
-        @Nullable OperationalMetricsService metrics
+        @Nullable OperationalMetricsService metrics,
+        @Nullable LlmProvider llmProvider,
+        @Nullable LlmProperties llmProperties
     ) {
         this.aiServiceClient = aiServiceClient;
         this.postgresReviewStoreService = postgresReviewStoreService;
@@ -75,6 +83,8 @@ public class SystemDiagnosticsService {
         this.authEnabled = authEnabled;
         this.persistenceMode = persistenceMode;
         this.multiplanarContractVersion = aiServiceProperties.resolvedMultiplanarContractVersion();
+        this.llmProvider = llmProvider;
+        this.llmProperties = llmProperties;
         this.adminBootstrapEnabled = adminBootstrapEnabled;
         this.metrics = metrics;
     }
@@ -90,6 +100,10 @@ public class SystemDiagnosticsService {
         result.put("backend", Map.of("available", true, "status", "ok", "service", "pfi-backend"));
         result.put("aiModule", aiModule);
         result.put("database", database);
+        // 81-T: LLM/chat is an optional capability -- its status never factors into the overall
+        // "status" (aiOk && dbOk) above, so a stopped/misconfigured LLM never marks the whole
+        // Backend degraded (81-U: "producto debe funcionar si LLM disabled").
+        result.put("llm", checkLlmProvider());
         result.put("assetStorage", assetStorageDiagnostics());
         result.put("auth", authEnabled ? authService.diagnostics() : Map.of("enabled", false, "status", "disabled"));
         result.put("persistence", Map.of("mode", persistenceMode, "postgresEnabled", postgresReviewStoreService.enabled()));
@@ -116,6 +130,28 @@ public class SystemDiagnosticsService {
             return Map.of("status", "unavailable");
         }
         return metrics.snapshot();
+    }
+
+    /**
+     * Stage 81-T: distinguishes "disabled" (config, {@code pfi.llm.enabled=false} -- the default)
+     * from "enabled but unreachable" (a live {@code checkAvailability()} probe) from
+     * "enabled and reachable" -- never leaks {@code resolvedBaseUrl()}, matching the same
+     * base-URL-omission precedent as {@code multiplanarContractDiagnostics()}.
+     */
+    private Map<String, Object> checkLlmProvider() {
+        if (llmProperties == null || llmProvider == null) {
+            return Map.of("enabled", false, "status", "disabled");
+        }
+        if (!llmProperties.resolvedEnabled()) {
+            return Map.of("enabled", false, "status", "disabled");
+        }
+        boolean available = llmProvider.checkAvailability();
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("enabled", true);
+        result.put("status", available ? "ok" : "unavailable");
+        result.put("provider", llmProperties.resolvedProvider());
+        result.put("model", llmProperties.resolvedModel());
+        return result;
     }
 
     private Map<String, Object> assetStorageDiagnostics() {

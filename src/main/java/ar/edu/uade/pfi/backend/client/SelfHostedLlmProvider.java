@@ -109,6 +109,26 @@ public class SelfHostedLlmProvider implements LlmProvider {
         return false;
     }
 
+    /**
+     * A GET to the OpenAI-compatible {@code /v1/models} endpoint — every vLLM/OpenAI-compatible
+     * server exposes it, it generates no tokens, and it is cheap enough to call from a
+     * diagnostics endpoint. Any failure (timeout, connection refused, non-2xx) is swallowed and
+     * reported as unavailable rather than propagated — this method must never throw.
+     */
+    @Override
+    public boolean checkAvailability() {
+        try {
+            return Boolean.TRUE.equals(
+                llmWebClient.get()
+                    .uri("/v1/models")
+                    .exchangeToMono(response -> Mono.just(response.statusCode().is2xxSuccessful()))
+                    .block(Duration.ofSeconds(3))
+            );
+        } catch (RuntimeException ex) {
+            return false;
+        }
+    }
+
     private RunReviewException upstreamError() {
         return new RunReviewException(HttpStatus.BAD_GATEWAY, "LLM_PROVIDER_UNAVAILABLE", ApiErrorCode.LLM_PROVIDER_UNAVAILABLE.publicMessage());
     }

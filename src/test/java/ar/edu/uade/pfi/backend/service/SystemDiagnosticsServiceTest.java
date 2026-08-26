@@ -133,7 +133,8 @@ class SystemDiagnosticsServiceTest {
             .findFirst()
             .orElseThrow();
 
-        assertEquals(9, autowired.getParameterCount());
+        // Stage 81-T: +2 params (LlmProvider, LlmProperties) for the new "llm" diagnostics field.
+        assertEquals(11, autowired.getParameterCount());
         assertEquals(AiServiceOperations.class, autowired.getParameterTypes()[0]);
         assertEquals(PostgresReviewStoreService.class, autowired.getParameterTypes()[1]);
         assertEquals(AuthService.class, autowired.getParameterTypes()[2]);
@@ -168,6 +169,73 @@ class SystemDiagnosticsServiceTest {
             assertEquals("/multiplanar/run", aiModule.get("multiplanarEndpoint"));
             assertEquals("multiplanar-run-v1", aiModule.get("multiplanarSchemaExpected"));
         }
+    }
+
+    // ---- Stage 81-T: LLM/chat provider status in diagnostics ----
+
+    @Test
+    void llmSectionReportsDisabledWhenLlmPropertiesIsAbsent() {
+        SystemDiagnosticsService service = new SystemDiagnosticsService(
+            aiClient(Map.of("status", "ok")), new PostgresReviewStoreService(new ObjectMapper(), "memory", ""), mock(AuthService.class), false, "memory"
+        );
+        @SuppressWarnings("unchecked")
+        Map<String, Object> llm = (Map<String, Object>) service.diagnostics().get("llm");
+        assertEquals(false, llm.get("enabled"));
+        assertEquals("disabled", llm.get("status"));
+    }
+
+    @Test
+    void llmSectionReportsDisabledWhenConfigDisabledEvenIfProviderIsWired() {
+        @SuppressWarnings("unchecked")
+        org.springframework.beans.factory.ObjectProvider<RunAssetContentStorage> assetProvider = mock(org.springframework.beans.factory.ObjectProvider.class);
+        ar.edu.uade.pfi.backend.config.LlmProperties disabledLlm = new ar.edu.uade.pfi.backend.config.LlmProperties(false, "self-hosted", "http://llm:8001", "Qwen2.5-7B-Instruct", 90, 0.1, 512, 8);
+        ar.edu.uade.pfi.backend.client.LlmProvider provider = mock(ar.edu.uade.pfi.backend.client.LlmProvider.class);
+        SystemDiagnosticsService service = new SystemDiagnosticsService(
+            aiClient(Map.of("status", "ok")), new PostgresReviewStoreService(new ObjectMapper(), "memory", ""), mock(AuthService.class),
+            assetProvider, new AiServiceProperties("http://ai-module", 60, "v1"), false, "memory", false, null, provider, disabledLlm
+        );
+        @SuppressWarnings("unchecked")
+        Map<String, Object> llm = (Map<String, Object>) service.diagnostics().get("llm");
+        assertEquals(false, llm.get("enabled"));
+        assertEquals("disabled", llm.get("status"));
+    }
+
+    @Test
+    void llmSectionReportsOkWhenEnabledAndProviderIsReachableWithoutLeakingBaseUrl() {
+        @SuppressWarnings("unchecked")
+        org.springframework.beans.factory.ObjectProvider<RunAssetContentStorage> assetProvider = mock(org.springframework.beans.factory.ObjectProvider.class);
+        ar.edu.uade.pfi.backend.config.LlmProperties enabledLlm = new ar.edu.uade.pfi.backend.config.LlmProperties(true, "self-hosted", "http://llm-internal:8001", "Qwen2.5-7B-Instruct", 90, 0.1, 512, 8);
+        ar.edu.uade.pfi.backend.client.LlmProvider provider = mock(ar.edu.uade.pfi.backend.client.LlmProvider.class);
+        when(provider.checkAvailability()).thenReturn(true);
+        SystemDiagnosticsService service = new SystemDiagnosticsService(
+            aiClient(Map.of("status", "ok")), new PostgresReviewStoreService(new ObjectMapper(), "memory", ""), mock(AuthService.class),
+            assetProvider, new AiServiceProperties("http://ai-module", 60, "v1"), false, "memory", false, null, provider, enabledLlm
+        );
+        @SuppressWarnings("unchecked")
+        Map<String, Object> llm = (Map<String, Object>) service.diagnostics().get("llm");
+        assertEquals(true, llm.get("enabled"));
+        assertEquals("ok", llm.get("status"));
+        assertEquals("self-hosted", llm.get("provider"));
+        assertFalse(llm.values().stream().anyMatch(value -> String.valueOf(value).contains("llm-internal")));
+    }
+
+    @Test
+    void llmSectionReportsUnavailableWhenEnabledButUnreachableAndDoesNotDegradeOverallStatus() {
+        @SuppressWarnings("unchecked")
+        org.springframework.beans.factory.ObjectProvider<RunAssetContentStorage> assetProvider = mock(org.springframework.beans.factory.ObjectProvider.class);
+        ar.edu.uade.pfi.backend.config.LlmProperties enabledLlm = new ar.edu.uade.pfi.backend.config.LlmProperties(true, "self-hosted", "http://llm-internal:8001", "Qwen2.5-7B-Instruct", 90, 0.1, 512, 8);
+        ar.edu.uade.pfi.backend.client.LlmProvider provider = mock(ar.edu.uade.pfi.backend.client.LlmProvider.class);
+        when(provider.checkAvailability()).thenReturn(false);
+        SystemDiagnosticsService service = new SystemDiagnosticsService(
+            aiClient(Map.of("status", "ok")), new PostgresReviewStoreService(new ObjectMapper(), "memory", ""), mock(AuthService.class),
+            assetProvider, new AiServiceProperties("http://ai-module", 60, "v1"), false, "memory", false, null, provider, enabledLlm
+        );
+        Map<String, Object> diagnostics = service.diagnostics();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> llm = (Map<String, Object>) diagnostics.get("llm");
+        assertEquals("unavailable", llm.get("status"));
+        // 81-U: an unreachable-but-optional LLM must never mark the whole Backend degraded.
+        assertEquals("ok", diagnostics.get("status"));
     }
 
     private AiServiceOperations aiClient(Map<String, Object> healthResponse) {

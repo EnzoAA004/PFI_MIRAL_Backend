@@ -35,7 +35,7 @@ class SelfHostedLlmProviderTest {
     }
 
     private SelfHostedLlmProvider buildProvider(WebClient webClient, int timeoutSeconds) {
-        LlmProperties properties = new LlmProperties(true, "self-hosted", wireMock.baseUrl(), "Qwen2.5-7B-Instruct", timeoutSeconds, 0.1, 512);
+        LlmProperties properties = new LlmProperties(true, "self-hosted", wireMock.baseUrl(), "Qwen2.5-7B-Instruct", timeoutSeconds, 0.1, 512, 8);
         return new SelfHostedLlmProvider(webClient, properties);
     }
 
@@ -83,7 +83,7 @@ class SelfHostedLlmProviderTest {
     @Test
     void temperatureAndModelAreConfigDriven() {
         wireMock.stubFor(post(urlEqualTo("/v1/chat/completions")).willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json").withBody(successBody("ok"))));
-        LlmProperties customProperties = new LlmProperties(true, "self-hosted", wireMock.baseUrl(), "custom-model", 30, 0.7, 128);
+        LlmProperties customProperties = new LlmProperties(true, "self-hosted", wireMock.baseUrl(), "custom-model", 30, 0.7, 128, 8);
         WebClient webClient = WebClient.builder().baseUrl(wireMock.baseUrl()).build();
         SelfHostedLlmProvider provider = new SelfHostedLlmProvider(webClient, customProperties);
 
@@ -148,5 +148,31 @@ class SelfHostedLlmProviderTest {
         wireMock.stubFor(post(urlEqualTo("/v1/chat/completions")).willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json").withBody("{\"choices\": \"not-a-list\"}")));
 
         assertThrows(RunReviewException.class, () -> buildProvider(30).complete(sampleRequest()));
+    }
+
+    // ---- Stage 81-T: checkAvailability() liveness probe ----
+
+    @Test
+    void checkAvailabilityReturnsTrueOnA2xxFromModelsEndpoint() {
+        wireMock.stubFor(com.github.tomakehurst.wiremock.client.WireMock.get(urlEqualTo("/v1/models"))
+            .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json").withBody("{\"data\": []}")));
+
+        assertEquals(true, buildProvider(3).checkAvailability());
+    }
+
+    @Test
+    void checkAvailabilityReturnsFalseOnA5xxNeverThrows() {
+        wireMock.stubFor(com.github.tomakehurst.wiremock.client.WireMock.get(urlEqualTo("/v1/models"))
+            .willReturn(aResponse().withStatus(500)));
+
+        assertEquals(false, buildProvider(3).checkAvailability());
+    }
+
+    @Test
+    void checkAvailabilityReturnsFalseOnTimeoutNeverThrows() {
+        wireMock.stubFor(com.github.tomakehurst.wiremock.client.WireMock.get(urlEqualTo("/v1/models"))
+            .willReturn(aResponse().withStatus(200).withFixedDelay(4000)));
+
+        assertEquals(false, buildProvider(3).checkAvailability());
     }
 }

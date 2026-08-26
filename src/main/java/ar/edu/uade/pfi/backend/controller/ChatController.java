@@ -30,7 +30,7 @@ public class ChatController {
 
     @PostMapping("/chat")
     public ChatResponseDto chat(@PathVariable String caseId, @RequestBody(required = false) ChatRequestDto request, HttpServletRequest httpRequest) {
-        ChatRequestDto body = request == null ? new ChatRequestDto(null, null, null) : request;
+        ChatRequestDto body = request == null ? new ChatRequestDto(null, null, null, null) : request;
         return chatService.chat(caseId, body, traceId(httpRequest));
     }
 

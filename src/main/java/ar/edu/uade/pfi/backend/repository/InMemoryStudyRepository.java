@@ -460,4 +460,11 @@ public class InMemoryStudyRepository implements StudyRepository {
     public List<ChatMessage> findChatMessagesByConversationId(String conversationId) {
         return chatMessagesByConversationId.getOrDefault(conversationId, List.of());
     }
+
+    @Override
+    public void saveChatTurn(ChatConversation conversationToCreate, ChatMessage userMessage, ChatMessage assistantMessage) {
+        if (conversationToCreate != null) saveChatConversation(conversationToCreate);
+        saveChatMessage(userMessage);
+        saveChatMessage(assistantMessage);
+    }
 }

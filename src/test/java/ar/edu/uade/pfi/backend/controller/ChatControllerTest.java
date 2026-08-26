@@ -52,6 +52,11 @@ class ChatControllerTest {
         public LlmChatResult complete(LlmChatRequest request) {
             return new LlmChatResult("respuesta de prueba", "Qwen2.5-7B-Instruct", "self-hosted");
         }
+
+        @Override
+        public boolean checkAvailability() {
+            return true;
+        }
     }
 
     private final InMemoryStudyRepository repository = new InMemoryStudyRepository();
@@ -63,7 +68,7 @@ class ChatControllerTest {
             new AiAnalysisService(new FakeAi()), new AiStudyInputResolver(repository), repository, new AiProductAnalysisMapper()
         );
         var contextBuilder = new ar.edu.uade.pfi.backend.service.StudyChatContextBuilder(repository, persistenceService, runSelector, longitudinalComparisonService);
-        LlmProperties properties = new LlmProperties(true, "self-hosted", "http://localhost:8001", "Qwen2.5-7B-Instruct", 90, 0.1, 512);
+        LlmProperties properties = new LlmProperties(true, "self-hosted", "http://localhost:8001", "Qwen2.5-7B-Instruct", 90, 0.1, 512, 8);
         ChatService service = new ChatService(properties, new FakeLlmProvider(), contextBuilder, repository, new ObjectMapper(), null);
         return new ChatController(service);
     }
@@ -84,7 +89,7 @@ class ChatControllerTest {
     void chatEndpointReturnsAnAnswer() {
         seedStudyWithRun("case-1");
         ChatController controller = buildController();
-        ChatResponseDto response = controller.chat("case-1", new ChatRequestDto("hola", null, null), fakeRequest());
+        ChatResponseDto response = controller.chat("case-1", new ChatRequestDto("hola", null, null, null), fakeRequest());
         assertEquals("respuesta de prueba", response.answer());
     }
 
@@ -92,7 +97,7 @@ class ChatControllerTest {
     void historyAndDetailReflectThePersistedConversation() {
         seedStudyWithRun("case-1");
         ChatController controller = buildController();
-        ChatResponseDto response = controller.chat("case-1", new ChatRequestDto("hola", null, null), fakeRequest());
+        ChatResponseDto response = controller.chat("case-1", new ChatRequestDto("hola", null, null, null), fakeRequest());
 
         var history = controller.history("case-1");
         assertEquals(1, history.conversations().size());

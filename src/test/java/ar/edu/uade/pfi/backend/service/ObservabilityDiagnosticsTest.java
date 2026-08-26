@@ -35,7 +35,9 @@ class ObservabilityDiagnosticsTest {
             false,
             "memory",
             false,
-            metrics
+            metrics,
+            null,
+            null
         );
 
         Map<String, Object> diagnostics = service.diagnostics();

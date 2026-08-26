@@ -183,6 +183,8 @@ class SensitiveDataLeakRegressionTest {
             false,
             "memory",
             false,
+            null,
+            null,
             null
         );
 

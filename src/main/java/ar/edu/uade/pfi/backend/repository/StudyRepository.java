@@ -140,4 +140,15 @@ public interface StudyRepository {
     Optional<ChatConversation> findChatConversationById(String conversationId);
 
     List<ChatMessage> findChatMessagesByConversationId(String conversationId);
+
+    /**
+     * Stage 81-C/81-M: persists one chat turn (one USER message + its ASSISTANT reply)
+     * atomically. When {@code conversationToCreate} is non-null, the conversation row is
+     * inserted first in the same transaction (a brand-new conversation); when {@code null}, both
+     * messages are appended to an already-existing conversation. Fixes a Stage-80 gap where
+     * {@code saveChatConversation}/{@code saveChatMessage} were called as three independent
+     * writes — a failure between them could leave an orphan conversation with only a user turn
+     * and no assistant reply.
+     */
+    void saveChatTurn(ChatConversation conversationToCreate, ChatMessage userMessage, ChatMessage assistantMessage);
 }

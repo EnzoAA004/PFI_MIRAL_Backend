@@ -583,5 +583,6 @@ class AiMultiplanarRunTest {
         @Override public List<ar.edu.uade.pfi.backend.domain.ChatConversation> findChatConversationsByStudyId(String studyId) { throw new UnsupportedOperationException(); }
         @Override public Optional<ar.edu.uade.pfi.backend.domain.ChatConversation> findChatConversationById(String conversationId) { throw new UnsupportedOperationException(); }
         @Override public List<ar.edu.uade.pfi.backend.domain.ChatMessage> findChatMessagesByConversationId(String conversationId) { throw new UnsupportedOperationException(); }
+        @Override public void saveChatTurn(ar.edu.uade.pfi.backend.domain.ChatConversation conversationToCreate, ar.edu.uade.pfi.backend.domain.ChatMessage userMessage, ar.edu.uade.pfi.backend.domain.ChatMessage assistantMessage) { throw new UnsupportedOperationException(); }
     }
 }
