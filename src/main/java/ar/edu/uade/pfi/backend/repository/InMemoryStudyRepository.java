@@ -6,6 +6,7 @@ import ar.edu.uade.pfi.backend.domain.AiEvidenceRegion;
 import ar.edu.uade.pfi.backend.domain.AiEvidenceRegionCorrection;
 import ar.edu.uade.pfi.backend.domain.AiMeasurementCorrection;
 import ar.edu.uade.pfi.backend.domain.AiMeasurementResult;
+import ar.edu.uade.pfi.backend.domain.ProfessionalFeedbackCandidate;
 import ar.edu.uade.pfi.backend.domain.AiProductAnalysisRun;
 import ar.edu.uade.pfi.backend.domain.AiProductAnalysisRunReview;
 import ar.edu.uade.pfi.backend.domain.ChatConversation;
@@ -50,6 +51,7 @@ public class InMemoryStudyRepository implements StudyRepository {
     private final ConcurrentMap<String, List<AiMeasurementCorrection>> aiMeasurementCorrectionsByRunId = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, List<AiEvidenceRegion>> aiEvidenceRegionsByRunId = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, List<AiEvidenceRegionCorrection>> aiEvidenceRegionCorrectionsByRunId = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, ProfessionalFeedbackCandidate> professionalFeedbackCandidatesById = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, ChatConversation> chatConversationsById = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, List<ChatMessage>> chatMessagesByConversationId = new ConcurrentHashMap<>();
 
@@ -459,6 +461,48 @@ public class InMemoryStudyRepository implements StudyRepository {
     @Override
     public List<AiEvidenceRegionCorrection> findAiEvidenceRegionCorrectionsByAnalysisRunId(String analysisRunId) {
         return aiEvidenceRegionCorrectionsByRunId.getOrDefault(analysisRunId, List.of());
+    }
+
+    // ---- EXT-07D: professional feedback capture (never training) ----
+
+    @Override
+    public ProfessionalFeedbackCandidate saveProfessionalFeedbackCandidate(ProfessionalFeedbackCandidate candidate) {
+        professionalFeedbackCandidatesById.put(candidate.id(), candidate);
+        return candidate;
+    }
+
+    @Override
+    public boolean existsProfessionalFeedbackCandidate(String source, String correctionId) {
+        return professionalFeedbackCandidatesById.values().stream()
+            .anyMatch(candidate -> candidate.source().equals(source) && candidate.correctionId().equals(correctionId));
+    }
+
+    @Override
+    public List<ProfessionalFeedbackCandidate> findProfessionalFeedbackCandidatesByCaseId(String caseId) {
+        return professionalFeedbackCandidatesById.values().stream()
+            .filter(candidate -> candidate.caseId().equals(caseId))
+            .sorted(java.util.Comparator.comparing(ProfessionalFeedbackCandidate::correctedAt))
+            .toList();
+    }
+
+    @Override
+    public Optional<ProfessionalFeedbackCandidate> findProfessionalFeedbackCandidateById(String id) {
+        return Optional.ofNullable(professionalFeedbackCandidatesById.get(id));
+    }
+
+    @Override
+    public ProfessionalFeedbackCandidate updateProfessionalFeedbackCandidateStatus(String id, String status) {
+        ProfessionalFeedbackCandidate existing = professionalFeedbackCandidatesById.get(id);
+        if (existing == null) throw new IllegalStateException("Professional feedback candidate not found: " + id);
+        ProfessionalFeedbackCandidate updated = new ProfessionalFeedbackCandidate(
+            existing.id(), existing.studyId(), existing.caseId(), existing.analysisRunId(), existing.source(),
+            existing.correctionId(), existing.level(), existing.plane(), existing.structure(), existing.metric(),
+            existing.geometryType(), existing.aiOriginalValue(), existing.aiOriginalGeometry(), existing.professionalValue(),
+            existing.professionalGeometry(), existing.modelId(), existing.modelSha256(), existing.pipelineVersion(),
+            existing.reviewedBy(), existing.note(), status, existing.correctedAt(), existing.capturedAt()
+        );
+        professionalFeedbackCandidatesById.put(id, updated);
+        return updated;
     }
 
     // ---- Stage 80: contextual chat ----

@@ -13,6 +13,7 @@ import ar.edu.uade.pfi.backend.domain.ChatMessage;
 import ar.edu.uade.pfi.backend.domain.DomainAuditEvent;
 import ar.edu.uade.pfi.backend.domain.InputResource;
 import ar.edu.uade.pfi.backend.domain.MeasurementCorrection;
+import ar.edu.uade.pfi.backend.domain.ProfessionalFeedbackCandidate;
 import ar.edu.uade.pfi.backend.domain.RunArtifact;
 import ar.edu.uade.pfi.backend.domain.ReviewerAnnotation;
 import ar.edu.uade.pfi.backend.domain.RunReview;
@@ -148,6 +149,24 @@ public interface StudyRepository {
     AiEvidenceRegionCorrection saveAiEvidenceRegionCorrection(AiEvidenceRegionCorrection correction);
 
     List<AiEvidenceRegionCorrection> findAiEvidenceRegionCorrectionsByAnalysisRunId(String analysisRunId);
+
+    // ---- EXT-07D: professional feedback capture (never training) ----
+
+    /**
+     * Idempotent at the caller's discretion via {@link #existsProfessionalFeedbackCandidate}
+     * (also enforced by a DB-level {@code UNIQUE(source, correctionId)} constraint) — capturing
+     * the same correction/new-finding twice must never duplicate a row.
+     */
+    ProfessionalFeedbackCandidate saveProfessionalFeedbackCandidate(ProfessionalFeedbackCandidate candidate);
+
+    boolean existsProfessionalFeedbackCandidate(String source, String correctionId);
+
+    List<ProfessionalFeedbackCandidate> findProfessionalFeedbackCandidatesByCaseId(String caseId);
+
+    Optional<ProfessionalFeedbackCandidate> findProfessionalFeedbackCandidateById(String id);
+
+    /** Updates only {@code status} — every other field of a captured candidate is immutable. */
+    ProfessionalFeedbackCandidate updateProfessionalFeedbackCandidateStatus(String id, String status);
 
     // ---- Stage 80: contextual chat ----
 

@@ -6,6 +6,7 @@ import ar.edu.uade.pfi.backend.domain.AiEvidenceRegion;
 import ar.edu.uade.pfi.backend.domain.AiEvidenceRegionCorrection;
 import ar.edu.uade.pfi.backend.domain.AiMeasurementCorrection;
 import ar.edu.uade.pfi.backend.domain.AiMeasurementResult;
+import ar.edu.uade.pfi.backend.domain.ProfessionalFeedbackCandidate;
 import ar.edu.uade.pfi.backend.domain.AiProductAnalysisRun;
 import ar.edu.uade.pfi.backend.domain.AiProductAnalysisRunReview;
 import ar.edu.uade.pfi.backend.domain.ChatConversation;
@@ -1723,5 +1724,137 @@ public class PostgresStudyRepository implements StudyRepository {
         } catch (Exception ex) {
             throw new IllegalStateException("Could not list AI evidence region corrections", ex);
         }
+    }
+
+    // ---- EXT-07D: professional feedback capture (never training) ----
+
+    @Override
+    public ProfessionalFeedbackCandidate saveProfessionalFeedbackCandidate(ProfessionalFeedbackCandidate candidate) {
+        try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
+            INSERT INTO domain_professional_feedback_candidates(
+                id, study_id, case_id, analysis_run_id, source, correction_id, level, plane, structure,
+                metric, geometry_type, ai_original_value, ai_original_geometry, professional_value,
+                professional_geometry, model_id, model_sha256, pipeline_version, reviewed_by, note,
+                status, corrected_at, captured_at
+            ) VALUES (?::uuid, ?::uuid, ?, ?::uuid, ?, ?::uuid, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?::jsonb, ?, ?, ?, ?, ?, ?, ?, ?)
+            """)) {
+            statement.setString(1, candidate.id());
+            statement.setString(2, candidate.studyId());
+            statement.setString(3, candidate.caseId());
+            statement.setString(4, candidate.analysisRunId());
+            statement.setString(5, candidate.source());
+            statement.setString(6, candidate.correctionId());
+            statement.setString(7, candidate.level());
+            statement.setString(8, candidate.plane());
+            statement.setString(9, candidate.structure());
+            statement.setString(10, candidate.metric());
+            statement.setString(11, candidate.geometryType());
+            setNullableDouble(statement, 12, candidate.aiOriginalValue());
+            statement.setString(13, candidate.aiOriginalGeometry() == null ? null : objectMapper.writeValueAsString(candidate.aiOriginalGeometry()));
+            setNullableDouble(statement, 14, candidate.professionalValue());
+            statement.setString(15, candidate.professionalGeometry() == null ? null : objectMapper.writeValueAsString(candidate.professionalGeometry()));
+            statement.setString(16, candidate.modelId());
+            statement.setString(17, candidate.modelSha256());
+            statement.setString(18, candidate.pipelineVersion());
+            statement.setString(19, candidate.reviewedBy());
+            statement.setString(20, candidate.note());
+            statement.setString(21, candidate.status());
+            statement.setTimestamp(22, Timestamp.from(candidate.correctedAt()));
+            statement.setTimestamp(23, Timestamp.from(candidate.capturedAt()));
+            statement.executeUpdate();
+            return candidate;
+        } catch (Exception ex) {
+            throw new IllegalStateException("Could not save professional feedback candidate", ex);
+        }
+    }
+
+    @Override
+    public boolean existsProfessionalFeedbackCandidate(String source, String correctionId) {
+        try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
+            SELECT 1 FROM domain_professional_feedback_candidates WHERE source = ? AND correction_id = ?::uuid
+            """)) {
+            statement.setString(1, source);
+            statement.setString(2, correctionId);
+            try (ResultSet rs = statement.executeQuery()) {
+                return rs.next();
+            }
+        } catch (Exception ex) {
+            throw new IllegalStateException("Could not check professional feedback candidate existence", ex);
+        }
+    }
+
+    @Override
+    public List<ProfessionalFeedbackCandidate> findProfessionalFeedbackCandidatesByCaseId(String caseId) {
+        try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
+            SELECT * FROM domain_professional_feedback_candidates WHERE case_id = ? ORDER BY corrected_at ASC
+            """)) {
+            statement.setString(1, caseId);
+            try (ResultSet rs = statement.executeQuery()) {
+                List<ProfessionalFeedbackCandidate> results = new ArrayList<>();
+                while (rs.next()) results.add(readProfessionalFeedbackCandidate(rs));
+                return results;
+            }
+        } catch (Exception ex) {
+            throw new IllegalStateException("Could not list professional feedback candidates", ex);
+        }
+    }
+
+    @Override
+    public Optional<ProfessionalFeedbackCandidate> findProfessionalFeedbackCandidateById(String id) {
+        try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
+            SELECT * FROM domain_professional_feedback_candidates WHERE id = ?::uuid
+            """)) {
+            statement.setString(1, id);
+            try (ResultSet rs = statement.executeQuery()) {
+                return rs.next() ? Optional.of(readProfessionalFeedbackCandidate(rs)) : Optional.empty();
+            }
+        } catch (Exception ex) {
+            throw new IllegalStateException("Could not find professional feedback candidate", ex);
+        }
+    }
+
+    @Override
+    public ProfessionalFeedbackCandidate updateProfessionalFeedbackCandidateStatus(String id, String status) {
+        try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
+            UPDATE domain_professional_feedback_candidates SET status = ? WHERE id = ?::uuid
+            """)) {
+            statement.setString(1, status);
+            statement.setString(2, id);
+            int updated = statement.executeUpdate();
+            if (updated == 0) throw new IllegalStateException("Professional feedback candidate not found: " + id);
+        } catch (Exception ex) {
+            throw new IllegalStateException("Could not update professional feedback candidate status", ex);
+        }
+        return findProfessionalFeedbackCandidateById(id).orElseThrow();
+    }
+
+    private ProfessionalFeedbackCandidate readProfessionalFeedbackCandidate(ResultSet rs) throws Exception {
+        String aiGeometryJson = rs.getString("ai_original_geometry");
+        String professionalGeometryJson = rs.getString("professional_geometry");
+        return new ProfessionalFeedbackCandidate(
+            rs.getObject("id", UUID.class).toString(),
+            rs.getObject("study_id", UUID.class).toString(),
+            rs.getString("case_id"),
+            rs.getObject("analysis_run_id", UUID.class).toString(),
+            rs.getString("source"),
+            rs.getObject("correction_id", UUID.class).toString(),
+            rs.getString("level"),
+            rs.getString("plane"),
+            rs.getString("structure"),
+            rs.getString("metric"),
+            rs.getString("geometry_type"),
+            getNullableDouble(rs, "ai_original_value"),
+            aiGeometryJson == null ? null : objectMapper.readValue(aiGeometryJson, JSON_MAP),
+            getNullableDouble(rs, "professional_value"),
+            professionalGeometryJson == null ? null : objectMapper.readValue(professionalGeometryJson, JSON_MAP),
+            rs.getString("model_id"),
+            rs.getString("model_sha256"),
+            rs.getString("pipeline_version"),
+            rs.getString("reviewed_by"),
+            rs.getString("note"),
+            rs.getString("status"),
+            rs.getTimestamp("corrected_at").toInstant(),
+            rs.getTimestamp("captured_at").toInstant()
+        );
     }
 }
