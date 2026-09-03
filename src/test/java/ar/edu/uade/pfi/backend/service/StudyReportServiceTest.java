@@ -8,9 +8,12 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import ar.edu.uade.pfi.backend.domain.AiDiscLevelResult;
+import ar.edu.uade.pfi.backend.domain.AiEvidenceRegion;
+import ar.edu.uade.pfi.backend.domain.AiEvidenceRegionCorrection;
 import ar.edu.uade.pfi.backend.domain.AiMeasurementCorrection;
 import ar.edu.uade.pfi.backend.domain.AiMeasurementResult;
 import ar.edu.uade.pfi.backend.domain.AiProductAnalysisRun;
+import ar.edu.uade.pfi.backend.domain.EvidenceGeometry;
 import ar.edu.uade.pfi.backend.domain.Study;
 import ar.edu.uade.pfi.backend.dto.StudyReportDto;
 import ar.edu.uade.pfi.backend.repository.InMemoryStudyRepository;
@@ -33,11 +36,13 @@ class StudyReportServiceTest {
     private final InMemoryStudyRepository repository = new InMemoryStudyRepository();
     private final EffectiveAnalysisRunSelector selector = new EffectiveAnalysisRunSelector(repository);
     private final EffectiveMeasurementResolver resolver = new EffectiveMeasurementResolver(repository);
+    private final EffectiveAnnotationResolver annotationResolver = new EffectiveAnnotationResolver(repository);
     private final LongitudinalComparisonService longitudinal = new LongitudinalComparisonService(repository, selector, resolver, FIXED_CLOCK);
     private final StudyReportService service = new StudyReportService(
         repository,
         selector,
         resolver,
+        annotationResolver,
         longitudinal,
         new StudyReportPdfRenderer(),
         FIXED_CLOCK
@@ -269,6 +274,98 @@ class StudyReportServiceTest {
             () -> assertTrue(text.contains("Resumen del análisis")),
             () -> assertTrue(text.contains("Mediciones efectivas")),
             () -> assertTrue(text.contains("Warnings / limitations"))
+        );
+    }
+
+    @Test
+    void reportHasEmptyVisualEvidenceWhenNoRegionsExist() {
+        Study study = seedStudy("study-no-evidence", "CASE-NO-EVIDENCE", "SUBJ-NE", LocalDate.of(2026, 8, 20));
+        seedRunWithOneMeasurement(study, "run-no-evidence", 100.0);
+
+        StudyReportDto report = service.report(study.caseId(), null);
+
+        assertAll(
+            () -> assertNotNull(report.visualEvidence()),
+            () -> assertTrue(report.visualEvidence().isEmpty())
+        );
+    }
+
+    @Test
+    void oldReportShapeStillDeserializesWithoutTheVisualEvidenceField() throws Exception {
+        // Backward compatibility (EXT-04B2): a pre-EXT-04B2 report JSON, with no visualEvidence
+        // key at all, must still be a valid input for anything reading these reports today.
+        String legacyJson = "{"
+            + "\"schemaVersion\":\"pfi.study-report.v1\","
+            + "\"reportStatus\":\"ready\","
+            + "\"caseId\":\"CASE-LEGACY\""
+            + "}";
+        Map<String, Object> parsed = JSON.readValue(legacyJson, Map.class);
+        assertEquals("CASE-LEGACY", parsed.get("caseId"));
+        assertFalse(parsed.containsKey("visualEvidence"));
+    }
+
+    @Test
+    void reportIncludesEffectiveVisualEvidenceAndExcludesRejectedOnes() throws Exception {
+        Study study = seedStudy("study-evidence", "CASE-EVIDENCE", "SUBJ-EV", LocalDate.of(2026, 8, 20));
+        AiProductAnalysisRun run = seedRun(study, "run-evidence", "completed", Instant.parse("2026-08-26T10:00:00Z"));
+        AiDiscLevelResult level = level("level-evidence", run.id(), 0, "L4-L5", false, true, true);
+        repository.saveAiProductAnalysisRun(run, List.of(level), List.of());
+
+        Map<String, Object> aiGeometry = new EvidenceGeometry.Bbox(10, 10, 20, 20).toMap();
+        Map<String, Object> correctedGeometry = new EvidenceGeometry.Bbox(11, 11, 18, 18).toMap();
+        AiEvidenceRegion acceptedRegion = evidenceRegion("evidence-accepted", run.id(), level.id(), aiGeometry, "doctor@pfi.local");
+        AiEvidenceRegion correctedRegion = evidenceRegion("evidence-corrected", run.id(), null, aiGeometry, "doctor@pfi.local");
+        AiEvidenceRegion rejectedRegion = evidenceRegion("evidence-rejected", run.id(), null, aiGeometry, "doctor@pfi.local");
+        repository.saveAiEvidenceRegion(acceptedRegion);
+        repository.saveAiEvidenceRegion(correctedRegion);
+        repository.saveAiEvidenceRegion(rejectedRegion);
+        repository.upsertAiDiscLevelReview(level.id(), "accepted", "nivel confirmado", "doctor@pfi.local", Instant.parse("2026-08-26T11:00:00Z"));
+        repository.upsertAiProductAnalysisRunReview(run.id(), "rejected", "el run en general no es confiable", "doctor@pfi.local", Instant.parse("2026-08-26T11:00:00Z"));
+        repository.saveAiEvidenceRegionCorrection(new AiEvidenceRegionCorrection(
+            "correction-evidence", correctedRegion.id(), run.id(),
+            EvidenceGeometry.TYPE_BBOX, aiGeometry, EvidenceGeometry.TYPE_BBOX, correctedGeometry,
+            "ajuste de bordes", "doctor@pfi.local", Instant.parse("2026-08-26T11:05:00Z")
+        ));
+
+        StudyReportDto report = service.report(study.caseId(), null);
+        String json = JSON.writeValueAsString(report.visualEvidence());
+
+        assertAll(
+            () -> assertEquals(2, report.visualEvidence().size()),
+            () -> assertTrue(report.visualEvidence().stream().anyMatch(item -> "professional_corrected".equals(item.source()) && correctedGeometry.equals(item.geometry()))),
+            () -> assertTrue(report.visualEvidence().stream().anyMatch(item -> "ai_validated".equals(item.source()) && "L4-L5".equals(item.level()))),
+            () -> assertTrue(report.visualEvidence().stream().noneMatch(item -> "evidence-rejected".equals(item.evidenceId()))),
+            () -> assertTrue(report.visualEvidence().stream().allMatch(item -> "Región de interés".equals(item.label()))),
+            () -> assertFalse(json.contains("doctor@pfi.local")),
+            () -> assertFalse(json.contains("C:\\\\")),
+            () -> assertFalse(json.contains("/var/")),
+            () -> assertFalse(json.contains("StudyInstanceUID"))
+        );
+    }
+
+    @Test
+    void reportShowsUnreviewedAiSuggestionWithWarningAndNeutralLabel() {
+        Study study = seedStudy("study-suggested", "CASE-SUGGESTED", "SUBJ-SUG", LocalDate.of(2026, 8, 20));
+        AiProductAnalysisRun run = seedRun(study, "run-suggested", "completed", Instant.parse("2026-08-26T10:00:00Z"));
+        repository.saveAiProductAnalysisRun(run, List.of(), List.of());
+        repository.saveAiEvidenceRegion(evidenceRegion("evidence-pending", run.id(), null, new EvidenceGeometry.Bbox(5, 5, 10, 10).toMap(), null));
+
+        StudyReportDto report = service.report(study.caseId(), null);
+
+        assertAll(
+            () -> assertEquals(1, report.visualEvidence().size()),
+            () -> assertEquals("ai_suggested", report.visualEvidence().get(0).source()),
+            () -> assertEquals("pending", report.visualEvidence().get(0).reviewStatus()),
+            () -> assertNotNull(report.visualEvidence().get(0).warning())
+        );
+    }
+
+    private AiEvidenceRegion evidenceRegion(String id, String runId, String discLevelResultId, Map<String, Object> geometry, String comment) {
+        return new AiEvidenceRegion(
+            id, runId, discLevelResultId, null, "sagittal", "L4-L5", "disc", 6,
+            "ai", EvidenceGeometry.TYPE_BBOX, geometry, null,
+            "model-sagittal", "sha256:abc123", "pfi.multiplanar-run.v2", null,
+            false, null, comment, null, Instant.parse("2026-08-26T10:30:00Z")
         );
     }
 

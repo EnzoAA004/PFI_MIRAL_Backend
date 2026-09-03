@@ -2,6 +2,8 @@ package ar.edu.uade.pfi.backend.repository;
 
 import ar.edu.uade.pfi.backend.domain.AiDiscLevelResult;
 import ar.edu.uade.pfi.backend.domain.AiDiscLevelReview;
+import ar.edu.uade.pfi.backend.domain.AiEvidenceRegion;
+import ar.edu.uade.pfi.backend.domain.AiEvidenceRegionCorrection;
 import ar.edu.uade.pfi.backend.domain.AiMeasurementCorrection;
 import ar.edu.uade.pfi.backend.domain.AiMeasurementResult;
 import ar.edu.uade.pfi.backend.domain.AiProductAnalysisRun;
@@ -1573,6 +1575,153 @@ public class PostgresStudyRepository implements StudyRepository {
             }
         } catch (Exception ex) {
             throw new IllegalStateException("Could not list AI measurement corrections", ex);
+        }
+    }
+
+    // ---- EXT-04B2: visual evidence regions ----
+
+    @Override
+    public AiEvidenceRegion saveAiEvidenceRegion(AiEvidenceRegion region) {
+        try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
+            INSERT INTO domain_ai_evidence_regions(
+                id, analysis_run_id, disc_level_result_id, measurement_id, plane, level, structure, slice_index,
+                origin, geometry_type, geometry, coordinate_space_ref, model_id, model_sha256, pipeline_version,
+                confidence, experimental, label, comment, authored_by, created_at
+            ) VALUES (?::uuid, ?::uuid, ?::uuid, ?::uuid, ?, ?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """)) {
+            statement.setString(1, region.id());
+            statement.setString(2, region.analysisRunId());
+            statement.setString(3, region.discLevelResultId());
+            statement.setString(4, region.measurementId());
+            statement.setString(5, region.plane());
+            statement.setString(6, region.level());
+            statement.setString(7, region.structure());
+            if (region.sliceIndex() == null) statement.setNull(8, java.sql.Types.INTEGER);
+            else statement.setInt(8, region.sliceIndex());
+            statement.setString(9, region.origin());
+            statement.setString(10, region.geometryType());
+            statement.setString(11, objectMapper.writeValueAsString(region.geometry()));
+            statement.setString(12, region.coordinateSpaceRef() == null ? null : objectMapper.writeValueAsString(region.coordinateSpaceRef()));
+            statement.setString(13, region.modelId());
+            statement.setString(14, region.modelSha256());
+            statement.setString(15, region.pipelineVersion());
+            setNullableDouble(statement, 16, region.confidence());
+            statement.setBoolean(17, region.experimental());
+            statement.setString(18, region.label());
+            statement.setString(19, region.comment());
+            statement.setString(20, region.authoredBy());
+            statement.setTimestamp(21, Timestamp.from(region.createdAt()));
+            statement.executeUpdate();
+            return region;
+        } catch (Exception ex) {
+            throw new IllegalStateException("Could not save AI evidence region", ex);
+        }
+    }
+
+    @Override
+    public List<AiEvidenceRegion> findAiEvidenceRegionsByAnalysisRunId(String analysisRunId) {
+        try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
+            SELECT id, analysis_run_id, disc_level_result_id, measurement_id, plane, level, structure, slice_index,
+                   origin, geometry_type, geometry, coordinate_space_ref, model_id, model_sha256, pipeline_version,
+                   confidence, experimental, label, comment, authored_by, created_at
+            FROM domain_ai_evidence_regions WHERE analysis_run_id = ?::uuid ORDER BY created_at ASC
+            """)) {
+            statement.setString(1, analysisRunId);
+            try (ResultSet rs = statement.executeQuery()) {
+                List<AiEvidenceRegion> results = new ArrayList<>();
+                while (rs.next()) results.add(readAiEvidenceRegion(rs));
+                return results;
+            }
+        } catch (Exception ex) {
+            throw new IllegalStateException("Could not list AI evidence regions", ex);
+        }
+    }
+
+    private AiEvidenceRegion readAiEvidenceRegion(ResultSet rs) throws Exception {
+        int sliceIndex = rs.getInt("slice_index");
+        boolean sliceIndexNull = rs.wasNull();
+        String geometryJson = rs.getString("geometry");
+        String coordinateSpaceJson = rs.getString("coordinate_space_ref");
+        return new AiEvidenceRegion(
+            rs.getObject("id", UUID.class).toString(),
+            rs.getObject("analysis_run_id", UUID.class).toString(),
+            rs.getString("disc_level_result_id"),
+            rs.getString("measurement_id"),
+            rs.getString("plane"),
+            rs.getString("level"),
+            rs.getString("structure"),
+            sliceIndexNull ? null : sliceIndex,
+            rs.getString("origin"),
+            rs.getString("geometry_type"),
+            objectMapper.readValue(geometryJson, JSON_MAP),
+            coordinateSpaceJson == null ? null : objectMapper.readValue(coordinateSpaceJson, JSON_MAP),
+            rs.getString("model_id"),
+            rs.getString("model_sha256"),
+            rs.getString("pipeline_version"),
+            getNullableDouble(rs, "confidence"),
+            rs.getBoolean("experimental"),
+            rs.getString("label"),
+            rs.getString("comment"),
+            rs.getString("authored_by"),
+            rs.getTimestamp("created_at").toInstant()
+        );
+    }
+
+    @Override
+    public AiEvidenceRegionCorrection saveAiEvidenceRegionCorrection(AiEvidenceRegionCorrection correction) {
+        try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
+            INSERT INTO domain_ai_evidence_region_corrections(
+                id, evidence_region_id, analysis_run_id, original_geometry_type, original_geometry,
+                corrected_geometry_type, corrected_geometry, comment, reviewed_by, created_at
+            ) VALUES (?::uuid, ?::uuid, ?::uuid, ?, ?::jsonb, ?, ?::jsonb, ?, ?, ?)
+            """)) {
+            statement.setString(1, correction.id());
+            statement.setString(2, correction.evidenceRegionId());
+            statement.setString(3, correction.analysisRunId());
+            statement.setString(4, correction.originalGeometryType());
+            statement.setString(5, correction.originalGeometry() == null ? null : objectMapper.writeValueAsString(correction.originalGeometry()));
+            statement.setString(6, correction.correctedGeometryType());
+            statement.setString(7, objectMapper.writeValueAsString(correction.correctedGeometry()));
+            statement.setString(8, correction.comment());
+            statement.setString(9, correction.reviewedBy());
+            statement.setTimestamp(10, Timestamp.from(correction.createdAt()));
+            statement.executeUpdate();
+            return correction;
+        } catch (Exception ex) {
+            throw new IllegalStateException("Could not save AI evidence region correction", ex);
+        }
+    }
+
+    @Override
+    public List<AiEvidenceRegionCorrection> findAiEvidenceRegionCorrectionsByAnalysisRunId(String analysisRunId) {
+        try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
+            SELECT id, evidence_region_id, analysis_run_id, original_geometry_type, original_geometry,
+                   corrected_geometry_type, corrected_geometry, comment, reviewed_by, created_at
+            FROM domain_ai_evidence_region_corrections WHERE analysis_run_id = ?::uuid ORDER BY created_at ASC
+            """)) {
+            statement.setString(1, analysisRunId);
+            try (ResultSet rs = statement.executeQuery()) {
+                List<AiEvidenceRegionCorrection> results = new ArrayList<>();
+                while (rs.next()) {
+                    String originalType = rs.getString("original_geometry_type");
+                    String originalJson = rs.getString("original_geometry");
+                    results.add(new AiEvidenceRegionCorrection(
+                        rs.getObject("id", UUID.class).toString(),
+                        rs.getObject("evidence_region_id", UUID.class).toString(),
+                        rs.getObject("analysis_run_id", UUID.class).toString(),
+                        originalType,
+                        originalJson == null ? null : objectMapper.readValue(originalJson, JSON_MAP),
+                        rs.getString("corrected_geometry_type"),
+                        objectMapper.readValue(rs.getString("corrected_geometry"), JSON_MAP),
+                        rs.getString("comment"),
+                        rs.getString("reviewed_by"),
+                        rs.getTimestamp("created_at").toInstant()
+                    ));
+                }
+                return results;
+            }
+        } catch (Exception ex) {
+            throw new IllegalStateException("Could not list AI evidence region corrections", ex);
         }
     }
 }

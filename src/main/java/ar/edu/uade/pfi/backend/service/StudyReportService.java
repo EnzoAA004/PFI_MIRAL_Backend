@@ -4,6 +4,7 @@ import ar.edu.uade.pfi.backend.domain.AiDiscLevelResult;
 import ar.edu.uade.pfi.backend.domain.AiDiscLevelReview;
 import ar.edu.uade.pfi.backend.domain.AiProductAnalysisRun;
 import ar.edu.uade.pfi.backend.domain.AiProductAnalysisRunReview;
+import ar.edu.uade.pfi.backend.domain.DerivedEvidenceOrigin;
 import ar.edu.uade.pfi.backend.domain.Study;
 import ar.edu.uade.pfi.backend.dto.LongitudinalComparisonResultDto;
 import ar.edu.uade.pfi.backend.dto.StudyReportDto;
@@ -26,6 +27,7 @@ public class StudyReportService {
     private final StudyRepository repository;
     private final EffectiveAnalysisRunSelector runSelector;
     private final EffectiveMeasurementResolver measurementResolver;
+    private final EffectiveAnnotationResolver annotationResolver;
     private final LongitudinalComparisonService longitudinalComparisonService;
     private final StudyReportPdfRenderer pdfRenderer;
     private final Clock clock;
@@ -35,16 +37,18 @@ public class StudyReportService {
         StudyRepository repository,
         EffectiveAnalysisRunSelector runSelector,
         EffectiveMeasurementResolver measurementResolver,
+        EffectiveAnnotationResolver annotationResolver,
         LongitudinalComparisonService longitudinalComparisonService,
         StudyReportPdfRenderer pdfRenderer
     ) {
-        this(repository, runSelector, measurementResolver, longitudinalComparisonService, pdfRenderer, Clock.systemUTC());
+        this(repository, runSelector, measurementResolver, annotationResolver, longitudinalComparisonService, pdfRenderer, Clock.systemUTC());
     }
 
     StudyReportService(
         StudyRepository repository,
         EffectiveAnalysisRunSelector runSelector,
         EffectiveMeasurementResolver measurementResolver,
+        EffectiveAnnotationResolver annotationResolver,
         LongitudinalComparisonService longitudinalComparisonService,
         StudyReportPdfRenderer pdfRenderer,
         Clock clock
@@ -52,6 +56,7 @@ public class StudyReportService {
         this.repository = repository;
         this.runSelector = runSelector;
         this.measurementResolver = measurementResolver;
+        this.annotationResolver = annotationResolver;
         this.longitudinalComparisonService = longitudinalComparisonService;
         this.pdfRenderer = pdfRenderer;
         this.clock = clock;
@@ -90,6 +95,7 @@ public class StudyReportService {
             ? longitudinalComparisonService.compare(caseId, baselineCaseId.trim())
             : null;
         StudyReportDto.LongitudinalHistorySummary longitudinalHistory = longitudinalHistory(study, effectiveRun);
+        List<StudyReportDto.VisualEvidenceSummary> visualEvidence = visualEvidence(effectiveRun);
 
         return new StudyReportDto(
             SCHEMA_VERSION,
@@ -106,6 +112,7 @@ public class StudyReportService {
             limitations(effectiveRun, discLevels),
             longitudinal,
             longitudinalHistory,
+            visualEvidence,
             new StudyReportDto.SafetySummary(
                 effectiveRun.humanReviewRequired(),
                 effectiveRun.notClinicalDiagnosis(),
@@ -151,6 +158,7 @@ public class StudyReportService {
             List.of("No hay una corrida completed/partial utilizable para generar resultados estructurados.", DISCLAIMER),
             null,
             noHistory("No hay una corrida efectiva actual para calcular historial longitudinal.", study, null),
+            List.of(),
             new StudyReportDto.SafetySummary(true, true, false, DISCLAIMER),
             new StudyReportDto.TraceabilitySummary(study.caseId(), null, null, null, generatedAt)
         );
@@ -297,6 +305,49 @@ public class StudyReportService {
             measurement.correctedValue(),
             measurement.effectiveValue(),
             measurement.source()
+        );
+    }
+
+    /**
+     * EXT-04B2: only the currently-effective regions are surfaced in the report (mirrors
+     * {@code MeasurementSummary}, which also only ever shows the effective value, never a
+     * correction history) — rejected/still-blocked-pending regions remain queryable through
+     * their own persisted rows, but are not part of this "current view". Unreviewed AI
+     * suggestions ARE included (same precedent as {@code MeasurementSummary}, which shows
+     * AI-original measurements before any review too), each carrying its own
+     * {@code reviewStatus} and a neutral warning so the reader can tell it apart from a
+     * validated region.
+     */
+    private List<StudyReportDto.VisualEvidenceSummary> visualEvidence(AiProductAnalysisRun run) {
+        return annotationResolver.effectiveAnnotations(run, true).stream()
+            .filter(EffectiveAnnotationResolver.EffectiveAnnotation::effective)
+            .map(this::toVisualEvidenceSummary)
+            .toList();
+    }
+
+    private StudyReportDto.VisualEvidenceSummary toVisualEvidenceSummary(EffectiveAnnotationResolver.EffectiveAnnotation annotation) {
+        var region = annotation.region();
+        String source = switch (annotation.derivedOrigin()) {
+            case AI_SUGGESTED -> "ai_suggested";
+            case PROFESSIONAL_VALIDATED -> "ai_validated";
+            case PROFESSIONAL_CORRECTED -> "professional_corrected";
+            case PROFESSIONAL_DRAWN -> "professional_drawn";
+        };
+        String warning = annotation.derivedOrigin() == DerivedEvidenceOrigin.AI_SUGGESTED
+            ? "Sugerencia de IA sin revisión profesional."
+            : null;
+        return new StudyReportDto.VisualEvidenceSummary(
+            region.id(),
+            region.plane(),
+            region.level(),
+            region.structure(),
+            annotation.effectiveGeometryType(),
+            annotation.effectiveGeometry(),
+            source,
+            annotation.reviewStatus(),
+            region.label(),
+            warning,
+            region.experimental()
         );
     }
 

@@ -2,6 +2,8 @@ package ar.edu.uade.pfi.backend.repository;
 
 import ar.edu.uade.pfi.backend.domain.AiDiscLevelResult;
 import ar.edu.uade.pfi.backend.domain.AiDiscLevelReview;
+import ar.edu.uade.pfi.backend.domain.AiEvidenceRegion;
+import ar.edu.uade.pfi.backend.domain.AiEvidenceRegionCorrection;
 import ar.edu.uade.pfi.backend.domain.AiMeasurementCorrection;
 import ar.edu.uade.pfi.backend.domain.AiMeasurementResult;
 import ar.edu.uade.pfi.backend.domain.AiProductAnalysisRun;
@@ -127,6 +129,25 @@ public interface StudyRepository {
     AiMeasurementCorrection saveAiMeasurementCorrection(AiMeasurementCorrection correction);
 
     List<AiMeasurementCorrection> findAiMeasurementCorrectionsByAnalysisRunId(String analysisRunId);
+
+    // ---- EXT-04B2: visual evidence regions ----
+
+    /**
+     * Always inserts a new row — {@code domain_ai_evidence_regions} is a root that is never
+     * updated once created (same immutability guarantee as {@code AiMeasurementResult}).
+     */
+    AiEvidenceRegion saveAiEvidenceRegion(AiEvidenceRegion region);
+
+    List<AiEvidenceRegion> findAiEvidenceRegionsByAnalysisRunId(String analysisRunId);
+
+    /**
+     * Always inserts a new row — {@code domain_ai_evidence_regions} is never updated by a
+     * correction. The "current" corrected geometry for a region is the latest row by
+     * {@code createdAt}.
+     */
+    AiEvidenceRegionCorrection saveAiEvidenceRegionCorrection(AiEvidenceRegionCorrection correction);
+
+    List<AiEvidenceRegionCorrection> findAiEvidenceRegionCorrectionsByAnalysisRunId(String analysisRunId);
 
     // ---- Stage 80: contextual chat ----
 

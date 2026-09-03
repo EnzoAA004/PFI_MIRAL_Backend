@@ -578,6 +578,10 @@ class AiMultiplanarRunTest {
         @Override public List<ar.edu.uade.pfi.backend.domain.AiDiscLevelReview> findAiDiscLevelReviewsByAnalysisRunId(String analysisRunId) { throw new UnsupportedOperationException(); }
         @Override public ar.edu.uade.pfi.backend.domain.AiMeasurementCorrection saveAiMeasurementCorrection(ar.edu.uade.pfi.backend.domain.AiMeasurementCorrection correction) { throw new UnsupportedOperationException(); }
         @Override public List<ar.edu.uade.pfi.backend.domain.AiMeasurementCorrection> findAiMeasurementCorrectionsByAnalysisRunId(String analysisRunId) { throw new UnsupportedOperationException(); }
+        @Override public ar.edu.uade.pfi.backend.domain.AiEvidenceRegion saveAiEvidenceRegion(ar.edu.uade.pfi.backend.domain.AiEvidenceRegion region) { throw new UnsupportedOperationException(); }
+        @Override public List<ar.edu.uade.pfi.backend.domain.AiEvidenceRegion> findAiEvidenceRegionsByAnalysisRunId(String analysisRunId) { throw new UnsupportedOperationException(); }
+        @Override public ar.edu.uade.pfi.backend.domain.AiEvidenceRegionCorrection saveAiEvidenceRegionCorrection(ar.edu.uade.pfi.backend.domain.AiEvidenceRegionCorrection correction) { throw new UnsupportedOperationException(); }
+        @Override public List<ar.edu.uade.pfi.backend.domain.AiEvidenceRegionCorrection> findAiEvidenceRegionCorrectionsByAnalysisRunId(String analysisRunId) { throw new UnsupportedOperationException(); }
         @Override public ar.edu.uade.pfi.backend.domain.ChatConversation saveChatConversation(ar.edu.uade.pfi.backend.domain.ChatConversation conversation) { throw new UnsupportedOperationException(); }
         @Override public ar.edu.uade.pfi.backend.domain.ChatMessage saveChatMessage(ar.edu.uade.pfi.backend.domain.ChatMessage message) { throw new UnsupportedOperationException(); }
         @Override public List<ar.edu.uade.pfi.backend.domain.ChatConversation> findChatConversationsByStudyId(String studyId) { throw new UnsupportedOperationException(); }

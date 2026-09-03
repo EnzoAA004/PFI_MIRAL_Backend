@@ -3,6 +3,7 @@ package ar.edu.uade.pfi.backend.dto;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 /** Stage 88: backend-authoritative, on-demand report/export contract. */
 public record StudyReportDto(
@@ -20,6 +21,12 @@ public record StudyReportDto(
     List<String> limitations,
     LongitudinalComparisonResultDto longitudinalComparison,
     LongitudinalHistorySummary longitudinalHistory,
+    /**
+     * EXT-04B2: additive, backward-compatible — always present (an empty list when there is no
+     * evidence to show, never omitted), so a consumer that only knows about pre-EXT-04B2 fields
+     * keeps working unchanged. Never a diagnostic claim: see {@link VisualEvidenceSummary}.
+     */
+    List<VisualEvidenceSummary> visualEvidence,
     SafetySummary safety,
     TraceabilitySummary traceability
 ) {
@@ -135,6 +142,34 @@ public record StudyReportDto(
         String analysisSchemaVersion,
         String releaseId,
         Instant generatedAt
+    ) {
+    }
+
+    /**
+     * EXT-04B2: one visual region of interest — never a diagnostic claim. {@code geometry} is
+     * always the already-resolved EFFECTIVE geometry (corrected-if-any, else the AI's or the
+     * professional's own), in the canonical normalised 0..256 basis; for
+     * {@code geometryType="MASK_REFERENCE"} it only carries {@code {runId, plane, assetName}},
+     * resolved through the existing {@code /api/ai/assets/{runId}/{plane}/{assetName}} endpoint
+     * — never a filesystem path, bucket path, or DICOM UID.
+     *
+     * <p>{@code source} is one of {@code ai_suggested|ai_validated|professional_corrected|
+     * professional_drawn} — the same four EXT-04B1 concepts, always DERIVED (never an
+     * independently-persisted enum). {@code reviewedBy}/{@code authoredBy} are never exposed
+     * here — same rule EXT-04A already applies to the run/disc-level review summaries.
+     */
+    public record VisualEvidenceSummary(
+        String evidenceId,
+        String plane,
+        String level,
+        String structure,
+        String geometryType,
+        Map<String, Object> geometry,
+        String source,
+        String reviewStatus,
+        String label,
+        String warning,
+        boolean experimental
     ) {
     }
 }

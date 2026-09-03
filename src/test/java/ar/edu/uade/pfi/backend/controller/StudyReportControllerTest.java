@@ -112,6 +112,7 @@ class StudyReportControllerTest {
                 List.of(),
                 "No existen estudios previos comparables disponibles."
             ),
+            List.of(),
             new StudyReportDto.SafetySummary(true, true, false, StudyReportService.DISCLAIMER),
             new StudyReportDto.TraceabilitySummary(caseId, "run-1", "pfi.ai-product-result.v1", "release", now)
         );

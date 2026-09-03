@@ -2,6 +2,8 @@ package ar.edu.uade.pfi.backend.repository;
 
 import ar.edu.uade.pfi.backend.domain.AiDiscLevelResult;
 import ar.edu.uade.pfi.backend.domain.AiDiscLevelReview;
+import ar.edu.uade.pfi.backend.domain.AiEvidenceRegion;
+import ar.edu.uade.pfi.backend.domain.AiEvidenceRegionCorrection;
 import ar.edu.uade.pfi.backend.domain.AiMeasurementCorrection;
 import ar.edu.uade.pfi.backend.domain.AiMeasurementResult;
 import ar.edu.uade.pfi.backend.domain.AiProductAnalysisRun;
@@ -46,6 +48,8 @@ public class InMemoryStudyRepository implements StudyRepository {
     private final ConcurrentMap<String, AiProductAnalysisRunReview> aiRunReviewsByRunId = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, AiDiscLevelReview> aiDiscLevelReviewsByDiscLevelId = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, List<AiMeasurementCorrection>> aiMeasurementCorrectionsByRunId = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, List<AiEvidenceRegion>> aiEvidenceRegionsByRunId = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, List<AiEvidenceRegionCorrection>> aiEvidenceRegionCorrectionsByRunId = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, ChatConversation> chatConversationsById = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, List<ChatMessage>> chatMessagesByConversationId = new ConcurrentHashMap<>();
 
@@ -423,6 +427,38 @@ public class InMemoryStudyRepository implements StudyRepository {
     @Override
     public List<AiMeasurementCorrection> findAiMeasurementCorrectionsByAnalysisRunId(String analysisRunId) {
         return aiMeasurementCorrectionsByRunId.getOrDefault(analysisRunId, List.of());
+    }
+
+    // ---- EXT-04B2: visual evidence regions ----
+
+    @Override
+    public AiEvidenceRegion saveAiEvidenceRegion(AiEvidenceRegion region) {
+        aiEvidenceRegionsByRunId.compute(region.analysisRunId(), (key, existing) -> {
+            List<AiEvidenceRegion> updated = new ArrayList<>(existing == null ? List.of() : existing);
+            updated.add(region);
+            return updated;
+        });
+        return region;
+    }
+
+    @Override
+    public List<AiEvidenceRegion> findAiEvidenceRegionsByAnalysisRunId(String analysisRunId) {
+        return aiEvidenceRegionsByRunId.getOrDefault(analysisRunId, List.of());
+    }
+
+    @Override
+    public AiEvidenceRegionCorrection saveAiEvidenceRegionCorrection(AiEvidenceRegionCorrection correction) {
+        aiEvidenceRegionCorrectionsByRunId.compute(correction.analysisRunId(), (key, existing) -> {
+            List<AiEvidenceRegionCorrection> updated = new ArrayList<>(existing == null ? List.of() : existing);
+            updated.add(correction);
+            return updated;
+        });
+        return correction;
+    }
+
+    @Override
+    public List<AiEvidenceRegionCorrection> findAiEvidenceRegionCorrectionsByAnalysisRunId(String analysisRunId) {
+        return aiEvidenceRegionCorrectionsByRunId.getOrDefault(analysisRunId, List.of());
     }
 
     // ---- Stage 80: contextual chat ----
