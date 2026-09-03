@@ -11,6 +11,7 @@ import ar.edu.uade.pfi.backend.repository.StudyRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Comparator;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -88,6 +89,7 @@ public class StudyReportService {
         LongitudinalComparisonResultDto longitudinal = hasText(baselineCaseId)
             ? longitudinalComparisonService.compare(caseId, baselineCaseId.trim())
             : null;
+        StudyReportDto.LongitudinalHistorySummary longitudinalHistory = longitudinalHistory(study, effectiveRun);
 
         return new StudyReportDto(
             SCHEMA_VERSION,
@@ -103,6 +105,7 @@ public class StudyReportService {
             warnings(effectiveRun),
             limitations(effectiveRun, discLevels),
             longitudinal,
+            longitudinalHistory,
             new StudyReportDto.SafetySummary(
                 effectiveRun.humanReviewRequired(),
                 effectiveRun.notClinicalDiagnosis(),
@@ -147,8 +150,104 @@ public class StudyReportService {
             List.of(),
             List.of("No hay una corrida completed/partial utilizable para generar resultados estructurados.", DISCLAIMER),
             null,
+            noHistory("No hay una corrida efectiva actual para calcular historial longitudinal.", study, null),
             new StudyReportDto.SafetySummary(true, true, false, DISCLAIMER),
             new StudyReportDto.TraceabilitySummary(study.caseId(), null, null, null, generatedAt)
+        );
+    }
+
+    private StudyReportDto.LongitudinalHistorySummary longitudinalHistory(Study current, AiProductAnalysisRun currentRun) {
+        String currentSubject = normalizedSubjectRef(current.subjectRef());
+        if (currentSubject == null) {
+            return noHistory("No existen estudios previos comparables disponibles.", current, currentRun);
+        }
+
+        List<Study> previousStudies = repository.findStudiesBySubjectRef(currentSubject).stream()
+            .filter(study -> !study.id().equals(current.id()))
+            .filter(study -> isPreviousStudy(study, current))
+            .sorted(Comparator
+                .comparing((Study study) -> study.studyDate() == null)
+                .thenComparing(Study::studyDate, Comparator.nullsLast(Comparator.reverseOrder()))
+                .thenComparing(Study::createdAt, Comparator.reverseOrder()))
+            .toList();
+        if (previousStudies.isEmpty()) {
+            return noHistory("No existen estudios previos comparables disponibles.", current, currentRun);
+        }
+
+        List<StudyReportDto.PreviousStudySummary> previous = new ArrayList<>();
+        List<StudyReportDto.LongitudinalHistoryComparison> rows = new ArrayList<>();
+        for (Study prior : previousStudies) {
+            try {
+                LongitudinalComparisonResultDto comparison = longitudinalComparisonService.compare(current.caseId(), prior.caseId());
+                List<LongitudinalComparisonResultDto.MeasurementComparison> comparable = comparison.measurements().stream()
+                    .filter(item -> "comparable".equals(item.comparisonStatus()))
+                    .toList();
+                previous.add(new StudyReportDto.PreviousStudySummary(
+                    prior.caseId(),
+                    prior.studyDate(),
+                    comparison.baselineAnalysisRunId(),
+                    comparable.isEmpty() ? "no_comparable_measurements" : "comparable",
+                    comparable.size(),
+                    comparison.measurements().size() - comparable.size()
+                ));
+                comparable.stream().map(item -> toHistoryRow(comparison, item)).forEach(rows::add);
+            } catch (RunReviewException ex) {
+                previous.add(new StudyReportDto.PreviousStudySummary(
+                    prior.caseId(),
+                    prior.studyDate(),
+                    null,
+                    "no_usable_analysis",
+                    0,
+                    0
+                ));
+            }
+        }
+
+        String message = rows.isEmpty()
+            ? "Existen estudios previos, pero no hay métricas comparables disponibles."
+            : "Historial longitudinal técnico disponible.";
+        return new StudyReportDto.LongitudinalHistorySummary(
+            !rows.isEmpty(),
+            new StudyReportDto.CurrentStudySummary(current.caseId(), current.studyDate(), currentRun.id()),
+            previous,
+            rows,
+            message
+        );
+    }
+
+    private StudyReportDto.LongitudinalHistoryComparison toHistoryRow(
+        LongitudinalComparisonResultDto comparison,
+        LongitudinalComparisonResultDto.MeasurementComparison item
+    ) {
+        return new StudyReportDto.LongitudinalHistoryComparison(
+            comparison.baselineCaseId(),
+            comparison.baselineStudyDate(),
+            comparison.currentStudyDate(),
+            item.level(),
+            item.plane(),
+            item.structure(),
+            item.metric(),
+            displayUnit(item.unit()),
+            item.baseline() == null ? null : item.baseline().effectiveValue(),
+            item.current() == null ? null : item.current().effectiveValue(),
+            item.deltaAbsolute(),
+            item.deltaPercent(),
+            item.baseline() == null ? null : item.baseline().source(),
+            item.current() == null ? null : item.current().source(),
+            item.baseline() == null ? null : item.baseline().automaticValue(),
+            item.current() == null ? null : item.current().automaticValue(),
+            item.baseline() == null ? null : item.baseline().correctedValue(),
+            item.current() == null ? null : item.current().correctedValue()
+        );
+    }
+
+    private StudyReportDto.LongitudinalHistorySummary noHistory(String message, Study current, AiProductAnalysisRun currentRun) {
+        return new StudyReportDto.LongitudinalHistorySummary(
+            false,
+            new StudyReportDto.CurrentStudySummary(current.caseId(), current.studyDate(), currentRun == null ? null : currentRun.id()),
+            List.of(),
+            List.of(),
+            message
         );
     }
 
@@ -228,6 +327,15 @@ public class StudyReportService {
 
     private String displayUnit(String unit) {
         return "mm2".equals(unit) ? "mm²" : unit;
+    }
+
+    private String normalizedSubjectRef(String subjectRef) {
+        return subjectRef == null || subjectRef.isBlank() ? null : SubjectReferenceValidator.normalize(subjectRef);
+    }
+
+    private boolean isPreviousStudy(Study candidate, Study current) {
+        if (current.studyDate() == null) return true;
+        return candidate.studyDate() != null && candidate.studyDate().isBefore(current.studyDate());
     }
 
     private boolean hasText(String value) {

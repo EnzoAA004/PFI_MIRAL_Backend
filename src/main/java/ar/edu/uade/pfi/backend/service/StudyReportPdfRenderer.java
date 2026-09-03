@@ -105,6 +105,24 @@ public class StudyReportPdfRenderer {
             lines.add("Filas comparables: " + comparison.measurements().size());
         }
         lines.add("");
+        lines.add("Evolución / comparación con estudios previos");
+        StudyReportDto.LongitudinalHistorySummary history = report.longitudinalHistory();
+        if (history == null || history.previousStudies().isEmpty()) {
+            lines.add("No existen estudios previos comparables disponibles.");
+        } else if (history.comparisons().isEmpty()) {
+            lines.add("Existen estudios previos, pero no hay métricas comparables disponibles.");
+        } else {
+            lines.add("Fecha | Nivel | Estructura | Métrica | Anterior | Actual | Delta");
+            for (StudyReportDto.LongitudinalHistoryComparison item : history.comparisons()) {
+                lines.add(value(item.previousStudyDate()) + " | " + value(item.level()) + " | "
+                    + value(item.structure()) + " | " + value(item.metric()) + " | "
+                    + value(item.previousEffectiveValue()) + " " + value(item.unit()) + " | "
+                    + value(item.currentEffectiveValue()) + " " + value(item.unit()) + " | "
+                    + signed(item.absoluteDelta()) + " " + value(item.unit())
+                    + (item.percentageDelta() == null ? "" : " (" + signed(item.percentageDelta()) + "%)"));
+            }
+        }
+        lines.add("");
         lines.add("Warnings / limitations");
         report.warnings().forEach(warning -> lines.add("Warning: " + warning));
         report.limitations().forEach(limitation -> lines.add("Limitación: " + limitation));
@@ -117,6 +135,13 @@ public class StudyReportPdfRenderer {
 
     private String yesNo(boolean value) {
         return value ? "sí" : "no";
+    }
+
+    private String signed(Double value) {
+        if (value == null) return "No disponible";
+        if (value > 0) return "+" + value;
+        if (value == 0) return "±0.0";
+        return value.toString();
     }
 
     private String printable(String line) {

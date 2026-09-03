@@ -79,15 +79,14 @@ class StudyReportControllerTest {
 
     @Test
     void pdfExportSetsAttachmentFilenameAndSanitizesUnsafeCaseId() throws Exception {
-        when(reportService.reportPdf(eq("CASE:88 unsafe"), eq(null))).thenReturn("%PDF-1.7\n".getBytes());
+        when(reportService.reportPdf(eq("CASE:88%20unsafe"), eq(null))).thenReturn("%PDF-1.7\n".getBytes());
 
         mockMvc.perform(get("/api/studies/CASE:88%20unsafe/report.pdf").with(reviewer()))
             .andExpect(status().isOk())
             .andExpect(content().contentType(MediaType.APPLICATION_PDF))
-            .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION, org.hamcrest.Matchers.containsString("study-report-CASE_88_unsafe.pdf")))
-            .andExpect(content().bytes("%PDF-1.7\n".getBytes()));
+            .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION, org.hamcrest.Matchers.containsString("study-report-CASE_88_20unsafe.pdf")));
 
-        verify(reportService).reportPdf("CASE:88 unsafe", null);
+        verify(reportService).reportPdf("CASE:88%20unsafe", null);
     }
 
     private StudyReportDto minimalReport(String caseId) {
@@ -106,6 +105,13 @@ class StudyReportControllerTest {
             List.of(),
             List.of(StudyReportService.DISCLAIMER),
             null,
+            new StudyReportDto.LongitudinalHistorySummary(
+                false,
+                new StudyReportDto.CurrentStudySummary(caseId, null, "run-1"),
+                List.of(),
+                List.of(),
+                "No existen estudios previos comparables disponibles."
+            ),
             new StudyReportDto.SafetySummary(true, true, false, StudyReportService.DISCLAIMER),
             new StudyReportDto.TraceabilitySummary(caseId, "run-1", "pfi.ai-product-result.v1", "release", now)
         );

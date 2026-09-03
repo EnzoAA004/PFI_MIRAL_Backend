@@ -15,6 +15,7 @@ import ar.edu.uade.pfi.backend.domain.Study;
 import ar.edu.uade.pfi.backend.dto.StudyReportDto;
 import ar.edu.uade.pfi.backend.repository.InMemoryStudyRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -27,6 +28,7 @@ import org.junit.jupiter.api.Test;
 
 class StudyReportServiceTest {
     private static final Clock FIXED_CLOCK = Clock.fixed(Instant.parse("2026-08-26T12:00:00Z"), ZoneOffset.UTC);
+    private static final ObjectMapper JSON = new ObjectMapper().registerModule(new JavaTimeModule());
 
     private final InMemoryStudyRepository repository = new InMemoryStudyRepository();
     private final EffectiveAnalysisRunSelector selector = new EffectiveAnalysisRunSelector(repository);
@@ -65,7 +67,7 @@ class StudyReportServiceTest {
         ));
 
         StudyReportDto report = service.report(study.caseId(), null);
-        String json = new ObjectMapper().writeValueAsString(report);
+        String json = JSON.writeValueAsString(report);
 
         assertAll(
             () -> assertEquals(StudyReportService.SCHEMA_VERSION, report.schemaVersion()),
@@ -103,6 +105,8 @@ class StudyReportServiceTest {
             () -> assertEquals(reviewed.id(), report.traceability().analysisRunId()),
             () -> assertEquals("pfi.ai-product-result.v1", report.traceability().analysisSchemaVersion()),
             () -> assertNull(report.longitudinalComparison()),
+            () -> assertFalse(report.longitudinalHistory().available()),
+            () -> assertTrue(report.longitudinalHistory().comparisons().isEmpty()),
             () -> assertFalse(json.contains("SUBJ-88")),
             () -> assertFalse(json.contains("PatientName")),
             () -> assertFalse(json.contains("PatientID")),
@@ -129,6 +133,8 @@ class StudyReportServiceTest {
             () -> assertTrue(report.measurements().isEmpty()),
             () -> assertTrue(report.warnings().isEmpty()),
             () -> assertTrue(report.limitations().stream().anyMatch(text -> text.contains("completed/partial"))),
+            () -> assertFalse(report.longitudinalHistory().available()),
+            () -> assertTrue(report.longitudinalHistory().message().contains("corrida efectiva actual")),
             () -> assertTrue(report.safety().humanReviewRequired()),
             () -> assertTrue(report.safety().notClinicalDiagnosis()),
             () -> assertFalse(report.safety().autonomousDiagnosis()),
@@ -152,7 +158,94 @@ class StudyReportServiceTest {
             () -> assertEquals(1, report.longitudinalComparison().measurements().size()),
             () -> assertEquals(20.0, report.longitudinalComparison().measurements().get(0).deltaAbsolute()),
             () -> assertEquals("increased", report.longitudinalComparison().measurements().get(0).trend()),
-            () -> assertEquals("comparable", report.longitudinalComparison().measurements().get(0).comparisonStatus())
+            () -> assertEquals("comparable", report.longitudinalComparison().measurements().get(0).comparisonStatus()),
+            () -> assertTrue(report.longitudinalHistory().available()),
+            () -> assertEquals(1, report.longitudinalHistory().previousStudies().size()),
+            () -> assertEquals(1, report.longitudinalHistory().comparisons().size()),
+            () -> assertEquals(20.0, report.longitudinalHistory().comparisons().get(0).absoluteDelta())
+        );
+    }
+
+    @Test
+    void reportHistoryIncludesThreeStudySeriesWithProfessionalCorrectionAndPercentNull() throws Exception {
+        Study oldest = seedStudy("study-a", "CASE-A", "SUBJ-HIST", LocalDate.of(2026, 6, 1));
+        Study middle = seedStudy("study-b", "CASE-B", "subj-hist", LocalDate.of(2026, 7, 1));
+        Study current = seedStudy("study-c", "CASE-C", " SUBJ-HIST ", LocalDate.of(2026, 8, 1));
+        seedRunWithOneMeasurement(oldest, "run-a", 0.0);
+        seedRunWithOneMeasurement(middle, "run-b", 10.0);
+        AiProductAnalysisRun currentRun = seedRunWithOneMeasurement(current, "run-c", 12.0);
+        AiMeasurementResult currentMeasurement = repository.findAiMeasurementResultsByAnalysisRunId(currentRun.id()).get(0);
+        repository.saveAiMeasurementCorrection(new AiMeasurementCorrection(
+            "correction-current", currentMeasurement.id(), currentRun.id(), "areaMm2", 12.0, 12.5,
+            "mm2", "ajuste", "doctor@pfi.local", Instant.parse("2026-08-26T11:15:00Z")
+        ));
+
+        StudyReportDto report = service.report(current.caseId(), null);
+        String historyJson = JSON.writeValueAsString(report.longitudinalHistory());
+
+        assertAll(
+            () -> assertTrue(report.longitudinalHistory().available()),
+            () -> assertEquals(current.caseId(), report.longitudinalHistory().currentStudy().caseId()),
+            () -> assertEquals(2, report.longitudinalHistory().previousStudies().size()),
+            () -> assertEquals(2, report.longitudinalHistory().comparisons().size()),
+            () -> assertEquals("professional_correction", report.longitudinalHistory().comparisons().get(0).currentValueSource()),
+            () -> assertEquals(12.5, report.longitudinalHistory().comparisons().get(0).currentEffectiveValue()),
+            () -> assertNull(report.longitudinalHistory().comparisons().stream()
+                .filter(row -> "CASE-A".equals(row.previousCaseId()))
+                .findFirst()
+                .orElseThrow()
+                .percentageDelta()),
+            () -> assertFalse(historyJson.contains("SUBJ-HIST")),
+            () -> assertFalse(historyJson.matches("(?s).*(?i)(mejor|empeor|progresi[oó]n|better|worse|progression).*"))
+        );
+    }
+
+    @Test
+    void reportHistoryDoesNotCrossPatientsOrUseNullSubjectRef() {
+        Study otherPatient = seedStudy("study-other", "CASE-OTHER", "SUBJ-OTHER", LocalDate.of(2026, 7, 1));
+        Study current = seedStudy("study-null-subject", "CASE-NULL-SUBJECT", null, LocalDate.of(2026, 8, 1));
+        seedRunWithOneMeasurement(otherPatient, "run-other", 10.0);
+        seedRunWithOneMeasurement(current, "run-null-subject", 12.0);
+
+        StudyReportDto report = service.report(current.caseId(), null);
+
+        assertAll(
+            () -> assertFalse(report.longitudinalHistory().available()),
+            () -> assertTrue(report.longitudinalHistory().previousStudies().isEmpty()),
+            () -> assertTrue(report.longitudinalHistory().comparisons().isEmpty())
+        );
+    }
+
+    @Test
+    void reportHistoryListsPreviousStudyWithoutEligibleRunWithoutFailingReport() {
+        Study previous = seedStudy("study-prev-failed", "CASE-PREV-FAILED", "SUBJ-FAILED-HIST", LocalDate.of(2026, 7, 1));
+        Study current = seedStudy("study-current-ok", "CASE-CURRENT-OK", "SUBJ-FAILED-HIST", LocalDate.of(2026, 8, 1));
+        seedRun(previous, "run-prev-failed", "failed", Instant.parse("2026-08-26T09:00:00Z"));
+        seedRunWithOneMeasurement(current, "run-current-ok", 12.0);
+
+        StudyReportDto report = service.report(current.caseId(), null);
+
+        assertAll(
+            () -> assertFalse(report.longitudinalHistory().available()),
+            () -> assertEquals(1, report.longitudinalHistory().previousStudies().size()),
+            () -> assertEquals("no_usable_analysis", report.longitudinalHistory().previousStudies().get(0).comparisonStatus()),
+            () -> assertTrue(report.longitudinalHistory().comparisons().isEmpty())
+        );
+    }
+
+    @Test
+    void reportHistoryDoesNotPairNullLevelMeasurements() {
+        Study previous = seedStudy("study-prev-null-level", "CASE-PREV-NULL", "SUBJ-NULL-LVL", LocalDate.of(2026, 7, 1));
+        Study current = seedStudy("study-current-null-level", "CASE-CURRENT-NULL", "SUBJ-NULL-LVL", LocalDate.of(2026, 8, 1));
+        seedRunWithMeasurement(previous, "run-prev-null", null, "sagittal", "disc", 10.0, null, null);
+        seedRunWithMeasurement(current, "run-current-null", null, "sagittal", "disc", 12.0, null, null);
+
+        StudyReportDto report = service.report(current.caseId(), null);
+
+        assertAll(
+            () -> assertFalse(report.longitudinalHistory().available()),
+            () -> assertEquals("no_comparable_measurements", report.longitudinalHistory().previousStudies().get(0).comparisonStatus()),
+            () -> assertTrue(report.longitudinalHistory().comparisons().isEmpty())
         );
     }
 
@@ -201,14 +294,19 @@ class StudyReportServiceTest {
         return run;
     }
 
-    private void seedRunWithOneMeasurement(Study study, String runId, double areaMm2) {
+    private AiProductAnalysisRun seedRunWithOneMeasurement(Study study, String runId, double areaMm2) {
+        return seedRunWithMeasurement(study, runId, "L1-L2", "sagittal", "disc", areaMm2, null, null);
+    }
+
+    private AiProductAnalysisRun seedRunWithMeasurement(Study study, String runId, String levelName, String plane, String structure, Double areaMm2, Double majorAxisMm, Double minorAxisMm) {
         AiProductAnalysisRun run = seedRun(study, runId, "completed", Instant.parse("2026-08-26T10:00:00Z"));
         AiDiscLevelResult level = level("level-" + runId, run.id(), 0, "L1-L2", false, true, true);
         AiMeasurementResult measurement = new AiMeasurementResult(
-            "measurement-" + runId, run.id(), level.id(), "sagittal", "L1-L2", "disc",
-            areaMm2, null, null, true
+            "measurement-" + runId, run.id(), level.id(), plane, levelName, structure,
+            areaMm2, majorAxisMm, minorAxisMm, true
         );
         repository.saveAiProductAnalysisRun(run, List.of(level), List.of(measurement));
+        return run;
     }
 
     private AiDiscLevelResult level(String id, String runId, int rankIndex, String level, boolean experimental, boolean automaticInferenceEnabled, boolean localizationValidated) {
