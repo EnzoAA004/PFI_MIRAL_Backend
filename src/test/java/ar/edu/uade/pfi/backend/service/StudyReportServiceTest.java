@@ -38,13 +38,18 @@ class StudyReportServiceTest {
     private final EffectiveMeasurementResolver resolver = new EffectiveMeasurementResolver(repository);
     private final EffectiveAnnotationResolver annotationResolver = new EffectiveAnnotationResolver(repository);
     private final LongitudinalComparisonService longitudinal = new LongitudinalComparisonService(repository, selector, resolver, FIXED_CLOCK);
+    /** No base images available in this fixture repository — every evidence item falls back to text, same as a real 404/unavailable slice would (EXT-04B4 Phase 12). */
+    private final EvidenceImageSource noImagesAvailable = new EvidenceImageSource() {
+        @Override public java.util.Optional<byte[]> fetchSeriesSlice(String inputId, int sliceIndex) { return java.util.Optional.empty(); }
+        @Override public java.util.Optional<byte[]> fetchAsset(String runId, String plane, String assetName) { return java.util.Optional.empty(); }
+    };
     private final StudyReportService service = new StudyReportService(
         repository,
         selector,
         resolver,
         annotationResolver,
         longitudinal,
-        new StudyReportPdfRenderer(),
+        new StudyReportPdfRenderer(noImagesAvailable, new EvidenceOverlayComposer()),
         FIXED_CLOCK
     );
 

@@ -27,6 +27,18 @@ public record StudyReportDto(
      * keeps working unchanged. Never a diagnostic claim: see {@link VisualEvidenceSummary}.
      */
     List<VisualEvidenceSummary> visualEvidence,
+    /**
+     * EXT-04B4: additive, backward-compatible — always present (empty when there is no
+     * comparable previous study, never omitted). One entry per
+     * {@code longitudinalHistory.comparisons[]} row (same cap, same source of truth for the
+     * numeric values/deltas — never recomputed here), each optionally paired with a matching
+     * {@link VisualEvidenceSummary} on either side when one exists at the same level/plane/
+     * structure. Consumed by the PDF's "Comparación con estudio previo" section; the JSON/UI
+     * report already has this information split across {@code longitudinalHistory} and
+     * {@code visualEvidence} separately, so this field exists purely to save the PDF renderer
+     * from re-deriving the same pairing the Frontend already does client-side (EXT-07B).
+     */
+    List<BeforeAfterEvidencePairDto> beforeAfterEvidence,
     SafetySummary safety,
     TraceabilitySummary traceability
 ) {
@@ -192,5 +204,30 @@ public record StudyReportDto(
      * {@code VisualEvidenceSummary.plane}.
      */
     public record BaseImageRef(String inputId, Integer sliceIndex) {
+    }
+
+    /**
+     * EXT-04B4: one "Anterior vs Actual" row — the numeric fields are copied verbatim from the
+     * matching {@link LongitudinalHistoryComparison} row (never recomputed), and
+     * {@code previousEvidence}/{@code currentEvidence} are {@code null} (never fabricated) when
+     * no {@link VisualEvidenceSummary} exists at the same level/plane/structure on that side.
+     */
+    public record BeforeAfterEvidencePairDto(
+        String level,
+        String plane,
+        String structure,
+        String metric,
+        String unit,
+        LocalDate previousStudyDate,
+        LocalDate currentStudyDate,
+        Double previousEffectiveValue,
+        Double currentEffectiveValue,
+        Double absoluteDelta,
+        Double percentageDelta,
+        String previousValueSource,
+        String currentValueSource,
+        VisualEvidenceSummary previousEvidence,
+        VisualEvidenceSummary currentEvidence
+    ) {
     }
 }

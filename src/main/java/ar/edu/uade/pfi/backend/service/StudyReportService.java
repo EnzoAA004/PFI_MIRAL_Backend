@@ -96,6 +96,7 @@ public class StudyReportService {
             : null;
         StudyReportDto.LongitudinalHistorySummary longitudinalHistory = longitudinalHistory(study, effectiveRun);
         List<StudyReportDto.VisualEvidenceSummary> visualEvidence = visualEvidence(effectiveRun);
+        List<StudyReportDto.BeforeAfterEvidencePairDto> beforeAfterEvidence = beforeAfterEvidence(longitudinalHistory, visualEvidence);
 
         return new StudyReportDto(
             SCHEMA_VERSION,
@@ -113,6 +114,7 @@ public class StudyReportService {
             longitudinal,
             longitudinalHistory,
             visualEvidence,
+            beforeAfterEvidence,
             new StudyReportDto.SafetySummary(
                 effectiveRun.humanReviewRequired(),
                 effectiveRun.notClinicalDiagnosis(),
@@ -158,6 +160,7 @@ public class StudyReportService {
             List.of("No hay una corrida completed/partial utilizable para generar resultados estructurados.", DISCLAIMER),
             null,
             noHistory("No hay una corrida efectiva actual para calcular historial longitudinal.", study, null),
+            List.of(),
             List.of(),
             new StudyReportDto.SafetySummary(true, true, false, DISCLAIMER),
             new StudyReportDto.TraceabilitySummary(study.caseId(), null, null, null, generatedAt)
@@ -369,6 +372,58 @@ public class StudyReportService {
         };
         if (inputId == null || inputId.isBlank()) return null;
         return new StudyReportDto.BaseImageRef(inputId, region.sliceIndex());
+    }
+
+    /** Same cap the Frontend's own before/after section already applies (EXT-07B). */
+    private static final int BEFORE_AFTER_LIMIT = 4;
+
+    /**
+     * EXT-04B4: pairs each {@code longitudinalHistory.comparisons[]} row with a matching
+     * {@link StudyReportDto.VisualEvidenceSummary} on the previous/current side, when one exists
+     * at the same level/plane/structure — server-side equivalent of what the Frontend's own
+     * `beforeAfterDisplay.ts#matchingEvidence` already does client-side (EXT-07B), needed here
+     * because PDF generation has no client to do that matching for it. Numeric values/deltas are
+     * always copied verbatim from the row — never recomputed.
+     */
+    private List<StudyReportDto.BeforeAfterEvidencePairDto> beforeAfterEvidence(
+        StudyReportDto.LongitudinalHistorySummary history,
+        List<StudyReportDto.VisualEvidenceSummary> currentEvidence
+    ) {
+        if (history == null || history.comparisons().isEmpty()) return List.of();
+        Map<String, List<StudyReportDto.VisualEvidenceSummary>> previousEvidenceByCaseId = new LinkedHashMap<>();
+        List<StudyReportDto.BeforeAfterEvidencePairDto> pairs = new ArrayList<>();
+        for (StudyReportDto.LongitudinalHistoryComparison row : history.comparisons().stream().limit(BEFORE_AFTER_LIMIT).toList()) {
+            List<StudyReportDto.VisualEvidenceSummary> previousEvidence = previousEvidenceByCaseId
+                .computeIfAbsent(row.previousCaseId(), this::visualEvidenceForCaseId);
+            pairs.add(new StudyReportDto.BeforeAfterEvidencePairDto(
+                row.level(), row.plane(), row.structure(), row.metric(), row.unit(),
+                row.previousStudyDate(), row.currentStudyDate(),
+                row.previousEffectiveValue(), row.currentEffectiveValue(),
+                row.absoluteDelta(), row.percentageDelta(),
+                row.previousValueSource(), row.currentValueSource(),
+                matchEvidence(previousEvidence, row.level(), row.plane(), row.structure()),
+                matchEvidence(currentEvidence, row.level(), row.plane(), row.structure())
+            ));
+        }
+        return pairs;
+    }
+
+    private List<StudyReportDto.VisualEvidenceSummary> visualEvidenceForCaseId(String caseId) {
+        return repository.findStudyByCaseId(caseId)
+            .flatMap(study -> runSelector.selectEffectiveRun(study.id()))
+            .map(this::visualEvidence)
+            .orElse(List.of());
+    }
+
+    private StudyReportDto.VisualEvidenceSummary matchEvidence(
+        List<StudyReportDto.VisualEvidenceSummary> evidence, String level, String plane, String structure
+    ) {
+        return evidence.stream()
+            .filter(item -> java.util.Objects.equals(item.level(), level)
+                && java.util.Objects.equals(item.plane(), plane)
+                && java.util.Objects.equals(item.structure(), structure))
+            .findFirst()
+            .orElse(null);
     }
 
     private List<String> warnings(AiProductAnalysisRun run) {
