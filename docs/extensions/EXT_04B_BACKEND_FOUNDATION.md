@@ -115,8 +115,46 @@ a ningún controller** — ver la sección de contradicción arriba.
 vacía si no hay evidencia, nunca omitido). Sólo se listan las regiones **efectivas** (mismo
 criterio que `MeasurementSummary`, que tampoco expone el historial de correcciones). Cada item:
 `evidenceId, plane, level, structure, geometryType, geometry, source, reviewStatus, label,
-warning, experimental` — `source` ∈ `ai_suggested|ai_validated|professional_corrected|
+warning, experimental, baseImage` — `source` ∈ `ai_suggested|ai_validated|professional_corrected|
 professional_drawn`. Nunca se serializa `comment`/`authoredBy`/reviewer.
+
+## Image context (EXT-04B3.5) — `baseImage`
+
+Problema real encontrado al auditar el consumo desde Frontend: `VisualEvidenceSummary` no traía
+ninguna referencia a una imagen de corte, así que Frontend podía dibujar la geometría pero nunca
+alinearla contra el corte real que la originó.
+
+Auditado antes de tocar código (per 89-CONT: rastrear la cadena real, no inferirla):
+
+- `AiEvidenceRegion` ya tiene `analysisRunId`, `plane`, `sliceIndex` — el `sliceIndex` no se
+  usaba en ningún lado del reporte hasta ahora.
+- `analysisRunId` referencia un `AiProductAnalysisRun`, **no** un `planeRunId` de
+  `multiplanar-v2` — son dos pipelines distintos en este código (ya documentado arriba, sección
+  de contradicción). El endpoint de assets existente,
+  `GET /api/ai/assets/{runId}/{plane}/{assetName}` (`AiBackendService.getAsset`), resuelve
+  `RunArtifact` por `planeRunId` (`MultiplanarRunPersistenceService`) — un identificador que un
+  `AiProductAnalysisRun` **no tiene**. Reutilizar ese endpoint habría requerido inventar un
+  puente entre dos pipelines no relacionados, justo lo que esta iteración tiene prohibido hacer
+  ("no inventar un segundo sistema de assets" se lee aquí como "no inventar un puente no
+  probado tampoco").
+- `AiProductAnalysisRun` sí tiene `sagittalInputId`/`axialInputId` — el mismo `inputId` opaco
+  (`inp_<32-hex>`) que ya usa `POST /inputs` y que `AiBackendService.getSeriesSlice` ya valida y
+  sirve en `GET /api/ai/series/{inputId}/slices/{index}` (Stage 87/89 — el mismo endpoint cuyo
+  contrato de `inputId` se corrigió en el mock del Stage 89-CONT).
+
+Conclusión: **no se creó ningún mecanismo nuevo**. `baseImage` es un `record BaseImageRef(String
+inputId, Integer sliceIndex)`, resuelto en `StudyReportService.baseImageRef(region, run)` como
+`run.sagittalInputId()` o `run.axialInputId()` según `region.plane()`, junto con
+`region.sliceIndex()`. Frontend ya sabe pedir `GET /api/ai/series/{inputId}/slices/{index}` desde
+Stage 87/89 — esto sólo le da los dos valores que le faltaban para hacerlo por región de
+evidencia.
+
+Fail-safe, nunca fabricado: `baseImage` es `null` cuando `region.sliceIndex()` es `null`, cuando
+`region.plane()` no es `"sagittal"` ni `"axial"`, o cuando el run no tiene `inputId` para ese
+plano. Nunca se inventa un `sliceIndex` por defecto (p. ej. `0`) para una región que no lo trae.
+
+No se tocó: la geometría canónica 0..256, `EffectiveAnnotationResolver`, el append-only de
+correcciones, ni la semántica de revisión — exactamente lo que el pedido de esta iteración exige.
 
 ## Asset security
 
@@ -151,6 +189,16 @@ Se resuelve, cuando corresponda, contra el endpoint ya existente
 Suite completa del Backend: **935 tests, 0 failures, 0 errors, 68 skipped** (los 68 dependen de
 Testcontainers/Docker-in-Docker, no disponible en este entorno de verificación — mismo gap ya
 documentado en el cierre de EXT-04A).
+
+**EXT-04B3.5 addendum**: 6 tests nuevos en `StudyReportServiceTest`
+(`visualEvidenceExposesBaseImageReferenceFromTheRunsOwnSagittalInputId`,
+`visualEvidenceBaseImageUsesTheRegionsOwnSliceIndexAndAxialPlane`,
+`visualEvidenceBaseImageIsNullWhenTheRegionHasNoSliceIndex`,
+`visualEvidenceJsonWithBaseImageStillLeaksNoReviewerOrPath`,
+`visualEvidenceExperimentalRegionKeepsBaseImageAndExperimentalFlagTogether`,
+`oldReportShapeWithVisualEvidenceButNoBaseImageFieldStillDeserializes`). Suite dirigida
+(`EvidenceRegion*`, `StudyReport*`, `*Review*`, `*Longitudinal*`, `*AiProduct*`): **176 tests, 0
+failures, 0 errors, 21 skipped** (mismo gap de Testcontainers/Docker).
 
 ## Limitaciones
 

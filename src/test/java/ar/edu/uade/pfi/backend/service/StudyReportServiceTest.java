@@ -360,9 +360,126 @@ class StudyReportServiceTest {
         );
     }
 
+    @Test
+    void visualEvidenceExposesBaseImageReferenceFromTheRunsOwnSagittalInputId() {
+        // 1. visual evidence con base image reference; 3. run association correcta.
+        Study study = seedStudy("study-baseimage", "CASE-BASEIMAGE", "SUBJ-BI", LocalDate.of(2026, 9, 3));
+        AiProductAnalysisRun run = seedRun(study, "run-baseimage", "completed", Instant.parse("2026-09-03T10:00:00Z"));
+        repository.saveAiProductAnalysisRun(run, List.of(), List.of());
+        repository.saveAiEvidenceRegion(evidenceRegion("evidence-baseimage", run.id(), null, new EvidenceGeometry.Bbox(5, 5, 10, 10).toMap(), null, "sagittal", 6));
+
+        StudyReportDto report = service.report(study.caseId(), null);
+        StudyReportDto.VisualEvidenceSummary item = report.visualEvidence().get(0);
+
+        assertAll(
+            () -> assertNotNull(item.baseImage()),
+            () -> assertEquals("input-sagittal", item.baseImage().inputId()),
+            () -> assertEquals(6, item.baseImage().sliceIndex())
+        );
+    }
+
+    @Test
+    void visualEvidenceBaseImageUsesTheRegionsOwnSliceIndexAndAxialPlane() {
+        // 2. sliceIndex correcto; 3. run association correcta (rama axial).
+        Study study = seedStudy("study-baseimage-axial", "CASE-BASEIMAGE-AXIAL", "SUBJ-BIA", LocalDate.of(2026, 9, 3));
+        AiProductAnalysisRun run = seedRun(study, "run-baseimage-axial", "completed", Instant.parse("2026-09-03T10:00:00Z"));
+        repository.saveAiProductAnalysisRun(run, List.of(), List.of());
+        repository.saveAiEvidenceRegion(evidenceRegion("evidence-baseimage-axial", run.id(), null, new EvidenceGeometry.Bbox(5, 5, 10, 10).toMap(), null, "axial", 42));
+
+        StudyReportDto report = service.report(study.caseId(), null);
+        StudyReportDto.VisualEvidenceSummary item = report.visualEvidence().get(0);
+
+        assertAll(
+            () -> assertNotNull(item.baseImage()),
+            () -> assertEquals("input-axial", item.baseImage().inputId()),
+            () -> assertEquals(42, item.baseImage().sliceIndex())
+        );
+    }
+
+    @Test
+    void visualEvidenceBaseImageIsNullWhenTheRegionHasNoSliceIndex() {
+        // 5. región sin referencia válida => fail-safe (nunca fabrica un baseImage).
+        Study study = seedStudy("study-baseimage-none", "CASE-BASEIMAGE-NONE", "SUBJ-BIN", LocalDate.of(2026, 9, 3));
+        AiProductAnalysisRun run = seedRun(study, "run-baseimage-none", "completed", Instant.parse("2026-09-03T10:00:00Z"));
+        repository.saveAiProductAnalysisRun(run, List.of(), List.of());
+        repository.saveAiEvidenceRegion(evidenceRegion("evidence-baseimage-none", run.id(), null, new EvidenceGeometry.Bbox(5, 5, 10, 10).toMap(), null, "sagittal", null));
+
+        StudyReportDto report = service.report(study.caseId(), null);
+
+        assertNull(report.visualEvidence().get(0).baseImage());
+    }
+
+    @Test
+    void visualEvidenceJsonWithBaseImageStillLeaksNoReviewerOrPath() throws Exception {
+        // 4. no leakage: el nuevo campo baseImage no reintroduce lo que el reporte ya prohíbe.
+        Study study = seedStudy("study-baseimage-safe", "CASE-BASEIMAGE-SAFE", "SUBJ-BIS", LocalDate.of(2026, 9, 3));
+        AiProductAnalysisRun run = seedRun(study, "run-baseimage-safe", "completed", Instant.parse("2026-09-03T10:00:00Z"));
+        repository.saveAiProductAnalysisRun(run, List.of(), List.of());
+        repository.saveAiEvidenceRegion(evidenceRegion("evidence-baseimage-safe", run.id(), null, new EvidenceGeometry.Bbox(5, 5, 10, 10).toMap(), "doctor@pfi.local", "sagittal", 6));
+
+        StudyReportDto report = service.report(study.caseId(), null);
+        String json = JSON.writeValueAsString(report.visualEvidence());
+
+        assertAll(
+            () -> assertTrue(json.contains("\"inputId\":\"input-sagittal\"")),
+            () -> assertFalse(json.contains("doctor@pfi.local")),
+            () -> assertFalse(json.contains("C:\\\\")),
+            () -> assertFalse(json.contains("/var/")),
+            () -> assertFalse(json.contains("StudyInstanceUID"))
+        );
+    }
+
+    @Test
+    void visualEvidenceExperimentalRegionKeepsBaseImageAndExperimentalFlagTogether() {
+        // 8. experimental sigue marcado (junto con el nuevo baseImage, sin interferir entre sí).
+        Study study = seedStudy("study-baseimage-experimental", "CASE-BASEIMAGE-EXPERIMENTAL", "SUBJ-BIE", LocalDate.of(2026, 9, 3));
+        AiProductAnalysisRun run = seedRun(study, "run-baseimage-experimental", "completed", Instant.parse("2026-09-03T10:00:00Z"));
+        repository.saveAiProductAnalysisRun(run, List.of(), List.of());
+        AiEvidenceRegion experimental = new AiEvidenceRegion(
+            "evidence-experimental", run.id(), null, null, "sagittal", "L4-L5", "disc", 6,
+            "ai", EvidenceGeometry.TYPE_BBOX, new EvidenceGeometry.Bbox(5, 5, 10, 10).toMap(), null,
+            "model-sagittal", "sha256:abc123", "pfi.multiplanar-run.v2", null,
+            true, null, null, null, Instant.parse("2026-09-03T10:30:00Z")
+        );
+        repository.saveAiEvidenceRegion(experimental);
+
+        StudyReportDto report = service.report(study.caseId(), null);
+        StudyReportDto.VisualEvidenceSummary item = report.visualEvidence().get(0);
+
+        assertAll(
+            () -> assertTrue(item.experimental()),
+            () -> assertNotNull(item.baseImage()),
+            () -> assertEquals("input-sagittal", item.baseImage().inputId())
+        );
+    }
+
+    @Test
+    void oldReportShapeWithVisualEvidenceButNoBaseImageFieldStillDeserializes() throws Exception {
+        // 6. backward compatibility del reporte: un visualEvidence[] emitido antes de EXT-04B3.5
+        // (sin la clave baseImage) sigue siendo un valor de entrada válido.
+        String legacyEvidenceItemJson = "{"
+            + "\"evidenceId\":\"evidence-legacy\","
+            + "\"plane\":\"sagittal\","
+            + "\"geometryType\":\"BBOX\","
+            + "\"geometry\":{\"x\":1,\"y\":1,\"width\":2,\"height\":2},"
+            + "\"source\":\"ai_suggested\","
+            + "\"label\":\"Región de interés\","
+            + "\"experimental\":false"
+            + "}";
+        StudyReportDto.VisualEvidenceSummary parsed = JSON.readValue(legacyEvidenceItemJson, StudyReportDto.VisualEvidenceSummary.class);
+        assertAll(
+            () -> assertEquals("evidence-legacy", parsed.evidenceId()),
+            () -> assertNull(parsed.baseImage())
+        );
+    }
+
     private AiEvidenceRegion evidenceRegion(String id, String runId, String discLevelResultId, Map<String, Object> geometry, String comment) {
+        return evidenceRegion(id, runId, discLevelResultId, geometry, comment, "sagittal", 6);
+    }
+
+    private AiEvidenceRegion evidenceRegion(String id, String runId, String discLevelResultId, Map<String, Object> geometry, String comment, String plane, Integer sliceIndex) {
         return new AiEvidenceRegion(
-            id, runId, discLevelResultId, null, "sagittal", "L4-L5", "disc", 6,
+            id, runId, discLevelResultId, null, plane, "L4-L5", "disc", sliceIndex,
             "ai", EvidenceGeometry.TYPE_BBOX, geometry, null,
             "model-sagittal", "sha256:abc123", "pfi.multiplanar-run.v2", null,
             false, null, comment, null, Instant.parse("2026-08-26T10:30:00Z")

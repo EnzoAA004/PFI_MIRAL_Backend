@@ -169,7 +169,28 @@ public record StudyReportDto(
         String reviewStatus,
         String label,
         String warning,
-        boolean experimental
+        boolean experimental,
+        /**
+         * EXT-04B3.5: additive, nullable — how Frontend fetches a real base image for this
+         * region, reusing the existing, already-tested {@code GET /api/ai/series/{inputId}/
+         * slices/{index}} endpoint (Stage 87/89) rather than a new asset mechanism. {@code null}
+         * when the region's own analysis run has no per-plane inputId for {@code plane}, or when
+         * the region itself carries no {@code sliceIndex} — a fail-safe absence, never a
+         * fabricated reference. See {@link BaseImageRef}.
+         */
+        BaseImageRef baseImage
     ) {
+    }
+
+    /**
+     * EXT-04B3.5: {@code inputId} is the Backend's own opaque per-upload identifier (the same
+     * shape already used by {@code /inputs} and {@code AiProductAnalysisRun.sagittalInputId}/
+     * {@code axialInputId} — never a filesystem path, host, bucket, or DICOM UID) and
+     * {@code sliceIndex} is the same 0-based index {@code AiBackendService.getSeriesSlice}
+     * already validates. No {@code plane} field here: an {@code inputId} is already per-plane
+     * (one per {@code AiProductAnalysisRun} plane), so it would be redundant with
+     * {@code VisualEvidenceSummary.plane}.
+     */
+    public record BaseImageRef(String inputId, Integer sliceIndex) {
     }
 }

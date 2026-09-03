@@ -321,11 +321,11 @@ public class StudyReportService {
     private List<StudyReportDto.VisualEvidenceSummary> visualEvidence(AiProductAnalysisRun run) {
         return annotationResolver.effectiveAnnotations(run, true).stream()
             .filter(EffectiveAnnotationResolver.EffectiveAnnotation::effective)
-            .map(this::toVisualEvidenceSummary)
+            .map(annotation -> toVisualEvidenceSummary(annotation, run))
             .toList();
     }
 
-    private StudyReportDto.VisualEvidenceSummary toVisualEvidenceSummary(EffectiveAnnotationResolver.EffectiveAnnotation annotation) {
+    private StudyReportDto.VisualEvidenceSummary toVisualEvidenceSummary(EffectiveAnnotationResolver.EffectiveAnnotation annotation, AiProductAnalysisRun run) {
         var region = annotation.region();
         String source = switch (annotation.derivedOrigin()) {
             case AI_SUGGESTED -> "ai_suggested";
@@ -347,8 +347,28 @@ public class StudyReportService {
             annotation.reviewStatus(),
             region.label(),
             warning,
-            region.experimental()
+            region.experimental(),
+            baseImageRef(region, run)
         );
+    }
+
+    /**
+     * EXT-04B3.5: resolves a region's base-image reference from data that already exists on its
+     * {@link AiProductAnalysisRun} — never a new asset system, never a filesystem path. Fail-safe
+     * by design (89-CONT precedent: an absent capability returns {@code null}, it never fabricates
+     * a value): {@code null} when the region has no {@code sliceIndex}, when {@code plane} is
+     * neither {@code "sagittal"} nor {@code "axial"}, or when the run has no inputId for that
+     * plane (e.g. an axial-only region on a sagittal-only run).
+     */
+    private StudyReportDto.BaseImageRef baseImageRef(ar.edu.uade.pfi.backend.domain.AiEvidenceRegion region, AiProductAnalysisRun run) {
+        if (region.sliceIndex() == null) return null;
+        String inputId = switch (region.plane() == null ? "" : region.plane()) {
+            case "sagittal" -> run.sagittalInputId();
+            case "axial" -> run.axialInputId();
+            default -> null;
+        };
+        if (inputId == null || inputId.isBlank()) return null;
+        return new StudyReportDto.BaseImageRef(inputId, region.sliceIndex());
     }
 
     private List<String> warnings(AiProductAnalysisRun run) {

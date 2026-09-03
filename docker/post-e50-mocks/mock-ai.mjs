@@ -23,6 +23,10 @@ import crypto from "node:crypto";
  *                                 warnings this product already treats as first-class (never
  *                                 silently upgraded to "validated"/"enabled"). Unchanged since
  *                                 Stage 81.
+ *   GET  /inputs/{id}/slices/{index} -- EXT-04B3.5 E2E harness fixture: stateless per-slice
+ *                                 image, always the same fixed 1x1 PNG regardless of inputId/
+ *                                 index -- what AiBackendService.getSeriesSlice (already-tested
+ *                                 product code) proxies to for StudyReportDto.BaseImageRef.
  *
  * Error modes (87-J): a per-request, deterministic override via a `caseId` substring convention
  * (no headers/query params needed -- the caseId is already the one identifier every caller has in
@@ -371,6 +375,23 @@ const server = http.createServer((request, response) => {
       }
       jsonResponse(response, 200, multiplanarV2Response(v2Request));
     });
+    return;
+  }
+
+  // EXT-04B3.5 E2E harness fixture gap: this mock (forked from the Stage 87 lineage this
+  // Backend commit descends from) never implemented the real AI Module's per-slice image
+  // route, which AiBackendService.getSeriesSlice (already-tested product code, unrelated to
+  // this iteration) proxies to. The route itself and this exact fixed 1x1 PNG were already
+  // proven working against the real Backend's inputId validation earlier in this session
+  // (docker/post-e50-mocks/mock-ai.mjs on research/post-e50-spring-ai-product-contract) --
+  // ported here verbatim as test-only harness setup, never a change to productive Backend
+  // or Frontend code. Stateless: any inputId/index is served the same fixed image, matching
+  // this mock's existing no-persistence convention.
+  const sliceMatch = request.method === "GET" && /^\/inputs\/[^/]+\/slices\/\d+$/.exec(request.url);
+  if (sliceMatch) {
+    const TINY_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+    response.writeHead(200, { "Content-Type": "image/png", "Cache-Control": "no-store" });
+    response.end(Buffer.from(TINY_PNG_BASE64, "base64"));
     return;
   }
 
