@@ -13,11 +13,6 @@ variable "environment" {
   default = "demo"
 }
 
-variable "github_repository" {
-  type    = string
-  default = "EnzoAA004/PFI_MVPTest_Enzo_Backend"
-}
-
 variable "backend_image" {
   type        = string
   description = "Must be the exact same image digest already validated in DEV — no rebuild between DEV and DEMO (CLOUD-00O)."

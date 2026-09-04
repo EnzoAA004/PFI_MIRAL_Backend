@@ -14,12 +14,6 @@ variable "environment" {
   default = "dev"
 }
 
-variable "github_repository" {
-  type        = string
-  description = "owner/repo allowed to assume the CI/CD deploy identity via WIF."
-  default     = "EnzoAA004/PFI_MVPTest_Enzo_Backend"
-}
-
 variable "backend_image" {
   type        = string
   description = "Full Artifact Registry image reference, tagged by git SHA. Never :latest."

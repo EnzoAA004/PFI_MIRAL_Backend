@@ -26,6 +26,12 @@ module "artifact_registry" {
   region            = var.region
   repository_id     = "pfi-containers"
   create_repository = false # EXISTING_EXTERNAL
+
+  # No writer_members here -- CLOUD-03: the repository-scoped writer grant
+  # for the shared GitHub push identity is owned exclusively by
+  # infra/terraform/platform/identity, applied once, not per environment.
+  # This module instance exists only to expose repository_url for image
+  # tag composition below.
 }
 
 module "storage" {
@@ -59,27 +65,15 @@ module "iam" {
       account_id   = "pfi-frontend-runtime-dev"
       display_name = "PFI Frontend Runtime (dev)"
     }
-    # NEW — dedicated CI/CD deploy identity, distinct from every runtime
-    # identity above, per ADR-003.
-    ci_deploy = {
-      create       = true
-      account_id   = "pfi-ci-deploy-dev"
-      display_name = "PFI CI/CD Deploy (dev)"
-    }
   }
 
+  # The GitHub artifact-push identity is NOT a runtime service account and
+  # lives entirely in infra/terraform/platform/identity (CLOUD-03) -- this
+  # module only manages runtime identities (Backend/Frontend/AI Cloud Run)
+  # and their project-level role grants.
   project_iam_bindings = [
-    { member_key = "ci_deploy", role = "roles/artifactregistry.writer" },
-    { member_key = "ci_deploy", role = "roles/run.developer" },
-    { member_key = "ci_deploy", role = "roles/iam.serviceAccountUser" },
     { member_key = "backend_runtime", role = "roles/cloudsql.client" },
   ]
-
-  enable_wif                 = true # preview only — see CLOUD_SECURITY_MODEL.md, never applied by CLOUD-01
-  wif_pool_id                = "github-pool-dev"
-  wif_provider_id            = "github-provider-dev"
-  github_repository          = var.github_repository
-  deploy_service_account_key = "ci_deploy"
 }
 
 module "secrets" {

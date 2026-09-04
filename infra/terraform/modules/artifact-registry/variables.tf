@@ -30,3 +30,9 @@ variable "create_repository" {
   EOT
   default     = false
 }
+
+variable "writer_members" {
+  type        = list(string)
+  description = "IAM members (e.g. \"serviceAccount:pfi-github-artifact-pusher@...\") granted roles/artifactregistry.writer on THIS repository only (CLOUD-03). Empty by default -- no one is granted push access until explicitly wired."
+  default     = []
+}

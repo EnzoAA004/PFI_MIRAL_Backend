@@ -23,6 +23,9 @@ module "artifact_registry" {
   region            = var.region
   repository_id     = "pfi-containers"
   create_repository = false
+
+  # No writer_members here -- owned exclusively by
+  # infra/terraform/platform/identity (CLOUD-03), applied once.
 }
 
 module "storage" {
@@ -53,25 +56,14 @@ module "iam" {
       account_id   = "pfi-frontend-runtime-demo"
       display_name = "PFI Frontend Runtime (demo)"
     }
-    ci_deploy = {
-      create       = true
-      account_id   = "pfi-ci-deploy-demo"
-      display_name = "PFI CI/CD Deploy (demo)"
-    }
   }
 
+  # The GitHub artifact-push identity lives entirely in
+  # infra/terraform/platform/identity (CLOUD-03) -- not a runtime SA, not
+  # managed by this module.
   project_iam_bindings = [
-    { member_key = "ci_deploy", role = "roles/artifactregistry.writer" },
-    { member_key = "ci_deploy", role = "roles/run.developer" },
-    { member_key = "ci_deploy", role = "roles/iam.serviceAccountUser" },
     { member_key = "backend_runtime", role = "roles/cloudsql.client" },
   ]
-
-  enable_wif                 = true
-  wif_pool_id                = "github-pool-demo"
-  wif_provider_id            = "github-provider-demo"
-  github_repository          = var.github_repository
-  deploy_service_account_key = "ci_deploy"
 }
 
 module "secrets" {

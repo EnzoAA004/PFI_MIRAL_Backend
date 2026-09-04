@@ -25,3 +25,22 @@ data "google_artifact_registry_repository" "existing" {
   location      = var.region
   repository_id = var.repository_id
 }
+
+# CLOUD-03: repository-scoped IAM, not project-wide. Each entry in
+# var.writer_members gets roles/artifactregistry.writer on THIS repository
+# only -- never a project-level grant, which would let the pusher identity
+# write to every current and future Artifact Registry repo in the project.
+resource "google_artifact_registry_repository_iam_member" "writers" {
+  for_each = toset(var.writer_members)
+
+  project    = var.project_id
+  location   = var.region
+  repository = var.repository_id
+  role       = "roles/artifactregistry.writer"
+  member     = each.value
+
+  depends_on = [
+    google_artifact_registry_repository.this,
+    data.google_artifact_registry_repository.existing,
+  ]
+}

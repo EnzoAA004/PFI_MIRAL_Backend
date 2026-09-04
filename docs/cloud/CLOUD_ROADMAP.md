@@ -1,23 +1,28 @@
 # Cloud Roadmap
 
-**Status: CLOUD-00 READY. CLOUD-01 current (this document reflects CLOUD-01's completion).**
-CLOUD-00 closed as documentation only, committed and pushed
-(`782862aad65ca56c656e447ed848e6c9762cb905`, `cloud/cloud-00-architecture-audit`). CLOUD-01 turned
-that design into real, `terraform validate`-passing Infrastructure as Code on
-`cloud/cloud-01-terraform-foundation` — see `CLOUD_01_TERRAFORM_FOUNDATION.md`,
-`CLOUD_01_TERRAFORM_PLAN.md`, `CLOUD_01_COST_CHECK.md`. `terraform plan` against live GCP is
-blocked only by missing local Application Default Credentials
-(`PLAN_BLOCKED_BY_MISSING_LOCAL_CREDENTIALS`), not by anything on the GCP side. No resource in
-Google Cloud has been created, modified, or destroyed by either stage. Everything below CLOUD-01 is
-still future work, each gated by its own authorization/cost checkpoint — none of it started here.
+**Status: CLOUD-00 READY. CLOUD-01 READY. CLOUD-02 READY. CLOUD-03 current — design/plan complete,
+awaiting explicit authorization before any cloud write.** CLOUD-00 closed as documentation only,
+committed and pushed (`782862aad65ca56c656e447ed848e6c9762cb905`,
+`cloud/cloud-00-architecture-audit`). CLOUD-01 turned that design into real,
+`terraform validate`-passing Infrastructure as Code, committed and pushed (Backend
+`eb57acd73c86dc1caf411b2acfee9f86257dcbae` on `cloud/cloud-01-terraform-foundation`; Frontend
+`f003d3d9ff08aaa931d2e531c9532d98cd59b22a` on `cloud/cloud-01-frontend-cloudrun-compat`). CLOUD-02
+built reproducible CI for all three repos, committed and pushed (Backend
+`56689fc173a0f6082981485613c96dd7ed304290`; Frontend `cbf48d2e5ca47d411e54e3bd638b1ab20ae03cd7`; AI
+`fa7eccc83feb204eb7650d7b467c6530122e42cb`). **CLOUD-03 extends the CLOUD-01 Terraform IAM/Artifact
+Registry design for real Workload Identity Federation, writes the three manual-publish GitHub
+Actions workflows, and stops before any `terraform apply` or `gcloud` write** — see
+`CLOUD_03_ARTIFACT_REGISTRY_WIF.md`, `CLOUD_03_SECURITY_REVIEW.md`, `CLOUD_03_COST_CHECK.md`,
+`CLOUD_03_CHANGE_PLAN.md`. No resource in Google Cloud has been created, modified, or destroyed by
+any of the four stages. No image has been pushed to any Google-side registry.
 
 ## Staged roadmap
 
 | Stage | Scope | Gate before starting |
 |---|---|---|
-| **CLOUD-01** ✅ | Terraform skeleton (7 modules + dev/demo environments), `fmt`/`validate` passing, plan-only design, Frontend Cloud Run port-compat fix | Done — see the three CLOUD-01 docs. Real `terraform plan` output still pending local ADC setup. |
-| **CLOUD-02** | CI workflow changes: fix JDK/Python version pins, add Docker build validation on PRs | None — no deployment, no registry push |
-| **CLOUD-03** | Actually push images to Artifact Registry `pfi-containers` from CI | **Requires cost/authorization check** — Artifact Registry storage is billed (though negligible at current image sizes per `CLOUD_COST_MODEL.md`) |
+| **CLOUD-01** ✅ | Terraform skeleton (7 modules + dev/demo environments), `fmt`/`validate` passing, plan-only design, Frontend Cloud Run port-compat fix | Done. |
+| **CLOUD-02** ✅ | CI workflows for Backend/Frontend/AI (test + Docker build validation, no push/deploy), JDK/Node/Python drift fixed, Dependabot added | Done. |
+| **CLOUD-03** 🔶 current | WIF pool/provider + dedicated `pfi-github-artifact-pusher` identity + repository-scoped Artifact Registry writer binding, designed and `terraform validate`-passing; three `workflow_dispatch`-only publish workflows written | **Design/plan complete. Awaiting explicit authorization** for: (1) enabling `iam.googleapis.com`/`iamcredentials.googleapis.com`/`sts.googleapis.com`, (2) the scoped `terraform apply`, (3) the first real image push per repo (AI's push authorized separately from Backend/Frontend, per its 2.12 GB size) — see `CLOUD_03_CHANGE_PLAN.md`'s pre-authorization review. |
 | **CLOUD-04** | Deploy Backend + Frontend (+ AI service, workload-classified) to Cloud Run **DEV** | **Requires explicit authorization before first `gcloud run deploy` / `terraform apply` that creates a Cloud Run service** — also requires resolving what to do with the pre-existing `pfi-ai-module` service found in the audit (reuse vs. replace vs. leave alone) |
 | **CLOUD-05** | Cloud SQL instance, Cloud Storage bucket(s) for model artifacts/outputs, Secret Manager secrets | **Requires explicit cost authorization** — Cloud SQL is the one always-on cost identified in `CLOUD_COST_MODEL.md` |
 | **CLOUD-06** | CD promotion DEV → DEMO (manual approval gate, same-image redeploy) | Depends on CLOUD-03/04/05 being live |
@@ -56,6 +61,9 @@ Workload Identity Federation, never a downloaded service-account JSON key. **Why
 already live on GitHub with working Actions workflows (Frontend already pushes images to GHCR);
 WIF eliminates the single highest-risk secret-management failure mode (a leaked long-lived key) at
 no extra cost. **Revisit if**: a self-hosted runner requirement emerges (none identified today).
+**CLOUD-03 update**: the design is now concrete — a single dedicated `pfi-github-artifact-pusher`
+identity, an explicit 3-repo attribute-condition allowlist (never `repository_owner`-wide), and
+repository-scoped (not project-wide) Artifact Registry IAM. Not yet applied.
 
 ### ADR-004: Cloud SQL strategy
 
@@ -90,5 +98,6 @@ observability requirements) would need its own scoped design pass.
 
 ## Status
 
-Documentation-only. No stage past CLOUD-00 has been started. `CLOUD-01` is the next possible step,
-and even it requires the user's go-ahead before any file is written outside `docs/cloud/`.
+CLOUD-00 through CLOUD-02 complete and pushed. CLOUD-03's design, Terraform, and workflows are
+complete and validated but **not applied** — see `CLOUD_03_CHANGE_PLAN.md` for the exact
+pre-authorization review. No stage past CLOUD-02 has touched Google Cloud.

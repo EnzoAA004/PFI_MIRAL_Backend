@@ -32,31 +32,3 @@ variable "project_iam_bindings" {
   }))
   default = []
 }
-
-variable "enable_wif" {
-  type        = bool
-  description = "Writes the Workload Identity Federation pool/provider design as Terraform resources. Still never applied by CLOUD-01 — see CLOUD_SECURITY_MODEL.md. Default false so the base plan stays minimal; environments/dev turns it on deliberately to preview the design."
-  default     = false
-}
-
-variable "wif_pool_id" {
-  type    = string
-  default = "github-actions-pool"
-}
-
-variable "wif_provider_id" {
-  type    = string
-  default = "github-actions-provider"
-}
-
-variable "github_repository" {
-  type        = string
-  description = "owner/repo allowed to impersonate the deploy identity, e.g. EnzoAA004/PFI_MVPTest_Enzo_Backend."
-  default     = ""
-}
-
-variable "deploy_service_account_key" {
-  type        = string
-  description = "Key into var.service_accounts identifying the CI/CD deploy identity that GitHub Actions impersonates via WIF."
-  default     = ""
-}
