@@ -5,9 +5,10 @@ import java.time.Instant;
 import java.util.Map;
 
 /**
- * EXT-07D: the public shape of a {@link ProfessionalFeedbackCandidate} — deliberately omits
- * {@code reviewedBy} (same rule EXT-04A already applies to reviewer identity in the structured
- * report: internal-only, verifiable at the database layer, never serialized to an API response).
+ * EXT-07D/EXT-05: the public shape of a {@link ProfessionalFeedbackCandidate} — deliberately
+ * omits {@code reviewedBy} AND {@code curatorId} (same rule EXT-04A already applies to reviewer
+ * identity in the structured report: internal-only, verifiable at the database layer, never
+ * serialized to an API response).
  */
 public record ProfessionalFeedbackCandidateDto(
     String id,
@@ -30,7 +31,9 @@ public record ProfessionalFeedbackCandidateDto(
     String note,
     String status,
     Instant correctedAt,
-    Instant capturedAt
+    Instant capturedAt,
+    Instant curatedAt,
+    String exclusionReason
 ) {
     public static ProfessionalFeedbackCandidateDto from(ProfessionalFeedbackCandidate candidate) {
         return new ProfessionalFeedbackCandidateDto(
@@ -54,7 +57,9 @@ public record ProfessionalFeedbackCandidateDto(
             candidate.note(),
             candidate.status(),
             candidate.correctedAt(),
-            candidate.capturedAt()
+            candidate.capturedAt(),
+            candidate.curatedAt(),
+            candidate.exclusionReason()
         );
     }
 }

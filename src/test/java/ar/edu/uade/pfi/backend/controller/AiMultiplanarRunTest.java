@@ -586,7 +586,8 @@ class AiMultiplanarRunTest {
         @Override public boolean existsProfessionalFeedbackCandidate(String source, String correctionId) { throw new UnsupportedOperationException(); }
         @Override public List<ar.edu.uade.pfi.backend.domain.ProfessionalFeedbackCandidate> findProfessionalFeedbackCandidatesByCaseId(String caseId) { throw new UnsupportedOperationException(); }
         @Override public Optional<ar.edu.uade.pfi.backend.domain.ProfessionalFeedbackCandidate> findProfessionalFeedbackCandidateById(String id) { throw new UnsupportedOperationException(); }
-        @Override public ar.edu.uade.pfi.backend.domain.ProfessionalFeedbackCandidate updateProfessionalFeedbackCandidateStatus(String id, String status) { throw new UnsupportedOperationException(); }
+        @Override public ar.edu.uade.pfi.backend.domain.ProfessionalFeedbackCandidate recordFeedbackCandidateStatusChange(String id, String toStatus, String curatorId, String reason, String note, java.time.Instant changedAt) { throw new UnsupportedOperationException(); }
+        @Override public List<ar.edu.uade.pfi.backend.domain.ProfessionalFeedbackStatusChange> findFeedbackCandidateStatusChanges(String candidateId) { throw new UnsupportedOperationException(); }
         @Override public ar.edu.uade.pfi.backend.domain.ChatConversation saveChatConversation(ar.edu.uade.pfi.backend.domain.ChatConversation conversation) { throw new UnsupportedOperationException(); }
         @Override public ar.edu.uade.pfi.backend.domain.ChatMessage saveChatMessage(ar.edu.uade.pfi.backend.domain.ChatMessage message) { throw new UnsupportedOperationException(); }
         @Override public List<ar.edu.uade.pfi.backend.domain.ChatConversation> findChatConversationsByStudyId(String studyId) { throw new UnsupportedOperationException(); }

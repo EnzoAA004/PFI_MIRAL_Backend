@@ -14,6 +14,7 @@ import ar.edu.uade.pfi.backend.domain.DomainAuditEvent;
 import ar.edu.uade.pfi.backend.domain.InputResource;
 import ar.edu.uade.pfi.backend.domain.MeasurementCorrection;
 import ar.edu.uade.pfi.backend.domain.ProfessionalFeedbackCandidate;
+import ar.edu.uade.pfi.backend.domain.ProfessionalFeedbackStatusChange;
 import ar.edu.uade.pfi.backend.domain.RunArtifact;
 import ar.edu.uade.pfi.backend.domain.ReviewerAnnotation;
 import ar.edu.uade.pfi.backend.domain.RunReview;
@@ -165,8 +166,15 @@ public interface StudyRepository {
 
     Optional<ProfessionalFeedbackCandidate> findProfessionalFeedbackCandidateById(String id);
 
-    /** Updates only {@code status} — every other field of a captured candidate is immutable. */
-    ProfessionalFeedbackCandidate updateProfessionalFeedbackCandidateStatus(String id, String status);
+    /**
+     * EXT-05: records one curation decision — updates the candidate's current
+     * {@code status}/{@code curatorId}/{@code curatedAt}/{@code exclusionReason} AND appends a
+     * row to the separate append-only history table. Every other field of a captured candidate
+     * (its AI-original/professional values, provenance, etc.) is immutable.
+     */
+    ProfessionalFeedbackCandidate recordFeedbackCandidateStatusChange(String id, String toStatus, String curatorId, String reason, String note, java.time.Instant changedAt);
+
+    List<ProfessionalFeedbackStatusChange> findFeedbackCandidateStatusChanges(String candidateId);
 
     // ---- Stage 80: contextual chat ----
 

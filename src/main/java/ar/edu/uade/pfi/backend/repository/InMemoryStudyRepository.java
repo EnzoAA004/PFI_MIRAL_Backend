@@ -7,6 +7,7 @@ import ar.edu.uade.pfi.backend.domain.AiEvidenceRegionCorrection;
 import ar.edu.uade.pfi.backend.domain.AiMeasurementCorrection;
 import ar.edu.uade.pfi.backend.domain.AiMeasurementResult;
 import ar.edu.uade.pfi.backend.domain.ProfessionalFeedbackCandidate;
+import ar.edu.uade.pfi.backend.domain.ProfessionalFeedbackStatusChange;
 import ar.edu.uade.pfi.backend.domain.AiProductAnalysisRun;
 import ar.edu.uade.pfi.backend.domain.AiProductAnalysisRunReview;
 import ar.edu.uade.pfi.backend.domain.ChatConversation;
@@ -52,6 +53,7 @@ public class InMemoryStudyRepository implements StudyRepository {
     private final ConcurrentMap<String, List<AiEvidenceRegion>> aiEvidenceRegionsByRunId = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, List<AiEvidenceRegionCorrection>> aiEvidenceRegionCorrectionsByRunId = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, ProfessionalFeedbackCandidate> professionalFeedbackCandidatesById = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, List<ProfessionalFeedbackStatusChange>> feedbackStatusChangesByCandidateId = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, ChatConversation> chatConversationsById = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, List<ChatMessage>> chatMessagesByConversationId = new ConcurrentHashMap<>();
 
@@ -491,7 +493,7 @@ public class InMemoryStudyRepository implements StudyRepository {
     }
 
     @Override
-    public ProfessionalFeedbackCandidate updateProfessionalFeedbackCandidateStatus(String id, String status) {
+    public ProfessionalFeedbackCandidate recordFeedbackCandidateStatusChange(String id, String toStatus, String curatorId, String reason, String note, java.time.Instant changedAt) {
         ProfessionalFeedbackCandidate existing = professionalFeedbackCandidatesById.get(id);
         if (existing == null) throw new IllegalStateException("Professional feedback candidate not found: " + id);
         ProfessionalFeedbackCandidate updated = new ProfessionalFeedbackCandidate(
@@ -499,10 +501,18 @@ public class InMemoryStudyRepository implements StudyRepository {
             existing.correctionId(), existing.level(), existing.plane(), existing.structure(), existing.metric(),
             existing.geometryType(), existing.aiOriginalValue(), existing.aiOriginalGeometry(), existing.professionalValue(),
             existing.professionalGeometry(), existing.modelId(), existing.modelSha256(), existing.pipelineVersion(),
-            existing.reviewedBy(), existing.note(), status, existing.correctedAt(), existing.capturedAt()
+            existing.reviewedBy(), existing.note(), toStatus, existing.correctedAt(), existing.capturedAt(),
+            curatorId, changedAt, "excluded".equals(toStatus) ? reason : existing.exclusionReason()
         );
         professionalFeedbackCandidatesById.put(id, updated);
+        feedbackStatusChangesByCandidateId.computeIfAbsent(id, key -> new java.util.concurrent.CopyOnWriteArrayList<>())
+            .add(new ProfessionalFeedbackStatusChange(java.util.UUID.randomUUID().toString(), id, existing.status(), toStatus, curatorId, reason, note, changedAt));
         return updated;
+    }
+
+    @Override
+    public List<ProfessionalFeedbackStatusChange> findFeedbackCandidateStatusChanges(String candidateId) {
+        return feedbackStatusChangesByCandidateId.getOrDefault(candidateId, List.of());
     }
 
     // ---- Stage 80: contextual chat ----
