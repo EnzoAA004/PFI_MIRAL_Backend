@@ -6,7 +6,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import ar.edu.uade.pfi.backend.client.AiServiceOperations;
 import ar.edu.uade.pfi.backend.config.ApiExceptionHandler;
+import ar.edu.uade.pfi.backend.dto.AiSubarticularExplainRequestDto;
 import ar.edu.uade.pfi.backend.dto.AiSubarticularPredictRequestDto;
+import ar.edu.uade.pfi.backend.dto.SubarticularExplainResponseDto;
 import ar.edu.uade.pfi.backend.dto.SubarticularPredictionResponseDto;
 import ar.edu.uade.pfi.backend.service.AiMultiplanarUpstreamException;
 import ar.edu.uade.pfi.backend.service.DegenerativeFindingsV1Validator;
@@ -270,6 +272,121 @@ class AiDegenerativeFindingsControllerTest {
         };
 
         mockMvc(ai).perform(post("/api/ai/degenerative-findings/subarticular")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(VALID_REQUEST))
+            .andExpect(status().isServiceUnavailable());
+    }
+
+    // ---- EXT-03: explainability -------------------------------------------------------------
+
+    private static SubarticularExplainResponseDto explainOkResponse() {
+        return new SubarticularExplainResponseDto(
+            "rsna_subarticular_axial_t2_2p5d", "sha256:abc", "subarticular_stenosis_left_right",
+            "moderate", "backbone.bn2", "gradcam", "iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB",
+            "2026-09-06T12:00:00Z", true,
+            "Mapa de activación experimental asociado a la predicción del clasificador.",
+            "Este mapa de activación explica únicamente la rama visual de la predicción."
+        );
+    }
+
+    @Test
+    void explainDevuelveElAssetDeExplicabilidadYNormalizaElPedido() throws Exception {
+        AiServiceOperations ai = Mockito.mock(AiServiceOperations.class);
+        Mockito.when(ai.explainSubarticular(Mockito.any())).thenReturn(explainOkResponse());
+
+        mockMvc(ai).perform(post("/api/ai/degenerative-findings/subarticular/explain")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(VALID_REQUEST))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.method").value("gradcam"))
+            .andExpect(jsonPath("$.experimental").value(true))
+            .andExpect(jsonPath("$.layer").value("backbone.bn2"))
+            .andExpect(jsonPath("$.heatmapPng").isNotEmpty());
+
+        ArgumentCaptor<AiSubarticularExplainRequestDto> captor = ArgumentCaptor.forClass(AiSubarticularExplainRequestDto.class);
+        Mockito.verify(ai).explainSubarticular(captor.capture());
+        org.junit.jupiter.api.Assertions.assertEquals("right", captor.getValue().side());
+        org.junit.jupiter.api.Assertions.assertEquals("L4-L5", captor.getValue().level());
+        org.junit.jupiter.api.Assertions.assertNull(captor.getValue().targetClass());
+    }
+
+    @Test
+    void explainAceptaUnTargetClassOpcionalDelCatalogoConocido() throws Exception {
+        AiServiceOperations ai = Mockito.mock(AiServiceOperations.class);
+        Mockito.when(ai.explainSubarticular(Mockito.any())).thenReturn(explainOkResponse());
+
+        String requestWithTargetClass = """
+            {"inputId":"input-axial-1","instanceNumber":12,"x":128.5,"y":96.25,"side":"right","level":"L4-L5","targetClass":"severe"}
+            """;
+        mockMvc(ai).perform(post("/api/ai/degenerative-findings/subarticular/explain")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(requestWithTargetClass))
+            .andExpect(status().isOk());
+
+        ArgumentCaptor<AiSubarticularExplainRequestDto> captor = ArgumentCaptor.forClass(AiSubarticularExplainRequestDto.class);
+        Mockito.verify(ai).explainSubarticular(captor.capture());
+        org.junit.jupiter.api.Assertions.assertEquals("severe", captor.getValue().targetClass());
+    }
+
+    @Test
+    void explainRechazaUnTargetClassFueraDelCatalogoSinLlamarAlModuloDeIa() throws Exception {
+        AiServiceOperations ai = Mockito.mock(AiServiceOperations.class);
+
+        String requestWithBadTargetClass = """
+            {"inputId":"input-axial-1","instanceNumber":12,"x":128.5,"y":96.25,"side":"right","level":"L4-L5","targetClass":"not_a_real_class"}
+            """;
+        mockMvc(ai).perform(post("/api/ai/degenerative-findings/subarticular/explain")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(requestWithBadTargetClass))
+            .andExpect(status().isBadRequest());
+
+        Mockito.verifyNoInteractions(ai);
+    }
+
+    @Test
+    void explainRechazaCamposFueraDelContratoSinLlamarAlModuloDeIa() throws Exception {
+        AiServiceOperations ai = Mockito.mock(AiServiceOperations.class);
+
+        String requestWithExtraField = """
+            {"inputId":"input-axial-1","instanceNumber":12,"x":128.5,"y":96.25,"side":"right","level":"L4-L5","extraField":"nope"}
+            """;
+        mockMvc(ai).perform(post("/api/ai/degenerative-findings/subarticular/explain")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(requestWithExtraField))
+            .andExpect(status().isBadRequest());
+
+        Mockito.verifyNoInteractions(ai);
+    }
+
+    @Test
+    void explainDevuelve502SiElModuloDeIaResponde200SinHeatmap() throws Exception {
+        AiServiceOperations ai = Mockito.mock(AiServiceOperations.class);
+        Mockito.when(ai.explainSubarticular(Mockito.any())).thenReturn(new SubarticularExplainResponseDto(
+            "rsna_subarticular_axial_t2_2p5d", "sha256:abc", "subarticular_stenosis_left_right",
+            "moderate", "backbone.bn2", "gradcam", null, "2026-09-06T12:00:00Z", true, "x", "y"
+        ));
+
+        mockMvc(ai).perform(post("/api/ai/degenerative-findings/subarticular/explain")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(VALID_REQUEST))
+            .andExpect(status().isBadGateway());
+    }
+
+    @Test
+    void explainDevuelve503CuandoElModuloDeIaNoTieneElCheckpointCargado() throws Exception {
+        AiServiceOperations ai = new AiServiceOperations() {
+            @Override public SubarticularPredictionResponseDto predictSubarticular(AiSubarticularPredictRequestDto request) { return null; }
+            @Override public java.util.Map<String, Object> health() { return java.util.Map.of(); }
+            @Override public Object models() { return java.util.Map.of(); }
+            @Override public java.util.Map<String, Object> verifyModels() { return java.util.Map.of(); }
+            @Override public java.util.Map<String, Object> warmup() { return java.util.Map.of(); }
+            @Override public java.util.Map<String, Object> runPipeline(ar.edu.uade.pfi.backend.dto.PipelineRunRequestDto request) { return java.util.Map.of(); }
+            @Override public java.util.Map<String, Object> getAgentReport(String runId) { return java.util.Map.of(); }
+            @Override public java.util.Map<String, Object> getAgentReportSummary(String runId) { return java.util.Map.of(); }
+            @Override public java.util.Map<String, Object> getRecentAgentReports(int limit) { return java.util.Map.of(); }
+        };
+
+        mockMvc(ai).perform(post("/api/ai/degenerative-findings/subarticular/explain")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(VALID_REQUEST))
             .andExpect(status().isServiceUnavailable());

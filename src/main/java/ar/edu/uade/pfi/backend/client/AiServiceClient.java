@@ -438,6 +438,39 @@ public class AiServiceClient implements AiServiceOperations {
     }
 
     /**
+     * EXT-03: mismo camino que {@link #predictSubarticular} — trace id propagado por
+     * header, mismo mapeo de errores estructurados, misma metrica de exito/fallo. La
+     * unica diferencia es el path y el DTO de respuesta (el asset de explicabilidad, no
+     * la clasificacion en si).
+     */
+    @Override
+    public ar.edu.uade.pfi.backend.dto.SubarticularExplainResponseDto explainSubarticular(ar.edu.uade.pfi.backend.dto.AiSubarticularExplainRequestDto request) {
+        String traceId = resolveTraceId();
+        long startedAt = System.currentTimeMillis();
+        try {
+            ar.edu.uade.pfi.backend.dto.SubarticularExplainResponseDto response = dispatchV2Http(() -> aiWebClient.post()
+                .uri("/degenerative-findings/subarticular/explain")
+                .headers(headers -> applyTraceHeader(headers, traceId))
+                .bodyValue(request)
+                .exchangeToMono(clientResponse -> {
+                    if (clientResponse.statusCode().is2xxSuccessful()) {
+                        return clientResponse.bodyToMono(ar.edu.uade.pfi.backend.dto.SubarticularExplainResponseDto.class);
+                    }
+                    return clientResponse.bodyToMono(String.class)
+                        .defaultIfEmpty("")
+                        .flatMap(body -> Mono.error(buildSubarticularError(body, traceId)));
+                })
+                .block(timeout), traceId);
+
+            recordAiCall(true, startedAt);
+            return response;
+        } catch (RuntimeException ex) {
+            recordAiCall(false, startedAt);
+            throw ex;
+        }
+    }
+
+    /**
      * Igual que {@link #buildV2Error}, pero resolviendo contra la tabla del contrato
      * subarticular. El body crudo nunca se copia a la excepcion publica.
      */
