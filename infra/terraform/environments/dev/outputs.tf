@@ -7,7 +7,9 @@ output "backend_url" {
 }
 
 output "ai_url" {
-  value     = module.ai_cloud_run.url
+  # CLOUD-04: module.ai_cloud_run is only instantiated when enable_ai_service
+  # = true (stays false this stage) -- null otherwise, never an error.
+  value     = var.enable_ai_service ? module.ai_cloud_run[0].url : null
   sensitive = true # internal-only service; not meant for casual display
 }
 

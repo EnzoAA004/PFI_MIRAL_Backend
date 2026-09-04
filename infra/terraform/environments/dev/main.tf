@@ -19,6 +19,21 @@ provider "google" {
   region  = var.region
 }
 
+# CLOUD-04: Cloud Run v2 default service URLs are deterministic
+# (https://<service>-<project-number>.<region>.run.app), confirmed against the
+# pre-existing pfi-ai-module service's own URL in the CLOUD-00 audit. Used
+# below to give the Backend a CORS origin for the Frontend without a circular
+# module dependency (Frontend already depends on the Backend's URL for
+# BACKEND_URL; the Backend cannot also depend on the Frontend module's actual
+# output without a cycle).
+data "google_project" "current" {
+  project_id = var.project_id
+}
+
+locals {
+  frontend_predicted_url = "https://pfi-frontend-${var.environment}-${data.google_project.current.number}.${var.region}.run.app"
+}
+
 module "artifact_registry" {
   source = "../../modules/artifact-registry"
 
@@ -71,9 +86,16 @@ module "iam" {
   # lives entirely in infra/terraform/platform/identity (CLOUD-03) -- this
   # module only manages runtime identities (Backend/Frontend/AI Cloud Run)
   # and their project-level role grants.
-  project_iam_bindings = [
+  #
+  # CLOUD-04: cloudsql.client is only meaningful once a Cloud SQL instance
+  # exists to connect to (CLOUD-05) -- granting it now, while enable_cloud_sql
+  # is false, would be an IAM change with no corresponding resource, and the
+  # CLOUD-04 hard gate treats any unrequested IAM change on a preexisting
+  # identity as a STOP condition. Gated behind the same flag as the instance
+  # itself so the two always move together.
+  project_iam_bindings = var.enable_cloud_sql ? [
     { member_key = "backend_runtime", role = "roles/cloudsql.client" },
-  ]
+  ] : []
 }
 
 module "secrets" {
@@ -117,10 +139,38 @@ module "backend_cloud_run" {
   concurrency           = 80
   timeout_seconds       = 300
   allow_unauthenticated = true
-  health_check_path     = "/actuator/health"
+  # CLOUD-04: /actuator/health was never a real endpoint -- Spring Boot
+  # Actuator is not even a dependency of this project (confirmed: no
+  # "actuator" reference anywhere in pom.xml). The CLOUD-01 401 finding was
+  # testing a path that doesn't exist; AuthFilter fails closed on any
+  # unrecognized path by design. The real, already-existing, already-tested
+  # public liveness endpoint is /api/system/health (AuthFilter.
+  # PUBLIC_LIVENESS_PATHS, SystemController#health) -- minimal
+  # {"status":"ok"} body, no DB/AI/secrets/infra detail, covered by
+  # SecurityAuthorizationIntegrationTest#anonymousSystemHealthIsPublicAndMinimal.
+  # No Backend code or branch was needed for this.
+  health_check_path = "/api/system/health"
 
   env_vars = [
-    { name = "PFI_PERSISTENCE_MODE", value = "postgres" },
+    # CLOUD-05 is the persistence stage; no Cloud SQL exists yet
+    # (enable_cloud_sql = false) and none is created here. The image's own
+    # Dockerfile ENV already defaults to "memory" -- this line makes that
+    # choice explicit in the infra that deploys it rather than relying on an
+    # implicit image default a future reader might not see. SecurityStartup
+    # Validator's "postgres required" rule only fires under the
+    # production/prod Spring profile, which this DEV deployment never sets,
+    # so this is safe and intentional, not a workaround.
+    { name = "PFI_PERSISTENCE_MODE", value = "memory" },
+    # DEV-only: enables POST /api/auth/demo-doctor so the smoke test can
+    # obtain a real JWT without seeding an account against a database that
+    # does not exist yet. Defaults to false in the image; never set true
+    # outside DEV.
+    { name = "PFI_AUTH_DEMO_ENABLED", value = "true" },
+    # Breaks the Backend<->Frontend circular module dependency (see
+    # local.frontend_predicted_url above) -- exact HTTPS origin, no
+    # wildcard, keeping the existing localhost/Vercel defaults so other
+    # dev-facing contexts that already rely on them keep working.
+    { name = "PFI_CORS_ALLOWED_ORIGINS", value = "http://localhost:5173,http://localhost:3000,http://localhost:4173,http://127.0.0.1:5173,https://pfi-mvp-test-enzo-frontend.vercel.app,${local.frontend_predicted_url}" },
   ]
 }
 
@@ -138,13 +188,26 @@ module "frontend_cloud_run" {
   memory                = "256Mi"
   concurrency           = 80
   allow_unauthenticated = true
+  # CLOUD-04: the image's nginx (docker/nginx.conf) listens on 80, confirmed
+  # in the Frontend repo -- the module's port default of 8080 would point
+  # Cloud Run's health/traffic checks at a port nothing listens on and the
+  # revision would never become ready. No image rebuild involved: this only
+  # tells Cloud Run which port the EXISTING image's server already uses.
+  port              = 80
+  health_check_path = "/"
 
   env_vars = [
     { name = "BACKEND_URL", value = module.backend_cloud_run.url },
   ]
 }
 
+# CLOUD-04 explicitly excludes deploying a new AI Cloud Run service --
+# enable_ai_service defaults to false and must stay false for this stage.
+# The pre-existing pfi-ai-module service is confirmed untouched by this
+# environment (module never instantiated when the flag is false) and is not
+# reused blindly here.
 module "ai_cloud_run" {
+  count  = var.enable_ai_service ? 1 : 0
   source = "../../modules/cloud-run-service"
 
   project_id            = var.project_id

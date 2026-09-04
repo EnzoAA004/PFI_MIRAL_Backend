@@ -38,3 +38,9 @@ variable "enable_monitoring" {
   description = "Must stay false until CLOUD-07."
   default     = false
 }
+
+variable "enable_ai_service" {
+  type        = bool
+  description = "CLOUD-04: must stay false. CLOUD-04 explicitly excludes deploying a NEW AI Cloud Run service — the pre-existing pfi-ai-module stays untouched and is not reused blindly. Revisit only under a separate, explicitly authorized stage."
+  default     = false
+}
