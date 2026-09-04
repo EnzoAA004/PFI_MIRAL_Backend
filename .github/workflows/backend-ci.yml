@@ -5,20 +5,77 @@ on:
   push:
   pull_request:
 
-jobs:
-  test:
-    runs-on: ubuntu-latest
+concurrency:
+  group: backend-ci-${{ github.ref }}
+  cancel-in-progress: true
 
+permissions:
+  contents: read
+
+jobs:
+  # Fast gate: catches compile errors in ~30s without waiting for the full suite.
+  # There is no unit/integration Surefire tag split in this project today, so this
+  # job is compile-only rather than an invented "unit" subset.
+  compile:
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Java 17
+      - name: Set up Java 21
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: "21"
+          cache: maven
+
+      - name: Compile
+        run: mvn -B -DskipTests compile
+
+  # Authoritative gate: the full suite (1005 tests as of CLOUD-02, ~2 minutes locally).
+  test:
+    needs: compile
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
           cache: maven
 
       - name: Run tests
-        run: mvn test
+        run: mvn -B test
+
+      - name: Upload Surefire reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-surefire-reports
+          path: target/surefire-reports/
+          retention-days: 14
+          if-no-files-found: ignore
+
+  # Validates the Dockerfile actually builds — never pushed anywhere from CI at this
+  # stage (CLOUD-03 is the stage that starts pushing to Artifact Registry).
+  docker-build:
+    needs: compile
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build (validation only, never pushed)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: pfi-backend:ci-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
