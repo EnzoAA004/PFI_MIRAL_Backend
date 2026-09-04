@@ -1,5 +1,12 @@
 # CLOUD-04 — Security Review
 
+**Update (post-apply): Backend is live; every row below re-verified against the actual deployed
+service, not just the plan.** `gcloud run services describe pfi-backend-dev` confirms
+`serviceAccountName: pfi-backend-runtime@...` (never `pfi-github-artifact-pusher`), no
+`secret_env_vars` present, `cpu-throttling: false` (a cost/perf detail, not a security one).
+Frontend is not live yet (see `CLOUD_04_CHANGE_PLAN.md`) — its rows below describe the reviewed
+plan, re-verify once it deploys.
+
 ## Checklist (confirmed this revision)
 
 | Item | Status | Evidence |

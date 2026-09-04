@@ -1,7 +1,10 @@
 # CLOUD-04 — Cost Check
 
-**No resource has been created. Figures below are estimates from public Cloud Run pricing plus the
-existing `CLOUD_COST_MODEL.md` DEV profile — not a bill, not a guarantee.**
+**Update (post-apply): `pfi-backend-dev` is live.** `gcloud run services describe` confirms
+`autoscaling.knative.dev/minScale: "0"`, `maxScale: "2"` — scale-to-zero as designed, matching the
+estimate below exactly. Figures for Frontend remain estimates (not yet deployed, see
+`CLOUD_04_CHANGE_PLAN.md`). No bill/invoice was checked — these are still pricing-page-derived
+estimates, not an observed charge.
 
 ## What CLOUD-04 would add
 

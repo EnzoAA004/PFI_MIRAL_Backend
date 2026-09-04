@@ -102,3 +102,57 @@ Not executed this revision (no revision exists yet to roll back from/to) — see
 
 Exactly the 5 resources above, nothing else. `terraform apply "cloud04.tfplan"` (the saved plan
 file, not a fresh plan) so the applied set is byte-identical to what was reviewed here.
+
+## Apply result (executed, `terraform apply cloud04.tfplan`)
+
+**3 of 5 resources created successfully. 1 blocked by a GCP API validation rule not caught by
+`terraform plan`/`validate` (plan-time validation doesn't call the live API's admission checks).
+1 never attempted (its own dependency failed first). No change/destroy/replace was attempted or
+occurred — this is a partial-create, not a scope deviation.**
+
+| # | Resource | Result |
+|---|---|---|
+| 1 | `module.iam.google_service_account.created["frontend_runtime"]` | ✅ created |
+| 2 | `module.backend_cloud_run.google_cloud_run_v2_service.this` | ✅ created, `Ready` |
+| 3 | `module.backend_cloud_run.google_cloud_run_v2_service_iam_member.public[0]` | ✅ created |
+| 4 | `module.frontend_cloud_run.google_cloud_run_v2_service.this` | ❌ **failed** |
+| 5 | `module.frontend_cloud_run.google_cloud_run_v2_service_iam_member.public[0]` | ⏭️ not attempted (depends on #4) |
+
+### Root cause (confirmed, not guessed)
+
+```
+Error 400: template.containers.resources.limits.memory: Invalid value specified for memory.
+Total memory < 512 Mi is not supported with cpu always allocated (unthrottled).
+```
+
+Confirmed against the successfully-created Backend service's own live config
+(`gcloud run services describe pfi-backend-dev`): `run.googleapis.com/cpu-throttling: "false"` is
+the GCP-side default when the `cloud-run-service` module doesn't set `resources.cpu_idle` at all
+(neither Backend nor Frontend's module call did). Backend's `memory=512Mi` happens to satisfy the
+512Mi floor this default implies; Frontend's `memory=256Mi` does not. `terraform plan`/`validate`
+cannot catch this — it is a live API admission-control rule, not a schema-level constraint.
+
+### Not fixed without authorization
+
+Two equally valid fixes exist (bump Frontend `memory` to `512Mi` to match Backend, or add
+`cpu_idle = true` to let CPU throttle to zero while idle — the latter is arguably the more correct
+choice for a scale-to-zero DEV service and keeps the reviewed 256Mi footprint). Neither was applied
+without checking in first: bumping memory or adding an unreviewed attribute is a change to the
+already-approved plan, which the CLOUD-04 apply authorization explicitly excluded ("No recalcular
+ni ampliar el alcance durante el apply"). Reported for a fresh, explicit authorization instead.
+
+### Current live Terraform state
+
+```
+$ terraform state list
+data.google_project.current
+module.artifact_registry.data.google_artifact_registry_repository.existing[0]
+module.backend_cloud_run.google_cloud_run_v2_service.this
+module.backend_cloud_run.google_cloud_run_v2_service_iam_member.public[0]
+module.iam.google_service_account.created["frontend_runtime"]
+module.storage.data.google_storage_bucket.existing[0]
+```
+
+No orphaned/half-created Frontend resource exists in GCP — the API rejected the create request
+outright before any object was registered, confirmed via `gcloud run services list` (only
+`pfi-ai-module` and `pfi-backend-dev` exist).

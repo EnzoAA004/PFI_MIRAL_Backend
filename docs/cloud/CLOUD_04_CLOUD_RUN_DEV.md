@@ -1,8 +1,52 @@
 # CLOUD-04 — Cloud Run DEV Deployment
 
-**Status: design/plan complete, real `terraform plan` obtained against live GCP, awaiting explicit
-authorization for `terraform apply`. Nothing in Google Cloud has been created, modified, or
-destroyed by this stage.**
+**Status: `terraform apply cloud04.tfplan` executed under explicit authorization. Backend fully
+deployed, live, and smoke-tested green. Frontend blocked by a live GCP API validation rule not
+caught by `terraform plan` (see `CLOUD_04_CHANGE_PLAN.md` "Apply result") — awaiting a fresh,
+explicit authorization for the minimal fix before retrying. No unintended resource was created;
+`pfi-ai-module` untouched.**
+
+## Live results (Backend)
+
+| Field | Value |
+|---|---|
+| Service URL | `https://pfi-backend-dev-7cxg46zwea-uc.a.run.app` (also `https://pfi-backend-dev-810538429027.us-central1.run.app`) |
+| Revision | `pfi-backend-dev-00001-6qw` |
+| Image (tag) | `backend:dee0826c9e1121e348192058acde841b6f933608` |
+| Image digest (live, `gcloud run revisions describe`) | `sha256:75106a69465d82f5733afe9fe0bb2392dbc1f154687ac535ec864c6e80b85e24` — **matches the CLOUD-03 publish digest exactly** |
+| Runtime SA | `pfi-backend-runtime@pfi-asplanatti-fabrello-v1.iam.gserviceaccount.com` |
+| min/max instances | 0 / 2 |
+| CPU / memory | 1 / 512Mi |
+| `cpu-throttling` | `false` (GCP default when unset — the exact reason Frontend's 256Mi failed, see change plan) |
+
+### Backend smoke test (executed)
+
+```
+GET  /api/system/health           → 200 {"status":"ok"}
+GET  /api/studies (no token)      → 401
+POST /api/auth/demo-doctor        → 200, valid JWT issued
+GET  /api/studies   (with JWT)    → 200
+GET  /api/auth/me   (with JWT)    → 200, returns demo doctor profile
+```
+
+All green. Confirms: health minimal/public, application endpoints fail-closed without a token,
+demo auth issues a usable JWT, an authenticated basic endpoint round-trips correctly — all with
+`PFI_PERSISTENCE_MODE=memory` and no AI dependency, exactly as designed.
+
+### Logging (Cloud Logging, read-only)
+
+`gcloud logging read` for `pfi-backend-dev` shows structured request logs
+(`TraceIdFilter: event=http_request ... status=200/401 ... outcome=success/client_error`) for every
+smoke call, correct trace IDs, correct actor/roles once authenticated. **Zero `severity>=ERROR`
+log entries** in the service's lifetime so far — no crash loop, no port-binding error, no
+permission-denied, no fatal DB/AI dependency error.
+
+## Frontend — blocked, not yet live
+
+See `CLOUD_04_CHANGE_PLAN.md` "Apply result" for the full root-cause diagnosis. Summary: Cloud Run
+rejected creation with `memory < 512Mi is not supported with cpu always allocated (unthrottled)` —
+a live API admission rule, invisible to `terraform plan`. `pfi-frontend-dev` does not exist yet;
+nothing else was affected.
 
 ## Objective
 
