@@ -19,19 +19,37 @@ provider "google" {
   region  = var.region
 }
 
-# CLOUD-04: Cloud Run v2 default service URLs are deterministic
-# (https://<service>-<project-number>.<region>.run.app), confirmed against the
-# pre-existing pfi-ai-module service's own URL in the CLOUD-00 audit. Used
-# below to give the Backend a CORS origin for the Frontend without a circular
-# module dependency (Frontend already depends on the Backend's URL for
-# BACKEND_URL; the Backend cannot also depend on the Frontend module's actual
-# output without a cycle).
-data "google_project" "current" {
-  project_id = var.project_id
-}
-
-locals {
-  frontend_predicted_url = "https://pfi-frontend-${var.environment}-${data.google_project.current.number}.${var.region}.run.app"
+# CLOUD-04: the Backend's CORS allowlist needs the Frontend's real URL, but
+# Backend cannot reference module.frontend_cloud_run.url directly -- Frontend
+# already depends on module.backend_cloud_run.url for BACKEND_URL, and
+# Terraform's module graph must stay acyclic (a direct reference the other
+# way is a hard "Error: Cycle", not a style choice).
+#
+# CLOUD-04 first attempt used a *predicted* URL
+# (https://<service>-<project-number>.<region>.run.app) reasoned from the
+# pre-existing pfi-ai-module service's own alternate URL. That format is a
+# real, valid alias, but it is NOT the one google_cloud_run_v2_service.uri
+# actually returns (confirmed empirically: Terraform's own `frontend_url`
+# output, and the browser, both used the
+# https://<service>-<hash>-<region-code>.a.run.app form instead) -- a real
+# CORS failure resulted (documented in CLOUD_04_CLOUD_RUN_DEV.md).
+#
+# Fixed by reading the Frontend's live, already-created resource directly
+# via a name-based data source -- genuinely "the real URL", not predicted --
+# while still avoiding the module-to-module cycle (this is a fresh lookup by
+# name, not a reference into module.frontend_cloud_run's own attributes).
+#
+# Bootstrapping note: this requires the Frontend service to already exist,
+# which is true from this point in CLOUD-04 onward. A from-scratch
+# `terraform apply` of a fully-destroyed environment would need Backend and
+# Frontend applied in two passes (Frontend first, or Backend first without
+# this origin and a follow-up CORS update like this one) -- the same
+# real ordering constraint CLOUD-04 already hit once, now made explicit
+# rather than hidden behind a prediction that turned out wrong.
+data "google_cloud_run_v2_service" "frontend_lookup" {
+  name     = "pfi-frontend-${var.environment}"
+  location = var.region
+  project  = var.project_id
 }
 
 module "artifact_registry" {
@@ -139,6 +157,12 @@ module "backend_cloud_run" {
   concurrency           = 80
   timeout_seconds       = 300
   allow_unauthenticated = true
+  # CLOUD-04: explicit, not just relying on the module default -- the live
+  # Backend service (already created) carries no startup-cpu-boost
+  # annotation at all. null here means Terraform never tries to add one,
+  # so this environment's declared config matches GCP's actual state
+  # exactly and stops showing a perpetual drift on every future plan.
+  startup_cpu_boost = null
   # CLOUD-04: /actuator/health was never a real endpoint -- Spring Boot
   # Actuator is not even a dependency of this project (confirmed: no
   # "actuator" reference anywhere in pom.xml). The CLOUD-01 401 finding was
@@ -166,11 +190,14 @@ module "backend_cloud_run" {
     # does not exist yet. Defaults to false in the image; never set true
     # outside DEV.
     { name = "PFI_AUTH_DEMO_ENABLED", value = "true" },
-    # Breaks the Backend<->Frontend circular module dependency (see
-    # local.frontend_predicted_url above) -- exact HTTPS origin, no
-    # wildcard, keeping the existing localhost/Vercel defaults so other
-    # dev-facing contexts that already rely on them keep working.
-    { name = "PFI_CORS_ALLOWED_ORIGINS", value = "http://localhost:5173,http://localhost:3000,http://localhost:4173,http://127.0.0.1:5173,https://pfi-mvp-test-enzo-frontend.vercel.app,${local.frontend_predicted_url}" },
+    # CLOUD-04: the real Frontend origin (see data.google_cloud_run_v2_service
+    # .frontend_lookup above), not a predicted one -- exact HTTPS origin, no
+    # wildcard. The earlier predicted-URL entry is removed: no consumer was
+    # ever confirmed to use it, keeping it would just be a redundant, unused
+    # allowlist entry (the whole point of the fix above is not needing a
+    # prediction anymore). Existing localhost/Vercel defaults kept as-is for
+    # other dev-facing contexts that already rely on them.
+    { name = "PFI_CORS_ALLOWED_ORIGINS", value = "http://localhost:5173,http://localhost:3000,http://localhost:4173,http://127.0.0.1:5173,https://pfi-mvp-test-enzo-frontend.vercel.app,${data.google_cloud_run_v2_service.frontend_lookup.uri}" },
   ]
 }
 
@@ -186,6 +213,16 @@ module "frontend_cloud_run" {
   max_instance_count    = 2
   cpu                   = "1"
   memory                = "256Mi"
+  # CLOUD-04 fix (option B, authorized): Cloud Run's own admission control
+  # rejects memory < 512Mi when CPU is NOT throttled during idle
+  # (cpu_idle=false, the module's -- and GCP's -- default). Confirmed the
+  # hard way: the first apply attempt failed with exactly this error.
+  # Frontend is a static-file-serving nginx container with no background
+  # work to do between requests, so throttling CPU to (near) zero while
+  # idle is not just a workaround for the 512Mi floor -- it is the more
+  # correct, cheaper setting for a scale-to-zero DEV service, which is why
+  # this was chosen over raising memory to 512Mi.
+  cpu_idle              = true
   concurrency           = 80
   allow_unauthenticated = true
   # CLOUD-04: the image's nginx (docker/nginx.conf) listens on 80, confirmed

@@ -1,10 +1,11 @@
 # CLOUD-04 — Cloud Run DEV Deployment
 
-**Status: `terraform apply cloud04.tfplan` executed under explicit authorization. Backend fully
-deployed, live, and smoke-tested green. Frontend blocked by a live GCP API validation rule not
-caught by `terraform plan` (see `CLOUD_04_CHANGE_PLAN.md` "Apply result") — awaiting a fresh,
-explicit authorization for the minimal fix before retrying. No unintended resource was created;
-`pfi-ai-module` untouched.**
+**Status: COMPLETE. Backend and Frontend both deployed, live, and smoke-tested green — including a
+real browser smoke test (login, authenticated API call, CORS, zero console errors). No unintended
+resource was created; `pfi-ai-module` untouched; every deviation from the original plan (health
+path, frontend port, persistence mode, `cpu_idle`, a CORS predicted-vs-real URL, and a
+startup-cpu-boost annotation drift) was found, diagnosed, explicitly authorized, and fixed
+declaratively — none were worked around silently.**
 
 ## Live results (Backend)
 
@@ -41,12 +42,83 @@ smoke call, correct trace IDs, correct actor/roles once authenticated. **Zero `s
 log entries** in the service's lifetime so far — no crash loop, no port-binding error, no
 permission-denied, no fatal DB/AI dependency error.
 
-## Frontend — blocked, not yet live
+## Frontend — live and verified (fixed in two follow-up steps)
 
-See `CLOUD_04_CHANGE_PLAN.md` "Apply result" for the full root-cause diagnosis. Summary: Cloud Run
-rejected creation with `memory < 512Mi is not supported with cpu always allocated (unthrottled)` —
-a live API admission rule, invisible to `terraform plan`. `pfi-frontend-dev` does not exist yet;
-nothing else was affected.
+**Fix 1 — `cpu_idle`.** The original blocker (`memory < 512Mi is not supported with cpu always
+allocated (unthrottled)`) was resolved by adding a proper `cpu_idle` variable to the
+`cloud-run-service` module (default `false`, so Backend's behavior is byte-identical to before) and
+setting `cpu_idle = true` only for Frontend — the correct, cheaper setting for a static-file-serving,
+scale-to-zero service, chosen over raising memory to 512Mi. `terraform plan` then showed a Backend
+annotation drift unrelated to this fix (see "Startup CPU boost drift" below), isolated declaratively
+before applying.
+
+**Fix 2 — CORS predicted-vs-real URL.** `PFI_CORS_ALLOWED_ORIGINS` had been set (before Frontend
+existed) to a *predicted* Cloud Run URL format
+(`https://<service>-<project-number>.<region>.run.app`, reasoned from `pfi-ai-module`'s own
+alternate URL). That format is real and reachable, but it is **not** what
+`google_cloud_run_v2_service.uri` actually returns, nor what the browser's `Origin` header carries
+— both use `https://<service>-<hash>-<region-code>.a.run.app`. Confirmed by a real browser smoke
+test failing with a CORS preflight rejection (`403 ACCESS_DENIED`, fail-closed as designed, not a
+security bug). Fixed by replacing the predicted-URL computation with
+`data "google_cloud_run_v2_service" "frontend_lookup"` — a name-based data source read of the
+already-created Frontend service, giving Backend's CORS config the Frontend's actual live URI
+without creating a circular Terraform module dependency (Frontend still depends on
+`module.backend_cloud_run.url`). The now-proven-wrong predicted origin was removed from the
+allowlist (no consumer was ever confirmed to use it).
+
+### Startup CPU boost drift (isolated, not ignored)
+
+The live Backend service (created in the first apply) carries no
+`run.googleapis.com/startup-cpu-boost` annotation, but the module's old code unconditionally
+emitted `tostring(var.startup_cpu_boost)` (default `true`) — a permanent, unrelated drift on every
+future plan touching that module. Fixed by making `startup_cpu_boost` nullable (default `null` =
+omit the annotation entirely) and setting it explicitly to `null` for Backend, so Terraform's
+declared config matches GCP's real state exactly. **Deliberately not handled with a blanket
+`lifecycle { ignore_changes = [...] }`** on the whole annotations map, which would also hide
+unrelated, legitimate future drift — explicit modeling was preferred, per instruction.
+
+### Live results (Frontend)
+
+| Field | Value |
+|---|---|
+| Service URL | `https://pfi-frontend-dev-7cxg46zwea-uc.a.run.app` (also `https://pfi-frontend-dev-810538429027.us-central1.run.app`) |
+| Revision | `pfi-frontend-dev-00001-c7v` |
+| Image (tag) | `frontend:1c77231e2e1833bada6dc1c0f4f622f1d32e3470` |
+| Image digest (live) | `sha256:b4136090466130ca2921afc4fbf3e12f025278c43ea43b3225d44b521865e862` — **matches the CLOUD-03 publish digest exactly** |
+| Runtime SA | `pfi-frontend-runtime-dev@pfi-asplanatti-fabrello-v1.iam.gserviceaccount.com` — **zero project IAM roles** |
+| min/max instances | 0 / 2 |
+| CPU / memory / `cpu_idle` | 1 / 256Mi / `true` (confirmed live: `run.googleapis.com/cpu-throttling: "true"`) |
+
+### Smoke tests (executed)
+
+```
+GET /                → 200
+GET /env.js           → 200, API_BASE_URL = https://pfi-backend-dev-7cxg46zwea-uc.a.run.app (not localhost)
+OPTIONS (CORS preflight) with real Frontend Origin → 204, access-control-allow-origin = exact Frontend origin, no wildcard
+```
+
+### Browser smoke (executed, real Chromium via the browser tool)
+
+1. Opened `https://pfi-frontend-dev-7cxg46zwea-uc.a.run.app/` — page loads, no fatal error.
+2. Clicked "Entrar con doctor demo" — login succeeded, landed on the authenticated "Lista de
+   trabajo" screen as "Dra. Demo Reviewer".
+3. Full page reload with the resulting session — worklist reloads with **zero console errors**,
+   confirming the CORS fix holds across a real fresh page load, not just the first click.
+4. `PFI_PERSISTENCE_MODE=memory` visibly reflected in-product: banner reads "Sin estudios
+   persistidos" / "No hay estudios pendientes de revisión" (0 of 0) — expected, not a bug.
+
+### Backend regression (re-run after the CORS fix)
+
+```
+GET  /api/system/health           → 200 {"status":"ok"}
+GET  /api/studies (no token)      → 401
+POST /api/auth/demo-doctor        → 200
+GET  /api/auth/me   (with JWT)    → 200
+```
+
+All green — the CORS fix touched only the `PFI_CORS_ALLOWED_ORIGINS` env var value; image, revision
+count, SA, CPU, memory, and scale settings were confirmed unchanged in the `terraform plan` before
+applying (`0 to add, 1 to change, 0 to destroy`).
 
 ## Objective
 

@@ -1,11 +1,17 @@
 # CLOUD-04 — Security Review
 
-**Update (post-apply): Backend is live; every row below re-verified against the actual deployed
-service, not just the plan.** `gcloud run services describe pfi-backend-dev` confirms
-`serviceAccountName: pfi-backend-runtime@...` (never `pfi-github-artifact-pusher`), no
-`secret_env_vars` present, `cpu-throttling: false` (a cost/perf detail, not a security one).
-Frontend is not live yet (see `CLOUD_04_CHANGE_PLAN.md`) — its rows below describe the reviewed
-plan, re-verify once it deploys.
+**Update (final): Backend AND Frontend are both live; every row below re-verified against the
+actual deployed services.** `gcloud run services describe` confirms `serviceAccountName:
+pfi-backend-runtime@...` / `pfi-frontend-runtime-dev@...` respectively (never
+`pfi-github-artifact-pusher`), no `secret_env_vars` present anywhere, `cpu-throttling: false`
+(Backend) / `true` (Frontend, intentional cost/perf choice — see `CLOUD_04_CLOUD_RUN_DEV.md`).
+
+**CORS finding, resolved:** the Backend's CORS allowlist briefly had a *predicted* Frontend origin
+that didn't match the real one, causing a real preflight rejection during browser smoke
+(`403 ACCESS_DENIED`, fail-closed by design — not a security gap, just a wrong entry). Fixed to the
+real origin, verified: `access-control-allow-origin` echoes back exactly
+`https://pfi-frontend-dev-7cxg46zwea-uc.a.run.app` (no wildcard, no `*`, single exact HTTPS
+origin), `access-control-allow-credentials: true`.
 
 ## Checklist (confirmed this revision)
 

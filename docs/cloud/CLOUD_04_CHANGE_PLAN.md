@@ -156,3 +156,33 @@ module.storage.data.google_storage_bucket.existing[0]
 No orphaned/half-created Frontend resource exists in GCP — the API rejected the create request
 outright before any object was registered, confirmed via `gcloud run services list` (only
 `pfi-ai-module` and `pfi-backend-dev` exist).
+
+## Follow-up apply 1 — `cpu_idle` fix (authorized separately, option B)
+
+Added a proper `cpu_idle` variable to the `cloud-run-service` module (default `false`, Backend
+unaffected) and set `cpu_idle = true` for Frontend only. A fresh `terraform plan` (not reusing the
+stale `cloud04.tfplan`) then showed an *unrelated* drift: Backend's `startup-cpu-boost` annotation,
+never actually present on the live resource despite the module's old unconditional default. Per
+explicit instruction, this was isolated declaratively (made `startup_cpu_boost` nullable, `null` =
+omit the annotation, set explicitly to `null` for Backend) rather than masked with a blanket
+`ignore_changes`. Result: **`Plan: 2 to add, 0 to change, 0 to destroy`** — applied.
+`Apply complete! Resources: 2 added, 0 changed, 0 destroyed.`
+
+## Follow-up apply 2 — CORS real-URL fix (authorized separately)
+
+Browser smoke surfaced a real CORS preflight rejection: Backend's `PFI_CORS_ALLOWED_ORIGINS` held a
+*predicted* Frontend URL format that turned out not to match what `google_cloud_run_v2_service.uri`
+(and the browser's `Origin` header) actually use. Fixed by replacing the prediction with
+`data "google_cloud_run_v2_service" "frontend_lookup"` (a name-based data source read of the
+already-created Frontend service — genuinely "the real URL", without a circular module dependency)
+and removing the now-confirmed-unused predicted entry. Plan: **`0 to add, 1 to change, 0 to
+destroy`** — the one change was exactly the `PFI_CORS_ALLOWED_ORIGINS` env var value on
+`pfi-backend-dev`, confirmed via the plan diff that every other attribute (image, SA, CPU, memory,
+scale, ingress) was in the "unchanged attributes hidden" set. Applied:
+`Apply complete! Resources: 0 added, 1 changed, 0 destroyed.`
+
+## Final state
+
+Both `pfi-backend-dev` and `pfi-frontend-dev` live, smoke-tested (including a real browser smoke
+test), zero unintended resources, `pfi-ai-module`/Cloud SQL/Artifact Registry/WIF/bucket/IAM
+untouched throughout every step above.

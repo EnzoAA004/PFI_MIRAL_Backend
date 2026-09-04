@@ -1,9 +1,11 @@
 # CLOUD-04 — Cost Check
 
-**Update (post-apply): `pfi-backend-dev` is live.** `gcloud run services describe` confirms
-`autoscaling.knative.dev/minScale: "0"`, `maxScale: "2"` — scale-to-zero as designed, matching the
-estimate below exactly. Figures for Frontend remain estimates (not yet deployed, see
-`CLOUD_04_CHANGE_PLAN.md`). No bill/invoice was checked — these are still pricing-page-derived
+**Update (final): both `pfi-backend-dev` and `pfi-frontend-dev` are live.** `gcloud run services
+describe` confirms `minScale: "0"`, `maxScale: "2"` on both — scale-to-zero as designed, matching
+the estimate below exactly. Frontend additionally runs `cpu_idle=true` (256Mi, CPU throttled to
+near-zero outside request handling) rather than the 512Mi/always-allocated alternative — the
+cheaper of the two valid fixes for the memory-floor issue found during deployment, chosen
+explicitly for that reason. No bill/invoice was checked — these remain pricing-page-derived
 estimates, not an observed charge.
 
 ## What CLOUD-04 would add

@@ -41,6 +41,23 @@ variable "cpu" {
   default = "1"
 }
 
+variable "cpu_idle" {
+  type        = bool
+  description = <<-EOT
+    Whether CPU is throttled to (near) zero outside of request handling.
+    true = CPU only allocated while actively handling a request (cheaper,
+    the standard choice for a bursty/scale-to-zero service). false = CPU
+    "always allocated"/unthrottled even while idle -- required by Cloud
+    Run's own admission control whenever memory is below 512Mi (CLOUD-04:
+    confirmed the hard way -- a service under that floor with cpu_idle=false
+    is rejected at apply time with "Total memory < 512 Mi is not supported
+    with cpu always allocated"). Defaults to false to keep every existing
+    service's behavior byte-identical to before this variable existed
+    (Backend already runs at 512Mi+ and was never affected either way).
+  EOT
+  default     = false
+}
+
 variable "memory" {
   type    = string
   default = "512Mi"
@@ -69,8 +86,20 @@ variable "allow_unauthenticated" {
 }
 
 variable "startup_cpu_boost" {
-  type    = bool
-  default = true
+  type        = bool
+  description = <<-EOT
+    true/false emits the run.googleapis.com/startup-cpu-boost annotation
+    with that value; null (default) omits the annotation entirely -- the
+    conservative default, matching what a freshly-created service actually
+    has (CLOUD-04: confirmed the live, already-created Backend service
+    carries no such annotation at all, regardless of what earlier config
+    intended). Set explicitly per environment/service only when the
+    live resource is confirmed to already have that literal value, so
+    Terraform's declared state and GCP's actual state stay in sync instead
+    of drifting.
+  EOT
+  default     = null
+  nullable    = true
 }
 
 variable "health_check_path" {

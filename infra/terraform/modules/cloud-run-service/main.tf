@@ -16,7 +16,17 @@ resource "google_cloud_run_v2_service" "this" {
     max_instance_request_concurrency = var.concurrency
     timeout                          = "${var.timeout_seconds}s"
 
-    annotations = {
+    # CLOUD-04: null means "don't emit this annotation at all" -- the
+    # unconditional tostring(var.startup_cpu_boost) this replaced always sent
+    # the annotation (default true), but Cloud Run's live API never echoed it
+    # back for the already-created Backend service, so every later plan
+    # showed a perpetual "+" drift for a key that was never really absent by
+    # choice. Modeling it explicitly (present only when true/false is
+    # actually wanted) lets each environment's config match its live state
+    # exactly, instead of masking the mismatch with a blanket
+    # lifecycle.ignore_changes on the whole annotations map (which would also
+    # hide unrelated, legitimate future drift).
+    annotations = var.startup_cpu_boost == null ? {} : {
       "run.googleapis.com/startup-cpu-boost" = tostring(var.startup_cpu_boost)
     }
 
@@ -32,6 +42,7 @@ resource "google_cloud_run_v2_service" "this" {
           cpu    = var.cpu
           memory = var.memory
         }
+        cpu_idle = var.cpu_idle
       }
 
       dynamic "env" {
