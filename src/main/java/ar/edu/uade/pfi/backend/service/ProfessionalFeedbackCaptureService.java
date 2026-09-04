@@ -1,5 +1,6 @@
 package ar.edu.uade.pfi.backend.service;
 
+import ar.edu.uade.pfi.backend.domain.AiDiscLevelReview;
 import ar.edu.uade.pfi.backend.domain.AiEvidenceRegion;
 import ar.edu.uade.pfi.backend.domain.AiEvidenceRegionCorrection;
 import ar.edu.uade.pfi.backend.domain.AiMeasurementCorrection;
@@ -33,15 +34,17 @@ import org.springframework.stereotype.Service;
 @Service
 public class ProfessionalFeedbackCaptureService {
     private final StudyRepository repository;
+    private final EffectiveAnnotationResolver annotationResolver;
     private final Clock clock;
 
     @Autowired
-    public ProfessionalFeedbackCaptureService(StudyRepository repository) {
-        this(repository, Clock.systemUTC());
+    public ProfessionalFeedbackCaptureService(StudyRepository repository, EffectiveAnnotationResolver annotationResolver) {
+        this(repository, annotationResolver, Clock.systemUTC());
     }
 
-    ProfessionalFeedbackCaptureService(StudyRepository repository, Clock clock) {
+    ProfessionalFeedbackCaptureService(StudyRepository repository, EffectiveAnnotationResolver annotationResolver, Clock clock) {
         this.repository = repository;
+        this.annotationResolver = annotationResolver;
         this.clock = clock;
     }
 
@@ -162,7 +165,58 @@ public class ProfessionalFeedbackCaptureService {
             );
             captured.add(repository.saveProfessionalFeedbackCandidate(candidate));
         }
+
+        // EXT-04B5: a professional REJECTING an AI suggestion (with no correction — a correction
+        // already takes the "evidence_region" branch above regardless of review status) is also
+        // feedback in its own right: a negative signal, distinct from "never reviewed at all"
+        // (AI_SUGGESTED, not effective, but still `pending` — never captured). Uses the same
+        // review-status resolution EffectiveAnnotationResolver already applies (disc-level
+        // review when the region names one, run-level review otherwise) rather than
+        // re-deriving it here.
+        Map<String, String> effectiveReviewStatusByRegionId = annotationResolver.effectiveAnnotations(run, true).stream()
+            .collect(java.util.stream.Collectors.toMap(a -> a.region().id(), EffectiveAnnotationResolver.EffectiveAnnotation::reviewStatus, (a, b) -> a));
+        for (AiEvidenceRegion region : regionsById.values()) {
+            if (!"ai".equals(region.origin())) continue;
+            if (!"rejected".equals(effectiveReviewStatusByRegionId.get(region.id()))) continue;
+            if (repository.existsProfessionalFeedbackCandidate("rejected_ai_suggestion", region.id())) continue;
+            ProfessionalFeedbackCandidate candidate = new ProfessionalFeedbackCandidate(
+                UUID.randomUUID().toString(),
+                study.id(),
+                study.caseId(),
+                run.id(),
+                "rejected_ai_suggestion",
+                region.id(),
+                region.level(),
+                region.plane(),
+                region.structure(),
+                null,
+                region.geometryType(),
+                null,
+                region.geometry(),
+                null,
+                null,
+                region.modelId(),
+                region.modelSha256(),
+                region.pipelineVersion(),
+                rejectionReviewer(run, region),
+                region.comment(),
+                "captured",
+                region.createdAt(),
+                Instant.now(clock)
+            );
+            captured.add(repository.saveProfessionalFeedbackCandidate(candidate));
+        }
         return captured;
+    }
+
+    /** Same fallback order StudyReportService/EffectiveAnnotationResolver already use: disc-level review when the region names one, run-level review otherwise. */
+    private String rejectionReviewer(AiProductAnalysisRun run, AiEvidenceRegion region) {
+        if (region.discLevelResultId() != null) {
+            for (AiDiscLevelReview review : repository.findAiDiscLevelReviewsByAnalysisRunId(run.id())) {
+                if (review.discLevelResultId().equals(region.discLevelResultId())) return review.reviewedBy();
+            }
+        }
+        return repository.findAiProductAnalysisRunReview(run.id()).map(r -> r.reviewedBy()).orElse(null);
     }
 
     public List<ProfessionalFeedbackCandidate> findByCase(String caseId) {

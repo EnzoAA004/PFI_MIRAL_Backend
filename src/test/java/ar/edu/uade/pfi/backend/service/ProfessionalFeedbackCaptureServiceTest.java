@@ -25,7 +25,8 @@ import org.junit.jupiter.api.Test;
 class ProfessionalFeedbackCaptureServiceTest {
     private static final Instant NOW = Instant.parse("2026-09-04T12:00:00Z");
     private final InMemoryStudyRepository repository = new InMemoryStudyRepository();
-    private final ProfessionalFeedbackCaptureService service = new ProfessionalFeedbackCaptureService(repository, Clock.fixed(NOW, ZoneOffset.UTC));
+    private final EffectiveAnnotationResolver annotationResolver = new EffectiveAnnotationResolver(repository);
+    private final ProfessionalFeedbackCaptureService service = new ProfessionalFeedbackCaptureService(repository, annotationResolver, Clock.fixed(NOW, ZoneOffset.UTC));
 
     @Test
     void capturesAMeasurementCorrectionPreservingAiOriginalAndProfessionalValue() {
@@ -175,6 +176,56 @@ class ProfessionalFeedbackCaptureServiceTest {
 
         assertEquals("eligible_for_curation", updated.status());
         assertTrue(service.findByCase("CASE-FB-7").stream().allMatch(c -> "eligible_for_curation".equals(c.status())));
+    }
+
+    @Test
+    void capturesARejectedAiSuggestionWithNoCorrectionAsItsOwnFeedbackSource() {
+        Study study = seedStudy("study-8", "CASE-FB-8");
+        AiProductAnalysisRun run = seedRun(study, "run-8");
+        var discLevel = new ar.edu.uade.pfi.backend.domain.AiDiscLevelResult(
+            "level-8", run.id(), 0, "L4-L5", "localized", "ai", true, false,
+            "not_required", true, false, false, null, true
+        );
+        repository.saveAiProductAnalysisRun(run, List.of(discLevel), List.of());
+        AiEvidenceRegion region = new AiEvidenceRegion(
+            "region-8", run.id(), "level-8", null, "sagittal", "L4-L5", "disc", 6,
+            "ai", EvidenceGeometry.TYPE_BBOX, new EvidenceGeometry.Bbox(10, 10, 20, 20).toMap(), null,
+            "sagittal_spider", "sha256:abc", "pfi.multiplanar-run.v2", null,
+            false, null, null, null, NOW
+        );
+        repository.saveAiEvidenceRegion(region);
+        repository.upsertAiDiscLevelReview("level-8", "rejected", "sugerencia descartada", "dr.reviewer@pfi.local", NOW);
+
+        List<ProfessionalFeedbackCandidate> captured = service.captureForStudy("CASE-FB-8");
+
+        assertEquals(1, captured.size());
+        ProfessionalFeedbackCandidate candidate = captured.get(0);
+        assertAll(
+            () -> assertEquals("rejected_ai_suggestion", candidate.source()),
+            () -> assertEquals("region-8", candidate.correctionId()),
+            () -> assertEquals(new EvidenceGeometry.Bbox(10, 10, 20, 20).toMap(), candidate.aiOriginalGeometry()),
+            () -> assertEquals("sagittal_spider", candidate.modelId()),
+            () -> assertEquals("dr.reviewer@pfi.local", candidate.reviewedBy())
+        );
+
+        // idempotent: re-running capture must not duplicate it.
+        assertEquals(0, service.captureForStudy("CASE-FB-8").size());
+    }
+
+    @Test
+    void doesNotCaptureAPendingUnreviewedAiSuggestionAsFeedback() {
+        Study study = seedStudy("study-9", "CASE-FB-9");
+        AiProductAnalysisRun run = seedRun(study, "run-9");
+        repository.saveAiProductAnalysisRun(run, List.of(), List.of());
+        AiEvidenceRegion region = new AiEvidenceRegion(
+            "region-9", run.id(), null, null, "sagittal", "L4-L5", "disc", 6,
+            "ai", EvidenceGeometry.TYPE_BBOX, new EvidenceGeometry.Bbox(10, 10, 20, 20).toMap(), null,
+            "sagittal_spider", "sha256:abc", "pfi.multiplanar-run.v2", null,
+            false, null, null, null, NOW
+        );
+        repository.saveAiEvidenceRegion(region);
+
+        assertEquals(0, service.captureForStudy("CASE-FB-9").size(), "a merely pending, never-reviewed AI suggestion is not feedback");
     }
 
     private Study seedStudy(String id, String caseId) {

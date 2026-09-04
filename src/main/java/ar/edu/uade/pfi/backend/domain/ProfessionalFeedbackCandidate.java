@@ -22,7 +22,7 @@ public record ProfessionalFeedbackCandidate(
     String studyId,
     String caseId,
     String analysisRunId,
-    /** {@code "measurement" | "evidence_region" | "professional_new_finding"}. */
+    /** {@code "measurement" | "evidence_region" | "professional_new_finding" | "rejected_ai_suggestion"}. */
     String source,
     /** The correction row (or, for {@code professional_new_finding}, the region row itself) this was captured from. */
     String correctionId,
@@ -47,7 +47,7 @@ public record ProfessionalFeedbackCandidate(
     Instant correctedAt,
     Instant capturedAt
 ) {
-    private static final List<String> SOURCES = List.of("measurement", "evidence_region", "professional_new_finding");
+    private static final List<String> SOURCES = List.of("measurement", "evidence_region", "professional_new_finding", "rejected_ai_suggestion");
     public static final List<String> ALLOWED_STATUSES = List.of("captured", "eligible_for_curation", "excluded", "curated");
 
     public ProfessionalFeedbackCandidate {
