@@ -1,13 +1,21 @@
 # Cloud Roadmap
 
-CLOUD-00 (this stage) is complete as documentation only. Everything below is future work, each
-stage gated by its own authorization/cost checkpoint — none of it is started by this document.
+**Status: CLOUD-00 READY. CLOUD-01 current (this document reflects CLOUD-01's completion).**
+CLOUD-00 closed as documentation only, committed and pushed
+(`782862aad65ca56c656e447ed848e6c9762cb905`, `cloud/cloud-00-architecture-audit`). CLOUD-01 turned
+that design into real, `terraform validate`-passing Infrastructure as Code on
+`cloud/cloud-01-terraform-foundation` — see `CLOUD_01_TERRAFORM_FOUNDATION.md`,
+`CLOUD_01_TERRAFORM_PLAN.md`, `CLOUD_01_COST_CHECK.md`. `terraform plan` against live GCP is
+blocked only by missing local Application Default Credentials
+(`PLAN_BLOCKED_BY_MISSING_LOCAL_CREDENTIALS`), not by anything on the GCP side. No resource in
+Google Cloud has been created, modified, or destroyed by either stage. Everything below CLOUD-01 is
+still future work, each gated by its own authorization/cost checkpoint — none of it started here.
 
 ## Staged roadmap
 
 | Stage | Scope | Gate before starting |
 |---|---|---|
-| **CLOUD-01** | Terraform skeleton (modules + environments per `CLOUD_CICD_DESIGN.md`), `terraform validate`/`terraform plan` only | None — no resource created by `validate`/`plan`. Still: confirm with the user before writing files outside `docs/`. |
+| **CLOUD-01** ✅ | Terraform skeleton (7 modules + dev/demo environments), `fmt`/`validate` passing, plan-only design, Frontend Cloud Run port-compat fix | Done — see the three CLOUD-01 docs. Real `terraform plan` output still pending local ADC setup. |
 | **CLOUD-02** | CI workflow changes: fix JDK/Python version pins, add Docker build validation on PRs | None — no deployment, no registry push |
 | **CLOUD-03** | Actually push images to Artifact Registry `pfi-containers` from CI | **Requires cost/authorization check** — Artifact Registry storage is billed (though negligible at current image sizes per `CLOUD_COST_MODEL.md`) |
 | **CLOUD-04** | Deploy Backend + Frontend (+ AI service, workload-classified) to Cloud Run **DEV** | **Requires explicit authorization before first `gcloud run deploy` / `terraform apply` that creates a Cloud Run service** — also requires resolving what to do with the pre-existing `pfi-ai-module` service found in the audit (reuse vs. replace vs. leave alone) |
