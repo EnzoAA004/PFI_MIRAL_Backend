@@ -1,5 +1,14 @@
 # CLOUD-05 — Cloud SQL Design
 
+**CORRECTION (CLOUD-05 re-audit, see `CLOUD_05_COST_OPTIMIZATION_REVIEW.md` for the full
+investigation): the "Tier correction" section below, and the DEV-min row of the comparison table,
+were factually wrong in the original CLOUD-05 pass. `db-f1-micro` IS a currently-orderable,
+regular-support tier for PostgreSQL 15 in `us-central1` — the original conclusion came from an
+incomplete Billing Catalog SKU search (matched the literal substring "f1-micro", which only appears
+in Extended-support-labeled SKUs; current pricing is filed under "Micro instance" instead) combined
+with unexhausted pagination (stopped at 15,000 of ~40,500 total SKUs). This is now corrected
+throughout this document — `db-f1-micro` is the DEV-min default, not `db-custom-1-3840`.**
+
 ## Engine and version
 
 **Cloud SQL for PostgreSQL, `POSTGRES_15`.** No MySQL, no engine change — the application already
@@ -7,45 +16,67 @@ speaks plain PgJDBC (`org.postgresql:postgresql:42.7.4`). `POSTGRES_15` is a cur
 major version — confirmed via the Cloud Billing Catalog API that it is **not** subject to the
 "Extended support" pricing surcharge that now applies to PostgreSQL 9.6–13.
 
-## Tier correction (real finding, not a stale estimate)
+## Tier — corrected finding
 
-The CLOUD-01 Terraform default was `db-f1-micro`, documented at the time as "~$8/month" by historical
-approximation. **That default is no longer valid for a new instance.** Verified directly against the
-live Cloud Billing Catalog API (`cloudbilling.googleapis.com/v1/services/9662-B51E-5089/skus`,
-~15,000 SKUs paged and inspected for `us-central1`): every `db-f1-micro`/`db-g1-small` SKU found is
-versioned "Extended support f1-micro/g1-small vNN", tied to already-EOL PostgreSQL major versions
-(9.6–13) — shared-core machine types have been removed from new-instance ordering on current major
-versions. The smallest currently orderable configuration is a **custom machine type**, billed per
-resource, not as a bundled tier.
+`db-f1-micro` (shared-core, `edition=ENTERPRISE`) **is a currently-orderable tier for a new
+PostgreSQL 15 instance in `us-central1`** — confirmed two ways: the live Cloud SQL Admin API's
+`tiers.list` endpoint (a static reference listing that does not require `sqladmin.googleapis.com`
+enabled) returns it with `edition: "ENTERPRISE"` and `us-central1` in its region list; and the fully
+paged Billing Catalog SKU list (all ~40,500 SKUs for the Cloud SQL service, not the 15,000 the
+original pass stopped at) contains a live, current, non-extended-support SKU:
+`Cloud SQL for PostgreSQL: Zonal - Micro instance in Americas` (`C2D4-F7DF-B8D0`) at
+**$0.0105/hour**. See `CLOUD_05_COST_OPTIMIZATION_REVIEW.md` for the full re-audit, including exactly
+how the original conclusion went wrong. `db-custom-*` dedicated machine types remain available and
+are kept as this module's alternative for a future DEMO/prod-like environment that needs a real SLA
+or more than ~614 MiB RAM.
 
 ## Sourced pricing (Cloud Billing Catalog API, `us-central1`/Iowa, captured 2026-09-04)
 
 | Resource | SKU | Rate |
 |---|---|---|
-| Zonal vCPU | `965E-7C36-08E6` "Cloud SQL for PostgreSQL: Zonal - vCPU in Americas" | $0.0413 / vCPU-hour |
-| Zonal RAM | `93DA-3F55-CB04` "Cloud SQL for PostgreSQL: Zonal - RAM in Americas" | $0.0070 / GiB-hour |
+| Zonal shared-core (`db-f1-micro`) | `C2D4-F7DF-B8D0` "Cloud SQL for PostgreSQL: Zonal - Micro instance in Americas" | $0.0105 / instance-hour (bundled, ~614 MiB RAM included) |
+| Zonal vCPU (dedicated/custom tiers) | `965E-7C36-08E6` "Cloud SQL for PostgreSQL: Zonal - vCPU in Americas" | $0.0413 / vCPU-hour |
+| Zonal RAM (dedicated/custom tiers) | `93DA-3F55-CB04` "Cloud SQL for PostgreSQL: Zonal - RAM in Americas" | $0.0070 / GiB-hour |
 | Zonal SSD storage | `903C-B42D-4287` "Zonal - Enterprise Plus Standard Storage" (matches the plain "Standard storage" Postgres SKU at the same $0.17 rate seen on the SQL Server and FDC-trial equivalents) | $0.17 / GiB-month |
 | Backups | `46C8-DA82-DF18` "Cloud SQL: Backups in Americas" | $0.08 / GiB-month |
-| Regional (HA) vCPU/RAM | `1912-86A6-9950` / `9BE2-CB5B-66F8` | exactly 2× the Zonal rate ($0.0826/vCPU-hr, $0.0140/GiB-hr) |
+| Regional (HA) vCPU/RAM | `1912-86A6-9950` / `9BE2-CB5B-66F8` | exactly 2× the Zonal dedicated rate ($0.0826/vCPU-hr, $0.0140/GiB-hr) |
 
-Regional/HA being exactly double Zonal at every resource is consistent, not a rounding coincidence —
-confirms HA in Cloud SQL is priced as a literal second (standby) instance.
+Regional/HA being exactly double Zonal at every dedicated-tier resource is consistent, not a rounding
+coincidence — confirms HA in Cloud SQL is priced as a literal second (standby) instance. Shared-core
+tiers (`db-f1-micro`/`db-g1-small`) do not support Regional/HA at all.
 
 ## Tier comparison
 
-| Option | Config | vCPU | RAM | Disk | Backup | HA | 24h cost | 7-day cost | 30-day (730h) cost | Stoppable? | Stopped-instance cost | Recommended |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| **DEV-min** | `db-custom-1-3840` | 1 | 3.75 GiB | 10 GB PD_SSD | off | ZONAL | ~$1.68 | ~$11.75 | **~$51.01** | Yes (`activation_policy=NEVER`) | ~$1.70/mo (storage only) | **Yes — this stage's default** |
-| **DEMO** | `db-custom-1-3840` | 1 | 3.75 GiB | 10 GB PD_SSD | **on** | ZONAL | ~$1.71 | ~$11.98 | ~$51.81 | Yes | ~$1.70/mo | Flip `backup_enabled=true` only when a demo is scheduled |
-| **Future prod-grade** | `db-custom-2-7680` | 2 | 7.5 GiB | 20 GB PD_SSD | on | **REGIONAL (HA)** | ~$6.75 | ~$47.27 | ~$205.65 | No (HA defeats the point of stopping) | n/a | Not proposed now — needs its own authorization if the project ever needs real uptime SLAs |
+| Option | Config | RAM | Disk | Backup | HA | 24h cost | 7-day cost | 30-day (730h) cost | Stoppable? | Stopped-instance cost | Recommended |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| **DEV-min** | `db-f1-micro` (shared-core, ENTERPRISE) | ~614 MiB (fixed) | 10 GB PD_SSD | off | ZONAL only | ~$0.31 | ~$2.16 | **~$9.37** | Yes (`activation_policy=NEVER`) | ~$1.70/mo (storage only) | **Yes — this stage's corrected default** |
+| **DEMO** | `db-f1-micro` | ~614 MiB (fixed) | 10 GB PD_SSD | **on** | ZONAL only | ~$0.33 | ~$2.36 | ~$10.17 | Yes | ~$1.70/mo | Flip `backup_enabled=true` only when a demo is scheduled |
+| **Dedicated DEV alternative** | `db-custom-1-3840` | 3.75 GiB | 10 GB PD_SSD | off | ZONAL | ~$1.68 | ~$11.75 | ~$51.01 | Yes | ~$1.70/mo | Only if `db-f1-micro`'s ~614 MiB RAM proves insufficient in practice |
+| **Future prod-grade** | `db-custom-2-7680` | 7.5 GiB | 20 GB PD_SSD | on | **REGIONAL (HA)** | ~$6.75 | ~$47.27 | ~$205.65 | No (HA defeats the point of stopping) | n/a | Not proposed now — needs its own authorization if the project ever needs real uptime SLAs |
 
-Compute math (DEV-min, 730h/month): `(1 × $0.0413 + 3.75 × $0.0070) × 730h = $0.06755/h × 730h =
-$49.31/month` compute + `10 × $0.17 = $1.70/month` storage = **$51.01/month**, or **~$1.68/day**.
-Backups off by default (see below) add nothing; turning them on for a DEMO adds `10 × $0.08 =
-$0.80/month`.
+DEV-min math (730h/month): `$0.0105/h × 730h = $7.665` compute + `10 × $0.17 = $1.70` storage =
+**$9.365/month ≈ $9.37/month**, or **~$0.31/day**. Backups off by default add nothing; turning them
+on for a DEMO adds `10 × $0.08 = $0.80/month`.
 
-**This design proposes DEV-min only.** DEMO and future-prod rows are shown for comparison, not
-requested.
+**This design proposes DEV-min (`db-f1-micro`) only** — an 82% reduction versus the previously
+reviewed `db-custom-1-3840` figure (~$51.01/month). The dedicated and future-prod rows remain
+available as documented fallbacks, not requested here.
+
+## Known limitations of `db-f1-micro` (documented, accepted for DEV)
+
+- **~614 MiB RAM, fixed** — not configurable independently of the tier. Sufficient for a thesis
+  DEV/smoke-test database (schema + a handful of synthetic rows); would need re-evaluation if DEV
+  data volume or concurrent connection count grows meaningfully.
+- **No SLA coverage** — Google's own documentation states shared-core tiers (`db-f1-micro`,
+  `db-g1-small`) are not covered by the Cloud SQL SLA and are not recommended for production use.
+  Acceptable for DEV; not acceptable for DEMO if the demo itself needs guaranteed uptime (a DEMO
+  outage risk vs. a ~$41/month savings is a judgment call for whoever schedules the demo, not decided
+  here).
+- **No Regional/HA support** — matches this design's ZONAL-only choice anyway, so not a new
+  constraint in practice.
+- **Migration compatibility unaffected** — the CLOUD-05 migration validation (17 migrations against a
+  clean local Postgres) tested schema/query correctness, not tier-specific resource limits; nothing
+  about `db-f1-micro`'s smaller RAM changes SQL compatibility, only headroom under load.
 
 ## Storage, backup, and HA choices
 

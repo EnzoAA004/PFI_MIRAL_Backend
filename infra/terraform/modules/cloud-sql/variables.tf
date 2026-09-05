@@ -31,21 +31,50 @@ variable "database_name" {
 variable "tier" {
   type        = string
   description = <<-EOT
-    CLOUD-05 correction: db-f1-micro (the CLOUD-01 default) is NOT a valid
-    choice for a new instance today. Confirmed via the live Cloud Billing
-    Catalog API (services/9662-B51E-5089 skus): every db-f1-micro/db-g1-small
-    SKU found for us-central1 is versioned "Extended support f1-micro/
-    g1-small vNN" tied to already-EOL PostgreSQL major versions (9.6-13) --
-    shared-core machine types were removed from new-instance ordering. The
-    smallest currently orderable configuration is a custom machine type,
-    billed per resource: Zonal vCPU $0.0413/hour + Zonal RAM $0.0070/GiB-hour
-    (same source). Default here is the smallest valid custom tier for DEV:
-    1 vCPU, paired with the smallest allowed RAM via `memory_mb`-equivalent
-    sizing (db-custom-1-3840 = 1 vCPU / 3.75 GiB, Cloud SQL's documented
-    minimum RAM-per-vCPU ratio) -- see CLOUD_05_CLOUD_SQL_DESIGN.md for the
-    full DEV/DEMO/future comparison table with sourced pricing.
+    CLOUD-05 re-audit correction (superseding the original CLOUD-05 pass):
+    db-f1-micro IS a valid, currently-orderable tier for a new PostgreSQL 15
+    instance. The original conclusion ("db-f1-micro only exists as an
+    Extended-support SKU, removed from new-instance ordering") was WRONG --
+    it came from grepping the Billing Catalog SKU descriptions for the
+    literal substrings "f1-micro"/"g1-small", which only appear in
+    Extended-support-labeled SKUs (tied to EOL major versions 9.6-13); the
+    SAME tier's CURRENT, regular-support pricing is filed under a
+    differently-worded description ("Micro instance"/"Small instance") that
+    search missed, and the original pass also stopped after 3 pages
+    (15,000 SKUs) of a service whose SKU catalog is actually ~40,500 SKUs
+    (every page had a nextPageToken; pagination was never exhausted).
+    Re-confirmed two ways: (1) the live Cloud SQL Admin API's tiers.list
+    endpoint (does not require sqladmin.googleapis.com enabled -- a static
+    reference listing, not a project resource) returns db-f1-micro with
+    edition=ENTERPRISE and us-central1 in its supported region list; (2) the
+    full, exhaustively-paged Billing Catalog SKU list contains
+    "Cloud SQL for PostgreSQL: Zonal - Micro instance in Americas" (SKU
+    C2D4-F7DF-B8D0) at $0.0105/hour for us-central1 -- a live, current,
+    non-extended-support SKU. Default here is db-f1-micro: the minimum-cost
+    DEV choice (see CLOUD_05_COST_OPTIMIZATION_REVIEW.md). Known limitations
+    of shared-core tiers (db-f1-micro/db-g1-small): ~614 MiB RAM (fixed, not
+    configurable), Google's own documentation states they are not covered by
+    the Cloud SQL SLA and are not recommended for production -- acceptable
+    for a thesis DEV/smoke-test environment, not for DEMO/prod-like use.
+    Override to a dedicated custom tier (e.g. db-custom-1-3840, 1 vCPU/3.75
+    GiB, $0.0413/vCPU-hr + $0.0070/GiB-hr Zonal, ~$51/month) for a future
+    DEMO or prod-like environment that needs a real SLA and more headroom --
+    see CLOUD_05_CLOUD_SQL_DESIGN.md's tier comparison table for both.
   EOT
-  default     = "db-custom-1-3840"
+  default     = "db-f1-micro"
+}
+
+variable "edition" {
+  type        = string
+  description = <<-EOT
+    "ENTERPRISE" (default) is required for shared-core tiers (db-f1-micro,
+    db-g1-small) -- confirmed via the live tiers.list API, which reports
+    edition=ENTERPRISE for db-f1-micro. "ENTERPRISE_PLUS" is Google's
+    dedicated-core-only edition (the C4/N4 machine types) and would reject a
+    shared-core tier. Only change this alongside `tier` when moving to a
+    dedicated machine type for a future DEMO/prod-like environment.
+  EOT
+  default     = "ENTERPRISE"
 }
 
 variable "disk_type" {

@@ -142,10 +142,12 @@ module "cloud_sql" {
   region        = var.region
   instance_name = "pfi-postgres-dev"
   enabled       = var.enable_cloud_sql # false — see CLOUD_05_COST_CHECK.md
-  # tier, disk_size_gb, availability_type, backup_enabled, ipv4_enabled left
-  # at the module's own CLOUD-05 defaults (db-custom-1-3840, 10GB PD_SSD,
-  # ZONAL, backups off, public IP + empty authorized_networks) -- see
-  # CLOUD_05_CLOUD_SQL_DESIGN.md for the sourced reasoning behind each.
+  # tier, edition, disk_size_gb, availability_type, backup_enabled,
+  # ipv4_enabled left at the module's own CLOUD-05 defaults (db-f1-micro
+  # shared-core, ENTERPRISE edition, 10GB PD_SSD, ZONAL, backups off, public
+  # IP + empty authorized_networks) -- see CLOUD_05_COST_OPTIMIZATION_REVIEW.md
+  # for the corrected, sourced pricing/availability reasoning and
+  # CLOUD_05_CLOUD_SQL_DESIGN.md for the full DEV/DEMO/future comparison.
 }
 
 module "monitoring" {
