@@ -2,7 +2,9 @@
 
 **Status: CLOUD-00 READY. CLOUD-01 READY. CLOUD-02 READY. CLOUD-03 READY (first image publish via
 WIF succeeded for Backend + Frontend). CLOUD-04 READY (Backend + Frontend live on Cloud Run DEV,
-smoke-tested including a real browser CORS/login test).**
+smoke-tested including a real browser CORS/login test). CLOUD-05 PLAN-ONLY (Cloud SQL + Secret
+Manager design complete, `terraform plan` reviewed with both flags off and on, cost hard gate
+documented at ~$51/month — awaiting cost + apply authorization; nothing created yet).**
 CLOUD-00 closed as documentation only, committed and pushed
 (`782862aad65ca56c656e447ed848e6c9762cb905`, `cloud/cloud-00-architecture-audit`). CLOUD-01 turned
 that design into real, `terraform validate`-passing Infrastructure as Code, committed and pushed
@@ -28,7 +30,7 @@ report). **CLOUD-04 deployed those exact two images (no rebuild) to Cloud Run DE
 | **CLOUD-02** ✅ | CI workflows for Backend/Frontend/AI (test + Docker build validation, no push/deploy), JDK/Node/Python drift fixed, Dependabot added | Done. |
 | **CLOUD-03** ✅ | WIF pool/provider + dedicated `pfi-github-artifact-pusher` identity + repository-scoped Artifact Registry writer binding, applied; Backend + Frontend images published via GitHub Actions OIDC/WIF (AI push deferred separately, per its 2.12 GB size) | Done for Backend/Frontend. AI publish still requires its own separate authorization. |
 | **CLOUD-04** ✅ | Deployed Backend + Frontend to Cloud Run **DEV** from the exact CLOUD-03 image SHAs (no rebuild); new AI service explicitly excluded this stage; pre-existing `pfi-ai-module` confirmed untouched | Done. Both services live, smoke-tested (health, auth, CORS, real browser login) — see `CLOUD_04_CHANGE_PLAN.md` for the full apply history including two authorized follow-up fixes (`cpu_idle`, CORS real-URL). |
-| **CLOUD-05** | Cloud SQL instance, Cloud Storage bucket(s) for model artifacts/outputs, Secret Manager secrets | **Requires explicit cost authorization** — Cloud SQL is the one always-on cost identified in `CLOUD_COST_MODEL.md` |
+| **CLOUD-05** 📋 | Cloud SQL instance, Cloud Storage bucket audit, Secret Manager secrets | Design + `terraform plan` (both flags off/on) done, see `CLOUD_05_CHANGE_PLAN.md`. **Requires explicit cost authorization (~$51/month) before apply** — see `CLOUD_05_COST_CHECK.md`. Not yet applied. |
 | **CLOUD-06** | CD promotion DEV → DEMO (manual approval gate, same-image redeploy) | Depends on CLOUD-03/04/05 being live |
 | **CLOUD-07** | Rollback procedure wired into CI, monitoring dashboards, alert policies | Depends on CLOUD-04+ |
 | **CLOUD-08** | Final cloud E2E test across DEV/DEMO, architecture freeze document | Last stage — declares the cloud architecture stable |
@@ -114,4 +116,11 @@ Frontend image publish succeeded. CLOUD-04 applied: `pfi-backend-dev` and `pfi-f
 both live on Cloud Run DEV, running the exact CLOUD-03 image digests, smoke-tested green including
 a real browser login/CORS test — see `CLOUD_04_CHANGE_PLAN.md` for the full apply history. Only
 three Cloud Run services exist in the project: `pfi-ai-module` (pre-existing, untouched),
-`pfi-backend-dev`, `pfi-frontend-dev`.
+`pfi-backend-dev`, `pfi-frontend-dev`. **CLOUD-05 is design/plan-only**: Cloud SQL
+(`db-custom-1-3840`, ZONAL, `POSTGRES_15`) + Secret Manager (2 secret containers, no values) design
+complete on `cloud/cloud-05-managed-persistence`, `terraform fmt`/`validate` pass, both required
+plans reviewed (`enable_cloud_sql=false` → 0 diff; `enable_cloud_sql=true`+`enable_secrets=true` → 7
+to add, 1 to change, scoped exactly to Cloud SQL + secrets + IAM + one Backend Cloud Run revision
+update, same image digest, zero Frontend/AI/other impact). `sqladmin.googleapis.com` and
+`secretmanager.googleapis.com` remain disabled; nothing has been created in GCP for this stage.
+Awaiting cost authorization (~$51/month, see `CLOUD_05_COST_CHECK.md`) before any apply.

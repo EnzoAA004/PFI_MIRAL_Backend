@@ -116,6 +116,26 @@ variable "env_vars" {
   default = []
 }
 
+variable "cloudsql_sidecar" {
+  type = object({
+    instance_connection_name = string
+    image                    = optional(string, "gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.14.0")
+    port                     = optional(number, 5432)
+  })
+  description = <<-EOT
+    CLOUD-05: null (default) adds no sidecar and leaves the service's plan
+    byte-identical to before this variable existed (Frontend, AI, and
+    Backend pre-CLOUD-05). When set, adds the Cloud SQL Auth Proxy as a
+    second container in this same Cloud Run v2 service, and makes the main
+    "app" container depend on it. The app then connects to Cloud SQL via
+    plain TCP to 127.0.0.1:<port> — no cloud-sql-jdbc-socket-factory
+    dependency, no image rebuild, no public internet exposure of Postgres
+    (the proxy authenticates via this service's own runtime service account,
+    not by IP).
+  EOT
+  default     = null
+}
+
 variable "secret_env_vars" {
   type = list(object({
     name        = string

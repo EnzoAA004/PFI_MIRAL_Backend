@@ -31,7 +31,22 @@ resource "google_cloud_run_v2_service" "this" {
     }
 
     containers {
+      # CLOUD-05: name is only set when a sidecar exists. A live single-
+      # container service (Frontend, AI, Backend before CLOUD-05) was created
+      # with no explicit container name at all -- confirmed the hard way
+      # (CLOUD-05: an earlier unconditional name = "app" here showed as a
+      # spurious "+ name = app" in-place update on every existing service).
+      # A name is only actually required by the API to make `depends_on`
+      # between containers resolvable, i.e. only once a sidecar exists.
+      name  = var.cloudsql_sidecar == null ? null : "app"
       image = var.image
+
+      # CLOUD-05: only set when a sidecar exists, so this container's plan
+      # stays byte-identical when cloudsql_sidecar is null (Frontend, AI, and
+      # Backend before CLOUD-05). Cloud Run waits for the named container's
+      # own startup_probe to pass before starting this one — otherwise the
+      # app could race the proxy and fail its first connection attempt.
+      depends_on = var.cloudsql_sidecar == null ? null : ["cloudsql-proxy"]
 
       ports {
         container_port = var.port
@@ -76,6 +91,38 @@ resource "google_cloud_run_v2_service" "this" {
           period_seconds        = 10
           timeout_seconds       = 5
           failure_threshold     = 3
+        }
+      }
+    }
+
+    # CLOUD-05: the Cloud SQL Auth Proxy as a sidecar in the SAME Cloud Run
+    # v2 service — not baked into the app image (no rebuild), and not a
+    # separate Cloud Run service. It authenticates to Cloud SQL using this
+    # service's own runtime service account (roles/cloudsql.client), and
+    # exposes a plain local TCP port the app's existing, unmodified plain
+    # PgJDBC driver already knows how to talk to — no
+    # cloud-sql-jdbc-socket-factory dependency needed in the app (confirmed
+    # absent from pom.xml; adding it would have forced a rebuild).
+    dynamic "containers" {
+      for_each = var.cloudsql_sidecar == null ? [] : [var.cloudsql_sidecar]
+      content {
+        name  = "cloudsql-proxy"
+        image = containers.value.image
+
+        args = [
+          "--structured-logs",
+          "--port=${containers.value.port}",
+          containers.value.instance_connection_name,
+        ]
+
+        startup_probe {
+          tcp_socket {
+            port = containers.value.port
+          }
+          initial_delay_seconds = 0
+          period_seconds        = 2
+          timeout_seconds       = 2
+          failure_threshold     = 15
         }
       }
     }

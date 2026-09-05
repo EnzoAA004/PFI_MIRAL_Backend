@@ -116,12 +116,23 @@ module "iam" {
   ] : []
 }
 
+# CLOUD-05: two containers ONLY — the Backend has exactly one persistence
+# config env var (DATABASE_URL) and one auth secret (PFI_AUTH_JWT_SECRET),
+# nothing else needs a Secret Manager entry yet. Renamed from the CLOUD-01
+# placeholders (jwt-secret/db-password/internal-ai-token, never wired to
+# anything real) to names that match what CLOUD-05 actually creates and
+# consumes below. Container only — see modules/secrets/main.tf: this module
+# has never had a google_secret_manager_secret_version resource, so no
+# secret VALUE has ever been able to reach Terraform state through it.
 module "secrets" {
   source = "../../modules/secrets"
 
-  project_id   = var.project_id
-  enabled      = false # secretmanager.googleapis.com not enabled; real values never in Terraform
-  secret_names = ["jwt-secret", "db-password", "internal-ai-token"]
+  project_id = var.project_id
+  enabled    = var.enable_secrets # false — see CLOUD_05_SECRET_MANAGER.md
+  secret_names = [
+    "pfi-dev-database-url", # full jdbc:postgresql://127.0.0.1:5432/... incl. credentials -- see below, the app has no separate user/password env vars
+    "pfi-dev-jwt-secret",
+  ]
 }
 
 module "cloud_sql" {
@@ -130,9 +141,11 @@ module "cloud_sql" {
   project_id    = var.project_id
   region        = var.region
   instance_name = "pfi-postgres-dev"
-  enabled       = var.enable_cloud_sql # false — see CLOUD_COST_MODEL.md
-  tier          = "db-f1-micro"
-  disk_size_gb  = 10
+  enabled       = var.enable_cloud_sql # false — see CLOUD_05_COST_CHECK.md
+  # tier, disk_size_gb, availability_type, backup_enabled, ipv4_enabled left
+  # at the module's own CLOUD-05 defaults (db-custom-1-3840, 10GB PD_SSD,
+  # ZONAL, backups off, public IP + empty authorized_networks) -- see
+  # CLOUD_05_CLOUD_SQL_DESIGN.md for the sourced reasoning behind each.
 }
 
 module "monitoring" {
@@ -140,6 +153,42 @@ module "monitoring" {
 
   project_id = var.project_id
   enabled    = var.enable_monitoring # false — CLOUD-07
+}
+
+# CLOUD-05: computed once here (not inline in the module call below) so the
+# memory<->postgres transition is a single, reviewable diff -- flipping
+# enable_cloud_sql changes exactly these three locals and nothing else about
+# the module call itself. The image is never rebuilt for this transition:
+# same immutable backend:dee0826... digest, different runtime configuration.
+locals {
+  backend_persistence_env_vars = var.enable_cloud_sql ? [
+    { name = "PFI_PERSISTENCE_MODE", value = "postgres" },
+    ] : [
+    # CLOUD-05 is the persistence stage; no Cloud SQL exists yet
+    # (enable_cloud_sql = false) and none is created here. The image's own
+    # Dockerfile ENV already defaults to "memory" -- this line makes that
+    # choice explicit in the infra that deploys it rather than relying on an
+    # implicit image default a future reader might not see. SecurityStartup
+    # Validator's "postgres required" rule only fires under the
+    # production/prod Spring profile, which this DEV deployment never sets,
+    # so this is safe and intentional, not a workaround.
+    { name = "PFI_PERSISTENCE_MODE", value = "memory" },
+  ]
+
+  # Only DATABASE_URL and the JWT secret come from Secret Manager -- the
+  # Backend has exactly one connection-string env var (no separate
+  # PFI_DB_USER/PFI_DB_PASSWORD), so the DB user+password live inside the
+  # single pfi-dev-database-url secret VALUE, created out-of-band per
+  # CLOUD_05_SECRET_MANAGER.md, never by this terraform apply.
+  backend_secret_env_vars = (var.enable_cloud_sql && var.enable_secrets) ? [
+    { name = "DATABASE_URL", secret_name = "pfi-dev-database-url", version = "latest" },
+    { name = "PFI_AUTH_JWT_SECRET", secret_name = "pfi-dev-jwt-secret", version = "latest" },
+  ] : []
+
+  # The Cloud SQL Auth Proxy sidecar only exists once Cloud SQL itself does.
+  backend_cloudsql_sidecar = var.enable_cloud_sql ? {
+    instance_connection_name = module.cloud_sql.connection_name
+  } : null
 }
 
 module "backend_cloud_run" {
@@ -175,16 +224,10 @@ module "backend_cloud_run" {
   # No Backend code or branch was needed for this.
   health_check_path = "/api/system/health"
 
-  env_vars = [
-    # CLOUD-05 is the persistence stage; no Cloud SQL exists yet
-    # (enable_cloud_sql = false) and none is created here. The image's own
-    # Dockerfile ENV already defaults to "memory" -- this line makes that
-    # choice explicit in the infra that deploys it rather than relying on an
-    # implicit image default a future reader might not see. SecurityStartup
-    # Validator's "postgres required" rule only fires under the
-    # production/prod Spring profile, which this DEV deployment never sets,
-    # so this is safe and intentional, not a workaround.
-    { name = "PFI_PERSISTENCE_MODE", value = "memory" },
+  # CLOUD-05: PFI_PERSISTENCE_MODE now comes from local.backend_persistence_env_vars
+  # (memory when enable_cloud_sql = false, postgres when true) instead of being
+  # hardcoded here — see the locals block above this module call.
+  env_vars = concat(local.backend_persistence_env_vars, [
     # DEV-only: enables POST /api/auth/demo-doctor so the smoke test can
     # obtain a real JWT without seeding an account against a database that
     # does not exist yet. Defaults to false in the image; never set true
@@ -198,7 +241,33 @@ module "backend_cloud_run" {
     # prediction anymore). Existing localhost/Vercel defaults kept as-is for
     # other dev-facing contexts that already rely on them.
     { name = "PFI_CORS_ALLOWED_ORIGINS", value = "http://localhost:5173,http://localhost:3000,http://localhost:4173,http://127.0.0.1:5173,https://pfi-mvp-test-enzo-frontend.vercel.app,${data.google_cloud_run_v2_service.frontend_lookup.uri}" },
-  ]
+  ])
+
+  # CLOUD-05: empty/null when enable_cloud_sql (and/or enable_secrets) is
+  # false, so the Backend module call stays byte-identical to pre-CLOUD-05
+  # in that default state.
+  secret_env_vars  = local.backend_secret_env_vars
+  cloudsql_sidecar = local.backend_cloudsql_sidecar
+}
+
+# CLOUD-05: resource-scoped, not project-wide -- roles/secretmanager.secretAccessor
+# is granted per-secret, only to pfi-backend-runtime, only for the two secrets
+# the Backend actually reads (DATABASE_URL, PFI_AUTH_JWT_SECRET). Frontend and
+# the AI service get no Secret Manager access at all (never referenced here).
+# Gated behind enable_secrets so no IAM binding is created while the secret
+# containers themselves don't exist either.
+resource "google_secret_manager_secret_iam_member" "backend_secret_access" {
+  for_each = var.enable_secrets ? toset([
+    "pfi-dev-database-url",
+    "pfi-dev-jwt-secret",
+  ]) : toset([])
+
+  project   = var.project_id
+  secret_id = each.value
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${module.iam.service_account_emails["backend_runtime"]}"
+
+  depends_on = [module.secrets]
 }
 
 module "frontend_cloud_run" {

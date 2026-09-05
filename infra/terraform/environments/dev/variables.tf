@@ -44,3 +44,9 @@ variable "enable_ai_service" {
   description = "CLOUD-04: must stay false. CLOUD-04 explicitly excludes deploying a NEW AI Cloud Run service — the pre-existing pfi-ai-module stays untouched and is not reused blindly. Revisit only under a separate, explicitly authorized stage."
   default     = false
 }
+
+variable "enable_secrets" {
+  type        = bool
+  description = "Must stay false until CLOUD-05 explicitly authorizes it. Creates the two Secret Manager secret CONTAINERS (pfi-dev-database-url, pfi-dev-jwt-secret) only — never a secret_version, so no secret value ever passes through this apply or into tfstate. Real values are added out-of-band via `gcloud secrets versions add`, see CLOUD_05_SECRET_MANAGER.md."
+  default     = false
+}
