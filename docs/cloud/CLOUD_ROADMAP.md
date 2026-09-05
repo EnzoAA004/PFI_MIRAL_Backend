@@ -35,6 +35,25 @@ report). **CLOUD-04 deployed those exact two images (no rebuild) to Cloud Run DE
 `CLOUD_04_CHANGE_PLAN.md`. `pfi-backend-dev` and `pfi-frontend-dev` are both live, smoke-tested
 (including a real browser login/CORS smoke test), `pfi-ai-module` untouched throughout.
 
+## Final status summary
+
+Terminology distinguished on purpose: **PREPARED** (designed/coded/plan-validated) ≠ **DEPLOYED**
+(a real `terraform apply` created the resource) ≠ **VALIDATED** (deployed *and* independently
+smoke-tested live). **READY_FOR_FREEZE** ≠ **FINAL_FREEZE_COMPLETE** (the latter needs CLOUD-05/06/07
+actually deployed and the full E2E plan actually run, neither of which has happened).
+
+| Stage | Status |
+|---|---|
+| CLOUD-00 | ✅ READY |
+| CLOUD-01 | ✅ READY |
+| CLOUD-02 | ✅ READY |
+| CLOUD-03 | ✅ DEPLOYED |
+| CLOUD-04 | ✅ DEPLOYED / VALIDATED |
+| CLOUD-05 | 🟦 READY_FOR_DEPLOYMENT |
+| CLOUD-06 | 🟦 READY_FOR_DEPLOYMENT |
+| CLOUD-07 | 🟦 READY_FOR_DEPLOYMENT |
+| CLOUD-08 | 🟦 READY_FOR_FREEZE |
+
 ## Staged roadmap
 
 | Stage | Scope | Gate before starting |
