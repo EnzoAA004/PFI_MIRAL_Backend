@@ -7,8 +7,12 @@ design and Terraform plan complete and pushed; real GCP deployment is a separate
 step (see "CLOUD-05 status" below). CLOUD-06 — `CLOUD_06_READY_FOR_DEPLOYMENT`: DEV→DEMO promotion
 pipeline (release manifest, validate-DEV workflow, promote-DEMO workflow stopping before apply,
 rollback design, corrected DEMO Terraform) designed and plan-validated, $0 new cost, nothing created
-in GCP or GitHub. The project's explicit strategy from here is: finish designing the full cloud
-architecture (CLOUD-05 through CLOUD-08) in plan-only mode before doing the complete deploy and
+in GCP or GitHub. CLOUD-07 — `CLOUD_07_READY_FOR_DEPLOYMENT`: rollback contract + decision engine,
+generalized rollback workflow (dry-run, no execute path yet), observability signals/logging/
+redaction/dashboard design, alerting design (4 Terraform-modeled alert resources, all off by
+default), monitoring module completed with 3 granular flags — plan-validated, $0 new cost, nothing
+created in GCP or GitHub. The project's explicit strategy from here is: finish designing the full
+cloud architecture (CLOUD-05 through CLOUD-08) in plan-only mode before doing the complete deploy and
 starting to measure real cost — no `terraform apply` runs until that full-architecture review is done
 and cost is authorized.**
 CLOUD-00 closed as documentation only, committed and pushed
@@ -38,7 +42,7 @@ report). **CLOUD-04 deployed those exact two images (no rebuild) to Cloud Run DE
 | **CLOUD-04** ✅ | Deployed Backend + Frontend to Cloud Run **DEV** from the exact CLOUD-03 image SHAs (no rebuild); new AI service explicitly excluded this stage; pre-existing `pfi-ai-module` confirmed untouched | Done. Both services live, smoke-tested (health, auth, CORS, real browser login) — see `CLOUD_04_CHANGE_PLAN.md` for the full apply history including two authorized follow-up fixes (`cpu_idle`, CORS real-URL). |
 | **CLOUD-05** 📋 `READY_FOR_DEPLOYMENT` | Cloud SQL instance, Cloud Storage bucket audit, Secret Manager secrets | Design + Terraform + both plans (flags off/on) done and pushed, see `CLOUD_05_CHANGE_PLAN.md` and `CLOUD_05_COST_OPTIMIZATION_REVIEW.md`. **Real deployment requires explicit cost authorization (~$9.37/month, `db-f1-micro`) before apply** — see `CLOUD_05_COST_CHECK.md`. Not yet applied — **CLOUD_05_READY_FOR_DEPLOYMENT, not CLOUD_05_MANAGED_PERSISTENCE_READY** (that status is reserved for after a real, verified GCP apply). |
 | **CLOUD-06** 📋 `READY_FOR_DEPLOYMENT` | CD promotion DEV → DEMO (manual approval gate, same-image redeploy) | Design + Terraform + workflows + plan done, see `CLOUD_06_CHANGE_PLAN.md`. DEMO Terraform plan: 5 to add, 0 to change, 0 to destroy (Cloud Run services + invoker bindings + 1 SA only). **Real DEMO deployment requires its own future authorization** — no `terraform apply`, no workflow has ever run for real. `CLOUD_06_READY_FOR_DEPLOYMENT`, not `CLOUD_06_DEV_TO_DEMO_READY` (DEMO doesn't exist yet). |
-| **CLOUD-07** | Rollback procedure wired into CI, monitoring dashboards, alert policies | Depends on CLOUD-04+. May be designed/planned now under the same plan-only policy — **no apply**. |
+| **CLOUD-07** 📋 `READY_FOR_DEPLOYMENT` | Rollback procedure wired into CI, monitoring dashboards, alert policies | Design + Terraform + workflow + plan done, see `CLOUD_07_CHANGE_PLAN.md`. Monitoring preview plan: 4 to add, 0 to change, 0 to destroy (alert policies + uptime check only). **Real rollback execution and monitoring activation require their own future authorization** — no `terraform apply`, no traffic ever shifted, no alert/uptime resource created. `CLOUD_07_READY_FOR_DEPLOYMENT`, not `CLOUD_07_OBSERVABILITY_READY`. |
 | **CLOUD-08** | Final cloud E2E test across DEV/DEMO, architecture freeze document | Last stage — declares the cloud architecture stable |
 
 No stage in this roadmap includes GKE or Argo CD (see `ADR-001`) or a GPU/Qwen deployment (EXT-06
@@ -177,3 +181,31 @@ yet authorized, $0 new cost incurred.**
 
 Cloud branches for CLOUD-06 (`cloud/cloud-06-promotion-backend`) were created from CLOUD-05's final
 pushed HEAD (`b456333`), per explicit instruction, not from an earlier CLOUD-05 commit or CLOUD-04.
+
+**CLOUD-07 status: `CLOUD_07_READY_FOR_DEPLOYMENT` — design/plan complete, no rollback ever executed,
+no monitoring resource created, $0 new cost incurred.**
+
+- **DESIGN/PLAN: READY.** Rollback contract (`pfi-cloud-rollback.v1`), a generalized
+  `cloud-07-rollback.yml` (verifies both revisions exist via `verify-cloudrun-revision.sh`, checks
+  candidate health, decides `ROLLBACK_REQUIRED`/`NO_ROLLBACK` via `rollback-decision.sh`, prints but
+  never runs the traffic-shift command — `execute=true` has no effect yet, by design), observability
+  signals/logging-field/redaction-policy/dashboard design (`CLOUD_07_OBSERVABILITY.md`), 7 alert
+  scenarios A-G designed (4 Terraform-modeled: Backend/Frontend 5xx, Backend uptime-check-failure +
+  the uptime check itself; 3 deferred until Cloud SQL is real: E/F/G). `modules/monitoring` rewritten
+  with 3 granular flags (`enable_alerts`/`enable_uptime_checks`/`enable_notification_channels`, all
+  default `false`). Both required plans re-verified: flags off → 0/0/0 against live DEV state; flags
+  on → **4 to add, 0 to change, 0 to destroy** (exactly the 4 monitoring resources, nothing else — no
+  Cloud SQL, secrets, new Cloud Run, unrelated IAM, Artifact Registry, WIF, storage, or AI). See
+  `CLOUD_07_CHANGE_PLAN.md`. Two new shell scripts (`verify-cloudrun-revision.sh`,
+  `rollback-decision.sh`) validated via `bash -n` plus all of Phase 14's required synthetic failure
+  simulations (candidate health fail, digest mismatch, missing revision, error-rate threshold
+  exceeded, all-healthy) — all produced the correct verdict.
+- **REAL ROLLBACK/MONITORING: NOT AUTHORIZED.** No workflow has ever run for real (the proposed
+  `pfi-github-rollback-executor` identity — see `CLOUD_07_SECURITY_REVIEW.md` — doesn't exist, and
+  `cloud-07-rollback.yml` has no traffic-update step regardless). `sqladmin.googleapis.com` and
+  `secretmanager.googleapis.com` remain disabled (unrelated to this stage, but reconfirmed); zero
+  alert policies, zero uptime checks, zero notification channels, zero dashboards exist (confirmed
+  via the Monitoring REST API). Zero new GCP resources, zero new cost.
+
+Cloud branch for CLOUD-07 (`cloud/cloud-07-observability-rollback`) was created from CLOUD-06's final
+pushed HEAD (`d05c85a96ee19529594b47ee35978518ec5b8c6a`), per explicit instruction.

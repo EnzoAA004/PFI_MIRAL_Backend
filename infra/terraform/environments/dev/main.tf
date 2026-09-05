@@ -150,11 +150,28 @@ module "cloud_sql" {
   # CLOUD_05_CLOUD_SQL_DESIGN.md for the full DEV/DEMO/future comparison.
 }
 
+# CLOUD-07: the single enable_monitoring flag drives all three of the
+# module's granular flags together for DEV -- the module itself supports
+# turning on e.g. just uptime checks independently (useful for a future
+# DEMO that wants health checks but not alert noise), but DEV's own
+# plan-preview scope (Phase 10/11) is "monitoring on" vs "monitoring off",
+# not a finer split. notification_channel_email stays empty: no real
+# address is configured yet, so even with enable_monitoring=true the email
+# notification_channel resource itself is not created (see module comment) —
+# alert policies would exist but notify no one until a real address is
+# supplied.
 module "monitoring" {
   source = "../../modules/monitoring"
 
-  project_id = var.project_id
-  enabled    = var.enable_monitoring # false — CLOUD-07
+  project_id                   = var.project_id
+  region                       = var.region
+  enable_alerts                = var.enable_monitoring # false — CLOUD-07
+  enable_uptime_checks         = var.enable_monitoring # false — CLOUD-07
+  enable_notification_channels = var.enable_monitoring # false — CLOUD-07
+  notification_channel_email   = ""                    # no real address configured yet
+  backend_service_name         = module.backend_cloud_run.name
+  frontend_service_name        = module.frontend_cloud_run.name
+  backend_url                  = module.backend_cloud_run.url
 }
 
 # CLOUD-05: computed once here (not inline in the module call below) so the

@@ -108,11 +108,19 @@ module "cloud_sql" {
   disk_size_gb = 10
 }
 
+# CLOUD-07: same wiring as DEV — see environments/dev/main.tf's comment.
 module "monitoring" {
   source = "../../modules/monitoring"
 
-  project_id = var.project_id
-  enabled    = var.enable_monitoring # false — CLOUD-07
+  project_id                   = var.project_id
+  region                       = var.region
+  enable_alerts                = var.enable_monitoring # false — CLOUD-07
+  enable_uptime_checks         = var.enable_monitoring # false — CLOUD-07
+  enable_notification_channels = var.enable_monitoring # false — CLOUD-07
+  notification_channel_email   = ""                    # no real address configured yet
+  backend_service_name         = module.backend_cloud_run.name
+  frontend_service_name        = module.frontend_cloud_run.name
+  backend_url                  = module.backend_cloud_run.url
 }
 
 # CLOUD-06: same locals pattern as DEV's CLOUD-05 design (see
