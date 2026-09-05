@@ -11,10 +11,13 @@ in GCP or GitHub. CLOUD-07 — `CLOUD_07_READY_FOR_DEPLOYMENT`: rollback contrac
 generalized rollback workflow (dry-run, no execute path yet), observability signals/logging/
 redaction/dashboard design, alerting design (4 Terraform-modeled alert resources, all off by
 default), monitoring module completed with 3 granular flags — plan-validated, $0 new cost, nothing
-created in GCP or GitHub. The project's explicit strategy from here is: finish designing the full
-cloud architecture (CLOUD-05 through CLOUD-08) in plan-only mode before doing the complete deploy and
-starting to measure real cost — no `terraform apply` runs until that full-architecture review is done
-and cost is authorized.**
+created in GCP or GitHub. CLOUD-08 — `CLOUD_08_READY_FOR_FREEZE`: the full remaining architecture
+(CLOUD-05/06/07) is now designed, plan-validated, and consolidated into an E2E test plan, a
+deployment runbook with 8 hard gates, a cost envelope, a security freeze review, a freeze manifest,
+and a deployment handoff document — all documentation, no `.tf`/workflow file touched, $0 new cost.
+The project's explicit strategy from here is: a future session picks up
+`CLOUD_DEPLOYMENT_HANDOFF.md`, re-verifies everything fresh, and only then runs the real deploy
+sequence gate-by-gate — no `terraform apply` has run for CLOUD-05/06/07.**
 CLOUD-00 closed as documentation only, committed and pushed
 (`782862aad65ca56c656e447ed848e6c9762cb905`, `cloud/cloud-00-architecture-audit`). CLOUD-01 turned
 that design into real, `terraform validate`-passing Infrastructure as Code, committed and pushed
@@ -43,7 +46,7 @@ report). **CLOUD-04 deployed those exact two images (no rebuild) to Cloud Run DE
 | **CLOUD-05** 📋 `READY_FOR_DEPLOYMENT` | Cloud SQL instance, Cloud Storage bucket audit, Secret Manager secrets | Design + Terraform + both plans (flags off/on) done and pushed, see `CLOUD_05_CHANGE_PLAN.md` and `CLOUD_05_COST_OPTIMIZATION_REVIEW.md`. **Real deployment requires explicit cost authorization (~$9.37/month, `db-f1-micro`) before apply** — see `CLOUD_05_COST_CHECK.md`. Not yet applied — **CLOUD_05_READY_FOR_DEPLOYMENT, not CLOUD_05_MANAGED_PERSISTENCE_READY** (that status is reserved for after a real, verified GCP apply). |
 | **CLOUD-06** 📋 `READY_FOR_DEPLOYMENT` | CD promotion DEV → DEMO (manual approval gate, same-image redeploy) | Design + Terraform + workflows + plan done, see `CLOUD_06_CHANGE_PLAN.md`. DEMO Terraform plan: 5 to add, 0 to change, 0 to destroy (Cloud Run services + invoker bindings + 1 SA only). **Real DEMO deployment requires its own future authorization** — no `terraform apply`, no workflow has ever run for real. `CLOUD_06_READY_FOR_DEPLOYMENT`, not `CLOUD_06_DEV_TO_DEMO_READY` (DEMO doesn't exist yet). |
 | **CLOUD-07** 📋 `READY_FOR_DEPLOYMENT` | Rollback procedure wired into CI, monitoring dashboards, alert policies | Design + Terraform + workflow + plan done, see `CLOUD_07_CHANGE_PLAN.md`. Monitoring preview plan: 4 to add, 0 to change, 0 to destroy (alert policies + uptime check only). **Real rollback execution and monitoring activation require their own future authorization** — no `terraform apply`, no traffic ever shifted, no alert/uptime resource created. `CLOUD_07_READY_FOR_DEPLOYMENT`, not `CLOUD_07_OBSERVABILITY_READY`. |
-| **CLOUD-08** | Final cloud E2E test across DEV/DEMO, architecture freeze document | Last stage — declares the cloud architecture stable |
+| **CLOUD-08** 📋 `READY_FOR_FREEZE` | Final cloud E2E test plan, deployment runbook, cost envelope, security freeze review, freeze manifest, deployment handoff — all documentation, no `.tf`/workflow file touched | Design complete, see the six `CLOUD_08_*.md` + `CLOUD_DEPLOYMENT_HANDOFF.md` docs. **`CLOUD_08_READY_FOR_FREEZE`, not `CLOUD_08_FINAL_FREEZE_COMPLETE`** — no real deploy of CLOUD-05/06/07 has occurred, so the architecture is not yet actually frozen in a deployed sense, only fully specified and ready to be. |
 
 No stage in this roadmap includes GKE or Argo CD (see `ADR-001`) or a GPU/Qwen deployment (EXT-06
 stays blocked pending separate authorization, unrelated to this roadmap's gates).
@@ -209,3 +212,34 @@ no monitoring resource created, $0 new cost incurred.**
 
 Cloud branch for CLOUD-07 (`cloud/cloud-07-observability-rollback`) was created from CLOUD-06's final
 pushed HEAD (`d05c85a96ee19529594b47ee35978518ec5b8c6a`), per explicit instruction.
+
+**CLOUD-08 status: `CLOUD_08_READY_FOR_FREEZE` — documentation-only, no `.tf`/workflow file touched,
+$0 new cost, no cloud write.**
+
+- **Real deployed inventory** (re-verified live, read-only, this stage): `pfi-backend-dev` and
+  `pfi-frontend-dev` (Cloud Run, both `Ready`), `pfi-github-artifact-pusher` + `github-pool` +
+  `github-provider` (WIF, all `ACTIVE`), `pfi-containers` (Artifact Registry, unchanged),
+  `pfi-ai-module` (pre-existing, untouched), `pfi-rm-lumbar-artifacts-2026-ef` (bucket, untouched).
+  Cloud SQL = 0, Secret Manager = 0, Monitoring = 0 — all reconfirmed via read-only `gcloud` this
+  stage, matching every prior stage's own finding.
+- **Designed-but-not-deployed inventory**: Cloud SQL `pfi-postgres-dev`, 2 Secret Manager
+  containers, DEMO's `pfi-backend-demo`/`pfi-frontend-demo`/runtime SA, 4 monitoring resources per
+  environment — all plan-validated (real `terraform plan` against live GCP for every one), none
+  applied.
+- **Deliverables**: `CLOUD_08_FINAL_E2E_PLAN.md` (full E2E sequence + 8 failure scenarios, none
+  executed), `CLOUD_08_DEPLOYMENT_RUNBOOK.md` (ordered deploy sequence + 8 hard gates + per-stage
+  runbooks for CLOUD-05/06/07, none executed), `CLOUD_08_COST_ENVELOPE.md` (current/future DEV/DEMO/
+  monitoring costs + 4 consolidated scenarios + shutdown plan), `CLOUD_08_SECURITY_FREEZE.md` (14
+  findings reviewed, 0 new BLOCKERs, 2 WARNINGs, 2 ACCEPTED_RISKs, none newly introduced by this
+  session's work), `CLOUD_08_FREEZE_MANIFEST.md` (`pfi-cloud-freeze.v1` — every repo/branch/SHA/
+  image/digest/deploy-status snapshot, no secret value), `CLOUD_DEPLOYMENT_HANDOFF.md` (everything a
+  future session needs to resume CLOUD-05 without re-deriving anything), `CLOUD_08_CHANGE_PLAN.md`
+  (this stage's own `fmt`/`validate` results + the consolidated plan-shape table + final status
+  matrix across CLOUD-00 through CLOUD-08).
+- **Explicitly not claimed**: `CLOUD_08_FINAL_FREEZE_COMPLETE` — that status is reserved for after
+  CLOUD-05/06/07 are actually applied and the full E2E plan has actually been run against a real
+  DEMO, neither of which has happened.
+
+Cloud branch for CLOUD-08 (`cloud/cloud-08-final-freeze`) was created from CLOUD-07's exact pushed
+HEAD (`1da60ca2ba7a52352c4bf71aaaaa32e075141c4e`), per explicit instruction. Nothing committed yet —
+left `READY_TO_COMMIT`.
