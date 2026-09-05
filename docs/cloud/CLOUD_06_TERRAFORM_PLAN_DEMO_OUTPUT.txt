@@ -1,0 +1,245 @@
+module.artifact_registry.data.google_artifact_registry_repository.existing[0]: Reading...
+module.storage.data.google_storage_bucket.existing[0]: Reading...
+module.storage.data.google_storage_bucket.existing[0]: Read complete after 1s [id=pfi-rm-lumbar-artifacts-2026-ef]
+module.artifact_registry.data.google_artifact_registry_repository.existing[0]: Read complete after 1s [id=projects/pfi-asplanatti-fabrello-v1/locations/us-central1/repositories/pfi-containers]
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  + create
+
+Terraform will perform the following actions:
+
+  # module.backend_cloud_run.google_cloud_run_v2_service.this will be created
+  + resource "google_cloud_run_v2_service" "this" {
+      + conditions              = (known after apply)
+      + create_time             = (known after apply)
+      + creator                 = (known after apply)
+      + delete_time             = (known after apply)
+      + deletion_policy         = "DELETE"
+      + deletion_protection     = true
+      + effective_annotations   = (known after apply)
+      + effective_labels        = {
+          + "goog-terraform-provisioned" = "true"
+        }
+      + etag                    = (known after apply)
+      + expire_time             = (known after apply)
+      + generation              = (known after apply)
+      + id                      = (known after apply)
+      + ingress                 = "INGRESS_TRAFFIC_ALL"
+      + last_modifier           = (known after apply)
+      + latest_created_revision = (known after apply)
+      + latest_ready_revision   = (known after apply)
+      + launch_stage            = (known after apply)
+      + location                = "us-central1"
+      + name                    = "pfi-backend-demo"
+      + observed_generation     = (known after apply)
+      + project                 = "pfi-asplanatti-fabrello-v1"
+      + reconciling             = (known after apply)
+      + terminal_condition      = (known after apply)
+      + terraform_labels        = {
+          + "goog-terraform-provisioned" = "true"
+        }
+      + traffic_statuses        = (known after apply)
+      + uid                     = (known after apply)
+      + update_time             = (known after apply)
+      + uri                     = (known after apply)
+      + urls                    = (known after apply)
+
+      + scaling (known after apply)
+
+      + template {
+          + max_instance_request_concurrency = 80
+          + service_account                  = "pfi-backend-runtime@pfi-asplanatti-fabrello-v1.iam.gserviceaccount.com"
+          + timeout                          = "300s"
+
+          + containers {
+              + build_info = (known after apply)
+              + image      = "us-central1-docker.pkg.dev/pfi-asplanatti-fabrello-v1/pfi-containers/backend:dee0826c9e1121e348192058acde841b6f933608"
+
+              + env {
+                  + name  = "PFI_AUTH_DEMO_ENABLED"
+                  + value = "true"
+                }
+              + env {
+                  + name  = "PFI_CORS_ALLOWED_ORIGINS"
+                  + value = "http://localhost:5173,http://localhost:3000,http://localhost:4173,http://127.0.0.1:5173,https://pfi-mvp-test-enzo-frontend.vercel.app"
+                }
+              + env {
+                  + name  = "PFI_PERSISTENCE_MODE"
+                  + value = "memory"
+                }
+
+              + ports {
+                  + container_port = 8080
+                  + name           = (known after apply)
+                }
+
+              + resources {
+                  + cpu_idle = false
+                  + limits   = {
+                      + "cpu"    = "1"
+                      + "memory" = "512Mi"
+                    }
+                }
+
+              + startup_probe {
+                  + failure_threshold     = 3
+                  + initial_delay_seconds = 0
+                  + period_seconds        = 10
+                  + timeout_seconds       = 5
+
+                  + http_get {
+                      + path = "/api/system/health"
+                      + port = (known after apply)
+                    }
+                }
+            }
+
+          + scaling {
+              + max_instance_count = 2
+              + min_instance_count = 0
+            }
+        }
+
+      + traffic (known after apply)
+    }
+
+  # module.backend_cloud_run.google_cloud_run_v2_service_iam_member.public[0] will be created
+  + resource "google_cloud_run_v2_service_iam_member" "public" {
+      + etag     = (known after apply)
+      + id       = (known after apply)
+      + location = "us-central1"
+      + member   = "allUsers"
+      + name     = "pfi-backend-demo"
+      + project  = "pfi-asplanatti-fabrello-v1"
+      + role     = "roles/run.invoker"
+    }
+
+  # module.frontend_cloud_run.google_cloud_run_v2_service.this will be created
+  + resource "google_cloud_run_v2_service" "this" {
+      + conditions              = (known after apply)
+      + create_time             = (known after apply)
+      + creator                 = (known after apply)
+      + delete_time             = (known after apply)
+      + deletion_policy         = "DELETE"
+      + deletion_protection     = true
+      + effective_annotations   = (known after apply)
+      + effective_labels        = {
+          + "goog-terraform-provisioned" = "true"
+        }
+      + etag                    = (known after apply)
+      + expire_time             = (known after apply)
+      + generation              = (known after apply)
+      + id                      = (known after apply)
+      + ingress                 = "INGRESS_TRAFFIC_ALL"
+      + last_modifier           = (known after apply)
+      + latest_created_revision = (known after apply)
+      + latest_ready_revision   = (known after apply)
+      + launch_stage            = (known after apply)
+      + location                = "us-central1"
+      + name                    = "pfi-frontend-demo"
+      + observed_generation     = (known after apply)
+      + project                 = "pfi-asplanatti-fabrello-v1"
+      + reconciling             = (known after apply)
+      + terminal_condition      = (known after apply)
+      + terraform_labels        = {
+          + "goog-terraform-provisioned" = "true"
+        }
+      + traffic_statuses        = (known after apply)
+      + uid                     = (known after apply)
+      + update_time             = (known after apply)
+      + uri                     = (known after apply)
+      + urls                    = (known after apply)
+
+      + scaling (known after apply)
+
+      + template {
+          + max_instance_request_concurrency = 80
+          + service_account                  = "pfi-frontend-runtime-demo@pfi-asplanatti-fabrello-v1.iam.gserviceaccount.com"
+          + timeout                          = "300s"
+
+          + containers {
+              + build_info = (known after apply)
+              + image      = "us-central1-docker.pkg.dev/pfi-asplanatti-fabrello-v1/pfi-containers/frontend:1c77231e2e1833bada6dc1c0f4f622f1d32e3470"
+
+              + env {
+                  + name  = "BACKEND_URL"
+                  + value = (known after apply)
+                }
+
+              + ports {
+                  + container_port = 80
+                  + name           = (known after apply)
+                }
+
+              + resources {
+                  + cpu_idle = true
+                  + limits   = {
+                      + "cpu"    = "1"
+                      + "memory" = "256Mi"
+                    }
+                }
+
+              + startup_probe {
+                  + failure_threshold     = 3
+                  + initial_delay_seconds = 0
+                  + period_seconds        = 10
+                  + timeout_seconds       = 5
+
+                  + http_get {
+                      + path = "/"
+                      + port = (known after apply)
+                    }
+                }
+            }
+
+          + scaling {
+              + max_instance_count = 2
+              + min_instance_count = 0
+            }
+        }
+
+      + traffic (known after apply)
+    }
+
+  # module.frontend_cloud_run.google_cloud_run_v2_service_iam_member.public[0] will be created
+  + resource "google_cloud_run_v2_service_iam_member" "public" {
+      + etag     = (known after apply)
+      + id       = (known after apply)
+      + location = "us-central1"
+      + member   = "allUsers"
+      + name     = "pfi-frontend-demo"
+      + project  = "pfi-asplanatti-fabrello-v1"
+      + role     = "roles/run.invoker"
+    }
+
+  # module.iam.google_service_account.created["frontend_runtime"] will be created
+  + resource "google_service_account" "created" {
+      + account_id      = "pfi-frontend-runtime-demo"
+      + deletion_policy = "DELETE"
+      + disabled        = false
+      + display_name    = "PFI Frontend Runtime (demo)"
+      + email           = "pfi-frontend-runtime-demo@pfi-asplanatti-fabrello-v1.iam.gserviceaccount.com"
+      + id              = (known after apply)
+      + member          = "serviceAccount:pfi-frontend-runtime-demo@pfi-asplanatti-fabrello-v1.iam.gserviceaccount.com"
+      + name            = (known after apply)
+      + project         = "pfi-asplanatti-fabrello-v1"
+      + unique_id       = (known after apply)
+    }
+
+Plan: 5 to add, 0 to change, 0 to destroy.
+
+Changes to Outputs:
+  + artifact_repository      = "us-central1-docker.pkg.dev/pfi-asplanatti-fabrello-v1/pfi-containers"
+  + backend_url              = (known after apply)
+  + frontend_url             = (known after apply)
+  + runtime_service_accounts = {
+      + ai_runtime       = "pfi-ai-runtime@pfi-asplanatti-fabrello-v1.iam.gserviceaccount.com"
+      + backend_runtime  = "pfi-backend-runtime@pfi-asplanatti-fabrello-v1.iam.gserviceaccount.com"
+      + frontend_runtime = "pfi-frontend-runtime-demo@pfi-asplanatti-fabrello-v1.iam.gserviceaccount.com"
+    }
+
+─────────────────────────────────────────────────────────────────────────────
+
+Note: You didn't use the -out option to save this plan, so Terraform can't
+guarantee to take exactly these actions if you run "terraform apply" now.

@@ -1,0 +1,139 @@
+name: CLOUD-06 Validate DEV
+
+# CLOUD-06 (plan-only stage): confirms a given image SHA is the one actually
+# running on Cloud Run DEV, smoke-tests it, and emits a signed-by-CI release
+# manifest artifact other workflows (cloud-06-promote-demo.yml) consume as
+# proof DEV validated this exact digest. READ-ONLY against GCP end to end —
+# no `gcloud run deploy`, no `gcloud run services update`, no Terraform.
+#
+# NOTE (CLOUD-06, plan-only): this workflow references
+# vars.GCP_CI_READER_SERVICE_ACCOUNT, a NEW identity proposed but not yet
+# created (see CLOUD_06_SECURITY_REVIEW.md) — roles/run.viewer +
+# roles/artifactregistry.reader only, distinct from the existing
+# pfi-github-artifact-pusher (which can write). Until that identity and repo
+# variable exist, this workflow is designed and `actionlint`-validated but
+# will fail at the auth step if actually run — expected for a plan-only
+# stage; creating it requires its own explicit IAM-write authorization.
+
+on:
+  workflow_dispatch:
+    inputs:
+      backend_tag:
+        description: "Backend image tag (git SHA) to validate against DEV — never 'latest'."
+        required: true
+        type: string
+      frontend_tag:
+        description: "Frontend image tag (git SHA) to validate against DEV — never 'latest'."
+        required: true
+        type: string
+
+concurrency:
+  group: cloud-06-validate-dev
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+  actions: read
+
+jobs:
+  validate-dev:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Reject 'latest' tags
+        run: |
+          if [[ "${{ inputs.backend_tag }}" == "latest" || "${{ inputs.frontend_tag }}" == "latest" ]]; then
+            echo "::error::'latest' is never a valid release tag (CLOUD-00O)."
+            exit 1
+          fi
+
+      # READ-ONLY: role proposal is roles/run.viewer + roles/artifactregistry.reader
+      # (see CLOUD_06_SECURITY_REVIEW.md) — cannot deploy, cannot write.
+      - name: Authenticate to Google Cloud (read-only)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_CI_READER_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Step 1-2 — Confirm images exist in Artifact Registry, resolve digests
+        id: digests
+        run: |
+          set -euo pipefail
+          IMAGE_REPO_BASE="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_ARTIFACT_REPOSITORY }}"
+
+          BACKEND_DIGEST="$(gcloud artifacts docker images describe \
+            "${IMAGE_REPO_BASE}/backend:${{ inputs.backend_tag }}" \
+            --format='value(image_summary.digest)')"
+          FRONTEND_DIGEST="$(gcloud artifacts docker images describe \
+            "${IMAGE_REPO_BASE}/frontend:${{ inputs.frontend_tag }}" \
+            --format='value(image_summary.digest)')"
+
+          echo "backend_digest=${BACKEND_DIGEST}" >> "$GITHUB_OUTPUT"
+          echo "frontend_digest=${FRONTEND_DIGEST}" >> "$GITHUB_OUTPUT"
+
+      - name: Step 4-5 — Confirm Cloud Run DEV runs exactly these digests
+        run: |
+          set -euo pipefail
+          RUNNING_BACKEND_IMAGE="$(gcloud run services describe pfi-backend-dev \
+            --region="${{ vars.GCP_REGION }}" --format='value(spec.template.spec.containers[0].image)')"
+          RUNNING_FRONTEND_IMAGE="$(gcloud run services describe pfi-frontend-dev \
+            --region="${{ vars.GCP_REGION }}" --format='value(spec.template.spec.containers[0].image)')"
+
+          EXPECTED_BACKEND="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_ARTIFACT_REPOSITORY }}/backend:${{ inputs.backend_tag }}"
+          EXPECTED_FRONTEND="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_ARTIFACT_REPOSITORY }}/frontend:${{ inputs.frontend_tag }}"
+
+          if [[ "${RUNNING_BACKEND_IMAGE}" != "${EXPECTED_BACKEND}" ]]; then
+            echo "::error::DEV Backend runs '${RUNNING_BACKEND_IMAGE}', not the requested '${EXPECTED_BACKEND}'."
+            exit 1
+          fi
+          if [[ "${RUNNING_FRONTEND_IMAGE}" != "${EXPECTED_FRONTEND}" ]]; then
+            echo "::error::DEV Frontend runs '${RUNNING_FRONTEND_IMAGE}', not the requested '${EXPECTED_FRONTEND}'."
+            exit 1
+          fi
+          echo "OK: Cloud Run DEV runs exactly the requested tags."
+
+      - name: Step 6 — Smoke test DEV
+        run: |
+          BACKEND_URL="$(gcloud run services describe pfi-backend-dev --region="${{ vars.GCP_REGION }}" --format='value(status.url)')"
+          FRONTEND_URL="$(gcloud run services describe pfi-frontend-dev --region="${{ vars.GCP_REGION }}" --format='value(status.url)')"
+          bash scripts/cloud/cloud-06-smoke.sh "${BACKEND_URL}" "${FRONTEND_URL}"
+
+      - name: Step 7 — Generate release manifest
+        run: |
+          set -euo pipefail
+          RELEASE_ID="dev-$(date -u +%Y%m%dT%H%M%SZ)-${{ github.run_id }}"
+          cat > release-manifest.json <<EOF
+          {
+            "schemaVersion": "pfi-cloud-release.v1",
+            "releaseId": "${RELEASE_ID}",
+            "gitSha": "${{ github.sha }}",
+            "sourceBranch": "${{ github.ref_name }}",
+            "backend": {
+              "repository": "${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_ARTIFACT_REPOSITORY }}/backend",
+              "tag": "${{ inputs.backend_tag }}",
+              "digest": "${{ steps.digests.outputs.backend_digest }}"
+            },
+            "frontend": {
+              "repository": "${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_ARTIFACT_REPOSITORY }}/frontend",
+              "tag": "${{ inputs.frontend_tag }}",
+              "digest": "${{ steps.digests.outputs.frontend_digest }}"
+            },
+            "ai": null,
+            "validatedInDev": true,
+            "validatedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          EOF
+          cat release-manifest.json
+
+      - name: Step 8 — Upload release manifest artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pfi-cloud-release-manifest
+          path: release-manifest.json
+          retention-days: 90

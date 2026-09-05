@@ -13,4 +13,11 @@ frontend_image = "us-central1-docker.pkg.dev/pfi-asplanatti-fabrello-v1/pfi-cont
 ai_image       = "us-central1-docker.pkg.dev/pfi-asplanatti-fabrello-v1/pfi-containers/ai-service:REPLACE_WITH_SAME_SHA_AS_DEV"
 
 enable_cloud_sql  = false
+enable_secrets    = false
 enable_monitoring = false
+enable_ai_service = false
+
+# 0 (default) = scale-to-zero, cheapest, cold start after idle.
+# 1 = no cold start, for a scheduled live demo session — see CLOUD_06_COST_CHECK.md.
+backend_min_instances  = 0
+frontend_min_instances = 0

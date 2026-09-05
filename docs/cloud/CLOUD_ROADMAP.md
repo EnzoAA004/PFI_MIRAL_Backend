@@ -4,10 +4,13 @@
 WIF succeeded for Backend + Frontend). CLOUD-04 READY (Backend + Frontend live on Cloud Run DEV,
 smoke-tested including a real browser CORS/login test). CLOUD-05 — `CLOUD_05_READY_FOR_DEPLOYMENT`:
 design and Terraform plan complete and pushed; real GCP deployment is a separate, not-yet-authorized
-step (see "CLOUD-05 status" below). The project's explicit strategy from here is: finish designing
-the full cloud architecture (CLOUD-05 through CLOUD-08) in plan-only mode before doing the complete
-deploy and starting to measure real cost — no `terraform apply` runs until that full-architecture
-review is done and cost is authorized.**
+step (see "CLOUD-05 status" below). CLOUD-06 — `CLOUD_06_READY_FOR_DEPLOYMENT`: DEV→DEMO promotion
+pipeline (release manifest, validate-DEV workflow, promote-DEMO workflow stopping before apply,
+rollback design, corrected DEMO Terraform) designed and plan-validated, $0 new cost, nothing created
+in GCP or GitHub. The project's explicit strategy from here is: finish designing the full cloud
+architecture (CLOUD-05 through CLOUD-08) in plan-only mode before doing the complete deploy and
+starting to measure real cost — no `terraform apply` runs until that full-architecture review is done
+and cost is authorized.**
 CLOUD-00 closed as documentation only, committed and pushed
 (`782862aad65ca56c656e447ed848e6c9762cb905`, `cloud/cloud-00-architecture-audit`). CLOUD-01 turned
 that design into real, `terraform validate`-passing Infrastructure as Code, committed and pushed
@@ -34,7 +37,7 @@ report). **CLOUD-04 deployed those exact two images (no rebuild) to Cloud Run DE
 | **CLOUD-03** ✅ | WIF pool/provider + dedicated `pfi-github-artifact-pusher` identity + repository-scoped Artifact Registry writer binding, applied; Backend + Frontend images published via GitHub Actions OIDC/WIF (AI push deferred separately, per its 2.12 GB size) | Done for Backend/Frontend. AI publish still requires its own separate authorization. |
 | **CLOUD-04** ✅ | Deployed Backend + Frontend to Cloud Run **DEV** from the exact CLOUD-03 image SHAs (no rebuild); new AI service explicitly excluded this stage; pre-existing `pfi-ai-module` confirmed untouched | Done. Both services live, smoke-tested (health, auth, CORS, real browser login) — see `CLOUD_04_CHANGE_PLAN.md` for the full apply history including two authorized follow-up fixes (`cpu_idle`, CORS real-URL). |
 | **CLOUD-05** 📋 `READY_FOR_DEPLOYMENT` | Cloud SQL instance, Cloud Storage bucket audit, Secret Manager secrets | Design + Terraform + both plans (flags off/on) done and pushed, see `CLOUD_05_CHANGE_PLAN.md` and `CLOUD_05_COST_OPTIMIZATION_REVIEW.md`. **Real deployment requires explicit cost authorization (~$9.37/month, `db-f1-micro`) before apply** — see `CLOUD_05_COST_CHECK.md`. Not yet applied — **CLOUD_05_READY_FOR_DEPLOYMENT, not CLOUD_05_MANAGED_PERSISTENCE_READY** (that status is reserved for after a real, verified GCP apply). |
-| **CLOUD-06** | CD promotion DEV → DEMO (manual approval gate, same-image redeploy) | Depends on CLOUD-03/04/05 being live. May be designed/planned now (Terraform, GitHub Actions, `terraform validate`/`plan`, docs) under the same plan-only policy — **no apply**. |
+| **CLOUD-06** 📋 `READY_FOR_DEPLOYMENT` | CD promotion DEV → DEMO (manual approval gate, same-image redeploy) | Design + Terraform + workflows + plan done, see `CLOUD_06_CHANGE_PLAN.md`. DEMO Terraform plan: 5 to add, 0 to change, 0 to destroy (Cloud Run services + invoker bindings + 1 SA only). **Real DEMO deployment requires its own future authorization** — no `terraform apply`, no workflow has ever run for real. `CLOUD_06_READY_FOR_DEPLOYMENT`, not `CLOUD_06_DEV_TO_DEMO_READY` (DEMO doesn't exist yet). |
 | **CLOUD-07** | Rollback procedure wired into CI, monitoring dashboards, alert policies | Depends on CLOUD-04+. May be designed/planned now under the same plan-only policy — **no apply**. |
 | **CLOUD-08** | Final cloud E2E test across DEV/DEMO, architecture freeze document | Last stage — declares the cloud architecture stable |
 
@@ -150,3 +153,27 @@ before doing one complete deploy and starting to measure real cloud cost. `CLOUD
 will only be declared after a separately authorized apply cycle: cost approved, Cloud SQL created,
 secrets created securely out-of-band, Backend connected, persistence verified across a real restart,
 and no plaintext secret leak confirmed.
+
+**CLOUD-06 status: `CLOUD_06_READY_FOR_DEPLOYMENT` — design/plan complete, real DEMO deployment not
+yet authorized, $0 new cost incurred.**
+
+- **DESIGN/PLAN: READY.** Release manifest schema (`pfi-cloud-release.v1`), `cloud-06-validate-dev.yml`
+  (image-exists + digest + Cloud-Run-state + smoke checks, uploads a signed manifest), `cloud-06-
+  promote-demo.yml` (re-verifies the manifest's digests against live Artifact Registry, runs
+  `terraform plan` for DEMO, explicitly has no apply step), and `cloud-06-rollback-demo.yml`
+  (dry-run only — prints the traffic-shift command, never executes it). All three workflows parse as
+  valid YAML; the two new shell scripts (`scripts/cloud/verify-image-digest.sh`,
+  `scripts/cloud/cloud-06-smoke.sh`) pass `bash -n` and were exercised against synthetic/mocked
+  `gcloud` output (match/mismatch/`latest`-rejection all behave correctly) — no cloud writes involved.
+  `environments/demo`'s Terraform had four real, previously-undetected bugs (wrong health check path,
+  missing Frontend `port`/`cpu_idle`, an unconditionally-created AI service, an unconditional Cloud
+  SQL IAM grant) — all fixed to mirror DEV's CLOUD-04/05 patterns, yielding a clean
+  `terraform plan`: **5 to add, 0 to change, 0 to destroy** (2 Cloud Run services, 2 invoker
+  bindings, 1 new service account — nothing else). See `CLOUD_06_CHANGE_PLAN.md`.
+- **REAL DEMO DEPLOYMENT: NOT AUTHORIZED.** No workflow has ever run for real (two proposed CI/
+  Terraform-plan identities — see `CLOUD_06_SECURITY_REVIEW.md` — don't exist yet, so they couldn't
+  run even if triggered). No GitHub Environment created. No `terraform apply`. Zero new GCP resources,
+  zero new cost.
+
+Cloud branches for CLOUD-06 (`cloud/cloud-06-promotion-backend`) were created from CLOUD-05's final
+pushed HEAD (`b456333`), per explicit instruction, not from an earlier CLOUD-05 commit or CLOUD-04.

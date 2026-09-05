@@ -1,0 +1,68 @@
+name: CLOUD-06 Rollback DEMO (design-only, dry-run)
+
+# CLOUD-06 (experimental / plan-only stage): this workflow is DESIGN-ONLY.
+# It computes and PRINTS the exact `gcloud run services update-traffic`
+# command that would move 100% of DEMO traffic back to the prior-good
+# revision, but never executes it. There is no traffic-shifting step in
+# this file — adding one is a separate, explicitly authorized change, made
+# only once a real DEMO exists to roll back at all.
+#
+# Rollback strategy (see CLOUD_06_ROLLBACK_DESIGN.md for the full design):
+# revision N is serving 100% traffic; revision N+1 is deployed (still 100%
+# traffic by default under this project's Cloud Run config, i.e. no
+# gradual/canary rollout is configured); if N+1's post-deploy smoke fails,
+# traffic is sent back to N by name — Cloud Run keeps prior revisions
+# addressable until they're explicitly deleted, so this never requires a
+# rebuild or a new deploy, just a traffic reassignment.
+
+on:
+  workflow_dispatch:
+    inputs:
+      service_name:
+        description: "Cloud Run service to roll back (e.g. pfi-backend-demo)."
+        required: true
+        type: string
+      target_revision:
+        description: "Revision name to roll traffic back to (the last known-good revision)."
+        required: true
+        type: string
+
+concurrency:
+  group: cloud-06-rollback-demo
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  rollback-dry-run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Authenticate to Google Cloud (read-only)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_CI_READER_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Confirm target revision exists and is addressable (read-only)
+        run: |
+          set -euo pipefail
+          gcloud run revisions describe "${{ inputs.target_revision }}" \
+            --service="${{ inputs.service_name }}" \
+            --region="${{ vars.GCP_REGION }}" \
+            --format='value(metadata.name,status.conditions[0].status)'
+
+      - name: DRY RUN — print the rollback command, do not execute it
+        run: |
+          echo "This workflow is design-only. The command that WOULD roll back traffic is:"
+          echo
+          echo "  gcloud run services update-traffic ${{ inputs.service_name }} \\"
+          echo "    --region=${{ vars.GCP_REGION }} \\"
+          echo "    --to-revisions=${{ inputs.target_revision }}=100"
+          echo
+          echo "No traffic was changed. Executing the above requires a separate,"
+          echo "explicitly authorized change to this workflow file."
