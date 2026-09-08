@@ -45,7 +45,13 @@ public record ProfessionalFeedbackCandidate(
     String note,
     String status,
     Instant correctedAt,
-    Instant capturedAt
+    Instant capturedAt,
+    /** EXT-05: internal only, same rule as {@code reviewedBy} — never serialized. Who made the *curation* decision (distinct from who reviewed/corrected the original AI output). */
+    String curatorId,
+    /** EXT-05: when the current {@code status} was set by a curation decision; null while still {@code "captured"}. */
+    Instant curatedAt,
+    /** EXT-05: only meaningful when {@code status="excluded"}; a free-text reason a curator gave for excluding this candidate. */
+    String exclusionReason
 ) {
     private static final List<String> SOURCES = List.of("measurement", "evidence_region", "professional_new_finding", "rejected_ai_suggestion");
     public static final List<String> ALLOWED_STATUSES = List.of("captured", "eligible_for_curation", "excluded", "curated");

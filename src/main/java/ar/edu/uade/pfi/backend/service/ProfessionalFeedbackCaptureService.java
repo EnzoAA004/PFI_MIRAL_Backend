@@ -7,6 +7,7 @@ import ar.edu.uade.pfi.backend.domain.AiMeasurementCorrection;
 import ar.edu.uade.pfi.backend.domain.AiMeasurementResult;
 import ar.edu.uade.pfi.backend.domain.AiProductAnalysisRun;
 import ar.edu.uade.pfi.backend.domain.ProfessionalFeedbackCandidate;
+import ar.edu.uade.pfi.backend.domain.ProfessionalFeedbackStatusChange;
 import ar.edu.uade.pfi.backend.domain.Study;
 import ar.edu.uade.pfi.backend.repository.StudyRepository;
 import java.time.Clock;
@@ -14,6 +15,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -88,7 +90,8 @@ public class ProfessionalFeedbackCaptureService {
                 correction.comment(),
                 "captured",
                 correction.createdAt(),
-                Instant.now(clock)
+                Instant.now(clock),
+                null, null, null
             );
             captured.add(repository.saveProfessionalFeedbackCandidate(candidate));
         }
@@ -126,7 +129,8 @@ public class ProfessionalFeedbackCaptureService {
                 correction.comment(),
                 "captured",
                 correction.createdAt(),
-                Instant.now(clock)
+                Instant.now(clock),
+                null, null, null
             );
             captured.add(repository.saveProfessionalFeedbackCandidate(candidate));
         }
@@ -161,7 +165,8 @@ public class ProfessionalFeedbackCaptureService {
                 region.comment(),
                 "captured",
                 region.createdAt(),
-                Instant.now(clock)
+                Instant.now(clock),
+                null, null, null
             );
             captured.add(repository.saveProfessionalFeedbackCandidate(candidate));
         }
@@ -202,7 +207,8 @@ public class ProfessionalFeedbackCaptureService {
                 region.comment(),
                 "captured",
                 region.createdAt(),
-                Instant.now(clock)
+                Instant.now(clock),
+                null, null, null
             );
             captured.add(repository.saveProfessionalFeedbackCandidate(candidate));
         }
@@ -224,15 +230,84 @@ public class ProfessionalFeedbackCaptureService {
     }
 
     /**
+     * EXT-05: same list as {@link #findByCase}, narrowed by whichever filters are non-null.
+     * Filtering happens in memory over the case's own (small, synthetic-scale) candidate set —
+     * no new SQL WHERE clause was needed for this stage's data volumes.
+     */
+    public List<ProfessionalFeedbackCandidate> findByCase(String caseId, FeedbackCandidateFilter filter) {
+        return findByCase(caseId).stream().filter(filter::matches).toList();
+    }
+
+    public record FeedbackCandidateFilter(String status, String source, String level, String plane, String modelId, Instant from, Instant to) {
+        boolean matches(ProfessionalFeedbackCandidate candidate) {
+            if (status != null && !status.equals(candidate.status())) return false;
+            if (source != null && !source.equals(candidate.source())) return false;
+            if (level != null && !level.equals(candidate.level())) return false;
+            if (plane != null && !plane.equals(candidate.plane())) return false;
+            if (modelId != null && !modelId.equals(candidate.modelId())) return false;
+            if (from != null && candidate.correctedAt().isBefore(from)) return false;
+            if (to != null && candidate.correctedAt().isAfter(to)) return false;
+            return true;
+        }
+    }
+
+    public Optional<ProfessionalFeedbackCandidate> findById(String candidateId) {
+        return repository.findProfessionalFeedbackCandidateById(candidateId);
+    }
+
+    public List<ProfessionalFeedbackStatusChange> findHistory(String candidateId) {
+        return repository.findFeedbackCandidateStatusChanges(candidateId);
+    }
+
+    /**
      * The only way a candidate's status ever changes — always an explicit, human-issued call.
      * {@code "ready_for_training"} is not a value this product models at all (see
      * {@link ProfessionalFeedbackCandidate#ALLOWED_STATUSES}), so it is rejected the same as any
-     * other unrecognised status, never silently accepted.
+     * other unrecognised status, never silently accepted. Every call appends a row to the
+     * separate status-change history table — never merely overwrites the candidate's status.
      */
-    public ProfessionalFeedbackCandidate updateStatus(String candidateId, String status) {
+    public ProfessionalFeedbackCandidate curate(String candidateId, String status, String curatorId, String reason, String note) {
         if (!ProfessionalFeedbackCandidate.ALLOWED_STATUSES.contains(status)) {
             throw new IllegalArgumentException("Estado de feedback inválido: " + status);
         }
-        return repository.updateProfessionalFeedbackCandidateStatus(candidateId, status);
+        repository.findProfessionalFeedbackCandidateById(candidateId)
+            .orElseThrow(() -> new IllegalArgumentException("Candidato de feedback no encontrado: " + candidateId));
+        return repository.recordFeedbackCandidateStatusChange(candidateId, status, curatorId, reason, note, Instant.now(clock));
+    }
+
+    /**
+     * EXT-05: an internal, curated export manifest — never an automatically-produced training
+     * dataset (see the class javadoc: this whole file only ever captures/curates, never trains).
+     * {@code sourceModelVersions} is the distinct, sorted set of non-null {@code modelId} values
+     * among the exported candidates; {@code manifestChecksum} is a SHA-256 over the exported
+     * records' own JSON so a later consumer can detect if the export file was altered.
+     */
+    public FeedbackDatasetExport exportForStudy(String caseId, FeedbackCandidateFilter filter, com.fasterxml.jackson.databind.ObjectMapper objectMapper) {
+        List<ProfessionalFeedbackCandidate> candidates = filter == null ? findByCase(caseId) : findByCase(caseId, filter);
+        // Exported through the same public DTO every other endpoint uses — never the domain
+        // record directly, which would leak reviewedBy/curatorId into the export file.
+        List<ar.edu.uade.pfi.backend.dto.ProfessionalFeedbackCandidateDto> records = candidates.stream()
+            .map(ar.edu.uade.pfi.backend.dto.ProfessionalFeedbackCandidateDto::from)
+            .toList();
+        List<String> sourceModelVersions = candidates.stream()
+            .map(ProfessionalFeedbackCandidate::modelId)
+            .filter(java.util.Objects::nonNull)
+            .distinct()
+            .sorted()
+            .toList();
+        String checksum;
+        try {
+            byte[] recordsJson = objectMapper.writeValueAsBytes(records);
+            checksum = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(recordsJson));
+        } catch (Exception ex) {
+            throw new IllegalStateException("No se pudo generar el checksum del export", ex);
+        }
+        return new FeedbackDatasetExport("pfi.feedback-dataset-export.v1", Instant.now(clock), records.size(), sourceModelVersions, records, checksum);
+    }
+
+    public record FeedbackDatasetExport(
+        String schemaVersion, Instant exportedAt, int candidateCount,
+        List<String> sourceModelVersions, List<ar.edu.uade.pfi.backend.dto.ProfessionalFeedbackCandidateDto> records, String manifestChecksum
+    ) {
     }
 }

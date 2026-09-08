@@ -7,6 +7,7 @@ import ar.edu.uade.pfi.backend.domain.AiEvidenceRegionCorrection;
 import ar.edu.uade.pfi.backend.domain.AiMeasurementCorrection;
 import ar.edu.uade.pfi.backend.domain.AiMeasurementResult;
 import ar.edu.uade.pfi.backend.domain.ProfessionalFeedbackCandidate;
+import ar.edu.uade.pfi.backend.domain.ProfessionalFeedbackStatusChange;
 import ar.edu.uade.pfi.backend.domain.AiProductAnalysisRun;
 import ar.edu.uade.pfi.backend.domain.AiProductAnalysisRunReview;
 import ar.edu.uade.pfi.backend.domain.ChatConversation;
@@ -1735,8 +1736,8 @@ public class PostgresStudyRepository implements StudyRepository {
                 id, study_id, case_id, analysis_run_id, source, correction_id, level, plane, structure,
                 metric, geometry_type, ai_original_value, ai_original_geometry, professional_value,
                 professional_geometry, model_id, model_sha256, pipeline_version, reviewed_by, note,
-                status, corrected_at, captured_at
-            ) VALUES (?::uuid, ?::uuid, ?, ?::uuid, ?, ?::uuid, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?::jsonb, ?, ?, ?, ?, ?, ?, ?, ?)
+                status, corrected_at, captured_at, curator_id, curated_at, exclusion_reason
+            ) VALUES (?::uuid, ?::uuid, ?, ?::uuid, ?, ?::uuid, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?::jsonb, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """)) {
             statement.setString(1, candidate.id());
             statement.setString(2, candidate.studyId());
@@ -1761,6 +1762,9 @@ public class PostgresStudyRepository implements StudyRepository {
             statement.setString(21, candidate.status());
             statement.setTimestamp(22, Timestamp.from(candidate.correctedAt()));
             statement.setTimestamp(23, Timestamp.from(candidate.capturedAt()));
+            statement.setString(24, candidate.curatorId());
+            if (candidate.curatedAt() == null) statement.setNull(25, java.sql.Types.TIMESTAMP_WITH_TIMEZONE); else statement.setTimestamp(25, Timestamp.from(candidate.curatedAt()));
+            statement.setString(26, candidate.exclusionReason());
             statement.executeUpdate();
             return candidate;
         } catch (Exception ex) {
@@ -1814,18 +1818,68 @@ public class PostgresStudyRepository implements StudyRepository {
     }
 
     @Override
-    public ProfessionalFeedbackCandidate updateProfessionalFeedbackCandidateStatus(String id, String status) {
-        try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
-            UPDATE domain_professional_feedback_candidates SET status = ? WHERE id = ?::uuid
-            """)) {
-            statement.setString(1, status);
-            statement.setString(2, id);
-            int updated = statement.executeUpdate();
-            if (updated == 0) throw new IllegalStateException("Professional feedback candidate not found: " + id);
+    public ProfessionalFeedbackCandidate recordFeedbackCandidateStatusChange(String id, String toStatus, String curatorId, String reason, String note, Instant changedAt) {
+        ProfessionalFeedbackCandidate existing = findProfessionalFeedbackCandidateById(id)
+            .orElseThrow(() -> new IllegalStateException("Professional feedback candidate not found: " + id));
+        try (Connection connection = connection()) {
+            try (PreparedStatement update = connection.prepareStatement("""
+                UPDATE domain_professional_feedback_candidates
+                SET status = ?, curator_id = ?, curated_at = ?, exclusion_reason = ?
+                WHERE id = ?::uuid
+                """)) {
+                update.setString(1, toStatus);
+                update.setString(2, curatorId);
+                update.setTimestamp(3, Timestamp.from(changedAt));
+                update.setString(4, "excluded".equals(toStatus) ? reason : existing.exclusionReason());
+                update.setString(5, id);
+                int updated = update.executeUpdate();
+                if (updated == 0) throw new IllegalStateException("Professional feedback candidate not found: " + id);
+            }
+            try (PreparedStatement insert = connection.prepareStatement("""
+                INSERT INTO domain_professional_feedback_status_changes(id, candidate_id, from_status, to_status, curator_id, reason, note, changed_at)
+                VALUES (?::uuid, ?::uuid, ?, ?, ?, ?, ?, ?)
+                """)) {
+                insert.setString(1, UUID.randomUUID().toString());
+                insert.setString(2, id);
+                insert.setString(3, existing.status());
+                insert.setString(4, toStatus);
+                insert.setString(5, curatorId);
+                insert.setString(6, reason);
+                insert.setString(7, note);
+                insert.setTimestamp(8, Timestamp.from(changedAt));
+                insert.executeUpdate();
+            }
         } catch (Exception ex) {
-            throw new IllegalStateException("Could not update professional feedback candidate status", ex);
+            throw new IllegalStateException("Could not record professional feedback candidate status change", ex);
         }
         return findProfessionalFeedbackCandidateById(id).orElseThrow();
+    }
+
+    @Override
+    public List<ProfessionalFeedbackStatusChange> findFeedbackCandidateStatusChanges(String candidateId) {
+        try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
+            SELECT * FROM domain_professional_feedback_status_changes WHERE candidate_id = ?::uuid ORDER BY changed_at ASC
+            """)) {
+            statement.setString(1, candidateId);
+            try (ResultSet rs = statement.executeQuery()) {
+                List<ProfessionalFeedbackStatusChange> results = new ArrayList<>();
+                while (rs.next()) {
+                    results.add(new ProfessionalFeedbackStatusChange(
+                        rs.getObject("id", UUID.class).toString(),
+                        rs.getObject("candidate_id", UUID.class).toString(),
+                        rs.getString("from_status"),
+                        rs.getString("to_status"),
+                        rs.getString("curator_id"),
+                        rs.getString("reason"),
+                        rs.getString("note"),
+                        rs.getTimestamp("changed_at").toInstant()
+                    ));
+                }
+                return results;
+            }
+        } catch (Exception ex) {
+            throw new IllegalStateException("Could not list professional feedback candidate status changes", ex);
+        }
     }
 
     private ProfessionalFeedbackCandidate readProfessionalFeedbackCandidate(ResultSet rs) throws Exception {
@@ -1854,7 +1908,10 @@ public class PostgresStudyRepository implements StudyRepository {
             rs.getString("note"),
             rs.getString("status"),
             rs.getTimestamp("corrected_at").toInstant(),
-            rs.getTimestamp("captured_at").toInstant()
+            rs.getTimestamp("captured_at").toInstant(),
+            rs.getString("curator_id"),
+            rs.getTimestamp("curated_at") == null ? null : rs.getTimestamp("curated_at").toInstant(),
+            rs.getString("exclusion_reason")
         );
     }
 }

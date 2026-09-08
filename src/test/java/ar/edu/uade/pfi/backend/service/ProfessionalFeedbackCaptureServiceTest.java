@@ -160,8 +160,8 @@ class ProfessionalFeedbackCaptureServiceTest {
         repository.saveAiMeasurementCorrection(new AiMeasurementCorrection("correction-6", "measurement-6", run.id(), "majorAxisMm", 12.1, 12.3, "mm", null, "dr.reviewer@pfi.local", NOW));
         String id = service.captureForStudy("CASE-FB-6").get(0).id();
 
-        assertThrows(IllegalArgumentException.class, () -> service.updateStatus(id, "ready_for_training"));
-        assertThrows(IllegalArgumentException.class, () -> service.updateStatus(id, "not_a_real_status"));
+        assertThrows(IllegalArgumentException.class, () -> service.curate(id, "ready_for_training", "dr.curator@pfi.local", null, null));
+        assertThrows(IllegalArgumentException.class, () -> service.curate(id, "not_a_real_status", "dr.curator@pfi.local", null, null));
     }
 
     @Test
@@ -172,10 +172,58 @@ class ProfessionalFeedbackCaptureServiceTest {
         repository.saveAiMeasurementCorrection(new AiMeasurementCorrection("correction-7", "measurement-7", run.id(), "majorAxisMm", 12.1, 12.3, "mm", null, "dr.reviewer@pfi.local", NOW));
         String id = service.captureForStudy("CASE-FB-7").get(0).id();
 
-        ProfessionalFeedbackCandidate updated = service.updateStatus(id, "eligible_for_curation");
+        ProfessionalFeedbackCandidate updated = service.curate(id, "eligible_for_curation", "dr.curator@pfi.local", null, null);
 
         assertEquals("eligible_for_curation", updated.status());
         assertTrue(service.findByCase("CASE-FB-7").stream().allMatch(c -> "eligible_for_curation".equals(c.status())));
+    }
+
+    @Test
+    void curateAppendsAnAuditRowAndNeverJustOverwritesTheStatus() {
+        Study study = seedStudy("study-9b", "CASE-FB-9B");
+        AiProductAnalysisRun run = seedRun(study, "run-9b");
+        repository.saveAiProductAnalysisRun(run, List.of(), List.of(new AiMeasurementResult("measurement-9b", run.id(), null, "sagittal", "L4-L5", "disc", null, 12.1, null, true)));
+        repository.saveAiMeasurementCorrection(new AiMeasurementCorrection("correction-9b", "measurement-9b", run.id(), "majorAxisMm", 12.1, 12.3, "mm", null, "dr.reviewer@pfi.local", NOW));
+        String id = service.captureForStudy("CASE-FB-9B").get(0).id();
+
+        service.curate(id, "eligible_for_curation", "dr.curator@pfi.local", null, "primera revisión");
+        service.curate(id, "curated", "dr.curator@pfi.local", null, "confirmado");
+
+        List<ar.edu.uade.pfi.backend.domain.ProfessionalFeedbackStatusChange> history = service.findHistory(id);
+        assertEquals(2, history.size());
+        assertEquals("captured", history.get(0).fromStatus());
+        assertEquals("eligible_for_curation", history.get(0).toStatus());
+        assertEquals("eligible_for_curation", history.get(1).fromStatus());
+        assertEquals("curated", history.get(1).toStatus());
+    }
+
+    @Test
+    void exclusionReasonIsStoredOnlyWhenExcluding() {
+        Study study = seedStudy("study-9c", "CASE-FB-9C");
+        AiProductAnalysisRun run = seedRun(study, "run-9c");
+        repository.saveAiProductAnalysisRun(run, List.of(), List.of(new AiMeasurementResult("measurement-9c", run.id(), null, "sagittal", "L4-L5", "disc", null, 12.1, null, true)));
+        repository.saveAiMeasurementCorrection(new AiMeasurementCorrection("correction-9c", "measurement-9c", run.id(), "majorAxisMm", 12.1, 12.3, "mm", null, "dr.reviewer@pfi.local", NOW));
+        String id = service.captureForStudy("CASE-FB-9C").get(0).id();
+
+        ProfessionalFeedbackCandidate excluded = service.curate(id, "excluded", "dr.curator@pfi.local", "no representativo del caso general", null);
+        assertEquals("no representativo del caso general", excluded.exclusionReason());
+    }
+
+    @Test
+    void exportProducesAManifestWithChecksumAndNeverLeaksCuratorIdOrReviewedBy() {
+        Study study = seedStudy("study-9d", "CASE-FB-9D");
+        AiProductAnalysisRun run = seedRun(study, "run-9d");
+        repository.saveAiProductAnalysisRun(run, List.of(), List.of(new AiMeasurementResult("measurement-9d", run.id(), null, "sagittal", "L4-L5", "disc", null, 12.1, null, true)));
+        repository.saveAiMeasurementCorrection(new AiMeasurementCorrection("correction-9d", "measurement-9d", run.id(), "majorAxisMm", 12.1, 12.3, "mm", null, "dr.reviewer@pfi.local", NOW));
+        service.captureForStudy("CASE-FB-9D");
+
+        var export = service.exportForStudy("CASE-FB-9D", null,
+            new com.fasterxml.jackson.databind.ObjectMapper().registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule()));
+
+        assertEquals("pfi.feedback-dataset-export.v1", export.schemaVersion());
+        assertEquals(1, export.candidateCount());
+        assertEquals(1, export.records().size());
+        assertTrue(export.manifestChecksum().length() > 0);
     }
 
     @Test
