@@ -5,6 +5,7 @@ import java.time.Duration;
 import org.slf4j.MDC;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.web.reactive.function.client.ClientRequest;
 import org.springframework.web.reactive.function.client.ExchangeFilterFunction;
@@ -26,7 +27,15 @@ public class WebClientConfig {
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10);
 
     @Bean
-    public WebClient aiWebClient(AiServiceProperties properties) {
+    public AiServiceAuthorizationProvider aiServiceAuthorizationProvider(AiServiceProperties properties) {
+        if (properties.resolvedAuthMode() == AiServiceAuthMode.NONE) {
+            return new NoopAiServiceAuthorizationProvider();
+        }
+        return new GoogleIdTokenAiServiceAuthorizationProvider(properties.resolvedAudience());
+    }
+
+    @Bean
+    public WebClient aiWebClient(AiServiceProperties properties, AiServiceAuthorizationProvider authorizationProvider) {
         // El techo de respuesta queda en el mas largo de todos —una corrida multiplanar—,
         // y cada llamada lo acota hacia abajo segun lo que pide. Ver AiServiceClient.
         int timeoutSeconds = properties.resolvedTimeoutSeconds();
@@ -46,10 +55,17 @@ public class WebClientConfig {
             .baseUrl(properties.resolvedBaseUrl())
             .clientConnector(new ReactorClientHttpConnector(httpClient))
             .filter(traceIdPropagationFilter())
+            .filter(aiServiceAuthorizationFilter(authorizationProvider))
             .build();
     }
 
-    /** Stage 80: a separate bean/connection pool from {@code aiWebClient} — the LLM provider is a distinct upstream with its own timeout floor. */
+    /**
+     * Stage 80: a separate bean/connection pool from {@code aiWebClient} — the LLM provider is a
+     * distinct upstream with its own timeout floor.
+     *
+     * <p>No lleva el filtro de autorizacion del modulo de IA a proposito: el LLM self-hosted es
+     * otro upstream y no se le manda el ID token dirigido a la audience de Cloud Run.
+     */
     @Bean
     public WebClient llmWebClient(LlmProperties properties) {
         int timeoutSeconds = properties.resolvedTimeoutSeconds();
@@ -62,6 +78,25 @@ public class WebClientConfig {
             .clientConnector(new ReactorClientHttpConnector(httpClient))
             .filter(traceIdPropagationFilter())
             .build();
+    }
+
+    /**
+     * Adjunta el header Authorization al llamado al modulo de IA privado. Cuando el provider no
+     * entrega header (modo NONE), la cabecera se remueve explicitamente en vez de dejarse pasar:
+     * asi una credencial del request entrante nunca se reenvia al upstream por accidente.
+     */
+    private ExchangeFilterFunction aiServiceAuthorizationFilter(AiServiceAuthorizationProvider authorizationProvider) {
+        return ExchangeFilterFunction.ofRequestProcessor(request -> authorizationProvider.authorizationHeader()
+            .map(header -> ClientRequest.from(request)
+                .headers(headers -> {
+                    headers.remove(HttpHeaders.AUTHORIZATION);
+                    headers.set(HttpHeaders.AUTHORIZATION, header);
+                })
+                .build())
+            .map(Mono::just)
+            .orElseGet(() -> Mono.just(ClientRequest.from(request)
+                .headers(headers -> headers.remove(HttpHeaders.AUTHORIZATION))
+                .build())));
     }
 
     private ExchangeFilterFunction traceIdPropagationFilter() {
