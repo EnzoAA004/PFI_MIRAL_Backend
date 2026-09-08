@@ -65,7 +65,11 @@ class StudyReportServiceTest {
         ));
 
         StudyReportDto report = service.report(study.caseId(), null);
-        String json = new ObjectMapper().writeValueAsString(report);
+        // findAndRegisterModules() picks up jackson-datatype-jsr310 (already on the classpath
+        // transitively via spring-boot-starter-json, which is what the app's own auto-configured
+        // ObjectMapper bean uses) -- a plain `new ObjectMapper()` has no Instant support and would
+        // throw InvalidDefinitionException on `generatedAt`, unlike the real, running application.
+        String json = new ObjectMapper().findAndRegisterModules().writeValueAsString(report);
 
         assertAll(
             () -> assertEquals(StudyReportService.SCHEMA_VERSION, report.schemaVersion()),

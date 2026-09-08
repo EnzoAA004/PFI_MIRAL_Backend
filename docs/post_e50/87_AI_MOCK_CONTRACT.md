@@ -16,6 +16,9 @@ Traced directly from `AiServiceClient.java` (the Backend's only HTTP client to t
 | POST | `/inputs` | `AiServiceClient.uploadInput` | multipart: `file`, `caseId`, `plane` | `AiInputResponseDto{inputId, caseId, plane, format, size}` |
 | POST | `/v2/multiplanar/run` | `AiServiceClient.runMultiplanarV2` (the contract version this stack is configured for — `PFI_AI_SERVICE_MULTIPLANAR_CONTRACT_VERSION=v2`) | `AiMultiplanarV2RequestDto{caseId, traceId, inferenceMode, allowContractFallback, planes:{sagittal,axial}, options}` | `AiMultiplanarV2ResponseDto` (full pfi.multiplanar-run.v2 shape) |
 | POST | `/v1/product/analyze` | (already existed, Stage 81) | — | unchanged |
+| GET | `/inputs/{inputId}/slices/{index}` | `AiServiceClient.getSeriesSlice` (proxied by `AiBackendService.getSeriesSlice` at `GET /api/ai/series/{inputId}/slices/{index}`) | — | PNG bytes |
+
+**Stage 89 addendum**: the multi-slice viewer route (`GET /inputs/{inputId}/slices/{index}`) was added, and — more importantly — `deterministicInputId()`'s output shape was corrected from `mock-input-*` to `inp_<32-hex>`. The Backend's `AiBackendService.getSeriesSlice` validates every inputId against `INPUT_ID_PATTERN = ^inp_[0-9a-f]{32}$` (the real AI Module's own shape) *before* ever forwarding upstream — a `mock-input-*` id failed that check with a `400`, never reaching this mock's own (already-correct) slice route at all. See `89_DEMO_MODE.md` for the full root-cause trace. This is the canonical inputId shape now — any future mock endpoint that echoes or derives an inputId should use this same generator.
 
 No endpoint was invented that the Backend never calls — `/inputs/study` (`uploadStudy`, the whole-archive-ZIP upload) was deliberately **not** added: nothing in this stage's fixture or E2E path exercises it, and the spec's own 87-C says "no crear endpoints ficticios que Backend nunca llama." A future stage that needs the ZIP-upload path can extend the mock the same way this one did.
 

@@ -42,9 +42,10 @@ const server = http.createServer((request, response) => {
         return;
       }
       console.log("[mock-llm] received request body:", body);
+      const answer = answerFor(body);
       response.writeHead(200, { "Content-Type": "application/json" });
       response.end(JSON.stringify({
-        choices: [{ message: { role: "assistant", content: "Respuesta determinista del asistente contextual (mock)." } }],
+        choices: [{ message: { role: "assistant", content: answer } }],
       }));
     });
     return;
@@ -55,3 +56,11 @@ const server = http.createServer((request, response) => {
 });
 
 server.listen(port, () => console.log(`[mock-llm] listening on ${port} (mode=${mode})`));
+
+function answerFor(rawBody) {
+  const normalized = String(rawBody ?? "").toLowerCase();
+  if (normalized.includes("qué cambió") || normalized.includes("que cambio") || normalized.includes("estudio anterior")) {
+    return "En la medición seleccionada, el valor efectivo pasó de 12.3 mm a 12.9 mm, una diferencia de aproximadamente 0.6 mm. El valor actual incluye una corrección profesional. No constituye diagnóstico clínico.";
+  }
+  return "Respuesta determinista del asistente contextual (mock). El sistema resume mediciones y revisión profesional sin emitir diagnóstico clínico.";
+}
