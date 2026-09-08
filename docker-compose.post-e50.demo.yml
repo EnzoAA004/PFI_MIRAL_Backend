@@ -1,0 +1,31 @@
+services:
+  postgres:
+    container_name: pfi-post-e50-demo-postgres
+    volumes:
+      - post-e50-demo-postgres-data:/var/lib/postgresql/data
+
+  mock-ai:
+    container_name: pfi-post-e50-demo-mock-ai
+    environment:
+      PORT: 8000
+      MOCK_AI_MODE: normal
+
+  mock-llm:
+    container_name: pfi-post-e50-demo-mock-llm
+    environment:
+      PORT: 8001
+      MOCK_LLM_MODE: normal
+
+  backend:
+    container_name: pfi-post-e50-demo-backend
+
+  frontend:
+    container_name: pfi-post-e50-demo-frontend
+
+networks:
+  pfi-post-e50:
+    name: pfi-post-e50-demo
+
+volumes:
+  post-e50-demo-postgres-data:
+    name: post-e50-demo-postgres-data

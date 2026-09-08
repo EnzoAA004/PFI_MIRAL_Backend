@@ -81,7 +81,7 @@ class StudyReportControllerTest {
     void pdfExportSetsAttachmentFilenameAndSanitizesUnsafeCaseId() throws Exception {
         when(reportService.reportPdf(eq("CASE:88%20unsafe"), eq(null))).thenReturn("%PDF-1.7\n".getBytes());
 
-        mockMvc.perform(get("/api/studies/CASE:88%20unsafe/report.pdf").with(reviewer()))
+        mockMvc.perform(get("/api/studies/{caseId}/report.pdf", "CASE:88 unsafe").with(reviewer()))
             .andExpect(status().isOk())
             .andExpect(content().contentType(MediaType.APPLICATION_PDF))
             .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION, org.hamcrest.Matchers.containsString("study-report-CASE_88_20unsafe.pdf")));

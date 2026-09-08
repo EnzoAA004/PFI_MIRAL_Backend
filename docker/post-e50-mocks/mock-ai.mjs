@@ -43,8 +43,13 @@ import crypto from "node:crypto";
  */
 const port = Number(process.env.PORT ?? 8000);
 const mode = process.env.MOCK_AI_MODE ?? "normal";
+const TINY_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVR42mNkAAAAAgABSK+kcQAAAABJRU5ErkJggg==",
+  "base64",
+);
 
 function productAnalysisResponse(caseId) {
+  const majorAxisMm = demoMajorAxisMm(caseId);
   return {
     schemaVersion: "pfi.ai-product-result.v1",
     runId: `mock-run-${caseId}`,
@@ -59,7 +64,7 @@ function productAnalysisResponse(caseId) {
         localization: { status: "localized", validated: true, source: "67B2", abstentionPreserved: false, adapterPending: false, warnings: [] },
         axialPairing: { status: "experimental", validated: false, experimental: true, reviewRequired: true, adapterPending: false, source: "67C", warnings: [] },
         measurements: [
-          { plane: "sagittal", level: "L4-L5", structure: "disc", areaMm2: 12.3, majorAxisMm: 12.3, minorAxisMm: 8.4, reviewRequired: true },
+          { plane: "sagittal", level: "L4-L5", structure: "disc", areaMm2: majorAxisMm, majorAxisMm, minorAxisMm: 8.4, reviewRequired: true },
         ],
         degenerativeFindings: { status: "blocked_preprocessing_parity", automaticInferenceEnabled: false, checkpointSha256: "mock-sha", reviewRequired: true },
       },
@@ -70,6 +75,14 @@ function productAnalysisResponse(caseId) {
     autonomousDiagnosis: false,
     humanReviewRequired: true,
   };
+}
+
+function demoMajorAxisMm(caseId) {
+  const normalized = String(caseId ?? "").toUpperCase();
+  if (normalized.includes("DEMO-LUMBAR-2026-01")) return 11.9;
+  if (normalized.includes("DEMO-LUMBAR-2026-02")) return 12.3;
+  if (normalized.includes("DEMO-LUMBAR-2026-03")) return 13.1;
+  return 12.3;
 }
 
 function readBody(request) {
@@ -143,13 +156,21 @@ function isTimeoutRun(caseId) {
 }
 
 /**
- * Stage 87-D/87-E: deterministic per-upload inputId, derived from caseId+plane+a random
- * component -- unique per fixture, never a real medical UID, never a filesystem path.
+ * Stage 87-D/87-E + Stage 89-D + Stage 89-CONT: deterministic per-upload inputId, derived from
+ * caseId+plane+filename+size -- never a real medical UID, never a filesystem path.
+ *
+ * Root cause of the 89-CONT slice-viewer 400: `AiBackendService.getSeriesSlice` validates every
+ * inputId against `INPUT_ID_PATTERN = ^inp_[0-9a-f]{32}$` -- the real AI Module's own inputId
+ * shape (confirmed against the Stage-87 real wire fixture, e.g. `inp_2822bf9640ab40a289050a30
+ * ce2fe6fd`) -- before ever forwarding the request upstream. The mock's own `mock-input-*` shape
+ * failed that check outright (confirmed empirically: `curl .../slices/0` returned
+ * `400 {"message":"inputId invalido."}` from the Backend itself, never reaching this mock). This
+ * is not a Backend bug -- that validation matches the real, existing contract -- so the fix is
+ * entirely on the mock's side: emit the same `inp_<32-hex>` shape, still fully deterministic.
  */
-function deterministicInputId(caseId, plane) {
-  const salt = crypto.randomBytes(6).toString("hex");
-  const safeCaseId = (caseId ?? "unknown").toLowerCase().replace(/[^a-z0-9]/g, "-").slice(0, 40);
-  return `mock-input-${safeCaseId}-${plane}-${salt}`;
+function deterministicInputId(caseId, plane, fileName = "", fileSize = 0) {
+  const hex = crypto.createHash("sha256").update(`${caseId}|${plane}|${fileName}|${fileSize}`).digest("hex").slice(0, 32);
+  return `inp_${hex}`;
 }
 
 function extensionOf(fileName) {
@@ -200,13 +221,13 @@ function frozenSagittalArtifacts(planeRunId) {
 function multiplanarV2Response(v2Request) {
   const caseId = v2Request.caseId ?? "unknown-case";
   const traceId = v2Request.traceId ?? `mock-trace-${caseId}`;
-  const runId = `multi-${crypto.randomBytes(10).toString("hex")}`;
   const sagittalRequested = v2Request.planes?.sagittal ?? null;
   const axialRequested = v2Request.planes?.axial ?? null;
+  const runId = `multi-${hashId(caseId, traceId, sagittalRequested?.inputId, axialRequested?.inputId)}`;
 
   function planeResponse(planeName, execution) {
     if (!execution) return null;
-    const planeRunId = `plane-${crypto.randomBytes(8).toString("hex")}`;
+    const planeRunId = `plane-${hashId(caseId, planeName, execution.inputId)}`;
     const isFrozenSagittalSpider = planeName === "sagittal" && execution.modelKey === SAGITTAL_SPIDER_MODEL_KEY;
     const artifacts = isFrozenSagittalSpider
       ? frozenSagittalArtifacts(planeRunId)
@@ -331,6 +352,10 @@ function multiplanarV2Response(v2Request) {
   };
 }
 
+function hashId(...parts) {
+  return crypto.createHash("sha256").update(parts.map((part) => String(part ?? "")).join("|")).digest("hex").slice(0, 20);
+}
+
 const server = http.createServer((request, response) => {
   if (request.method === "GET" && request.url === "/health") {
     response.writeHead(200, { "Content-Type": "application/json" });
@@ -350,7 +375,7 @@ const server = http.createServer((request, response) => {
         return jsonResponse(response, 400, { status: "error", code: "MISSING_FILE", message: "El multipart no incluyo un part 'file'." });
       }
       jsonResponse(response, 200, {
-        inputId: deterministicInputId(caseId, plane),
+        inputId: deterministicInputId(caseId, plane, fileName, fileSize),
         caseId,
         plane,
         format: extensionOf(fileName),
@@ -378,20 +403,21 @@ const server = http.createServer((request, response) => {
     return;
   }
 
-  // EXT-04B3.5 E2E harness fixture gap: this mock (forked from the Stage 87 lineage this
-  // Backend commit descends from) never implemented the real AI Module's per-slice image
-  // route, which AiBackendService.getSeriesSlice (already-tested product code, unrelated to
-  // this iteration) proxies to. The route itself and this exact fixed 1x1 PNG were already
-  // proven working against the real Backend's inputId validation earlier in this session
-  // (docker/post-e50-mocks/mock-ai.mjs on research/post-e50-spring-ai-product-contract) --
-  // ported here verbatim as test-only harness setup, never a change to productive Backend
-  // or Frontend code. Stateless: any inputId/index is served the same fixed image, matching
-  // this mock's existing no-persistence convention.
-  const sliceMatch = request.method === "GET" && /^\/inputs\/[^/]+\/slices\/\d+$/.exec(request.url);
-  if (sliceMatch) {
-    const TINY_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
-    response.writeHead(200, { "Content-Type": "image/png", "Cache-Control": "no-store" });
-    response.end(Buffer.from(TINY_PNG_BASE64, "base64"));
+  // EXT-04B3.5 E2E harness fixture gap: this mock never implemented the real AI Module's
+  // per-slice image route, which AiBackendService.getSeriesSlice (already-tested product code)
+  // proxies to. Test-only harness setup, never a change to productive Backend or Frontend code.
+  // Stateless: any inputId/index is served the same fixed 1x1 PNG (TINY_PNG), matching this
+  // mock's existing no-persistence convention. Stage 89 Demo Mode adds the X-Mock-* echo headers
+  // so a demo run can be traced back to the inputId/index that produced each slice.
+  const sliceMatch = /^\/inputs\/([^/]+)\/slices\/(\d+)$/.exec(request.url ?? "");
+  if (request.method === "GET" && sliceMatch) {
+    response.writeHead(200, {
+      "Content-Type": "image/png",
+      "Cache-Control": "no-store",
+      "X-Mock-Input-Id": decodeURIComponent(sliceMatch[1]),
+      "X-Mock-Slice-Index": sliceMatch[2],
+    });
+    response.end(TINY_PNG);
     return;
   }
 

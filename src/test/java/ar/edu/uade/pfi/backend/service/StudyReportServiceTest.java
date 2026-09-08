@@ -77,6 +77,8 @@ class StudyReportServiceTest {
         ));
 
         StudyReportDto report = service.report(study.caseId(), null);
+        // El mapper compartido JSON ya registra JavaTimeModule, por lo que `generatedAt` (Instant)
+        // serializa igual que con el ObjectMapper autoconfigurado de la aplicación real.
         String json = JSON.writeValueAsString(report);
 
         assertAll(

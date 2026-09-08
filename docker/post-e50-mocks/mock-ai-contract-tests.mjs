@@ -70,8 +70,24 @@ async function main() {
     const uploadBody = await uploadResponse.json();
     assert.equal(uploadBody.caseId, "CASE-87-CONTRACT-1");
     assert.equal(uploadBody.plane, "sagittal");
-    assert.ok(uploadBody.inputId.startsWith("mock-input-"));
+    assert.match(uploadBody.inputId, /^inp_[0-9a-f]{32}$/);
     ok("2 upload success devuelve 200 con inputId/caseId/plane");
+
+    // 2c. 89-CONT-G: reproduces AiBackendService.getSeriesSlice's own INPUT_ID_PATTERN exactly
+    // (`^inp_[0-9a-f]{32}$`, backend/src/main/java/.../AiBackendService.java) -- this must fail
+    // before the 89-CONT fix (a `mock-input-*` id fails it) and pass after (an `inp_<32-hex>` id
+    // satisfies it). A conforming id is a precondition for the slice viewer to ever reach the
+    // mock at all: the Backend rejects a non-conforming inputId with 400 before forwarding
+    // upstream, regardless of what this mock itself would return.
+    const backendInputIdPattern = /^inp_[0-9a-f]{32}$/;
+    assert.match(uploadBody.inputId, backendInputIdPattern, "inputId no conforma al contrato real que valida AiBackendService antes de reenviar al AI Module");
+    ok("2c inputId conforma al INPUT_ID_PATTERN real del Backend (root cause del 400 de slices, ahora corregido)");
+
+    const repeatUploadResponse = await fetch(`${baseUrl}/inputs`, { method: "POST", headers: { "Content-Type": upload.contentType }, body: upload.body });
+    assert.equal(repeatUploadResponse.status, 200);
+    const repeatUploadBody = await repeatUploadResponse.json();
+    assert.equal(repeatUploadBody.inputId, uploadBody.inputId);
+    ok("2b upload success es determinístico para caseId/plano/archivo/tamaño");
 
     // 3. upload deterministic response shape.
     assert.equal(typeof uploadBody.format, "string");
@@ -103,14 +119,22 @@ async function main() {
     assert.equal(runBody.caseId, "CASE-87-CONTRACT-2");
     ok("5 run success devuelve el contrato v2 completo");
 
+    const repeatRunResponse = await fetch(`${baseUrl}/v2/multiplanar/run`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(runRequest) });
+    assert.equal(repeatRunResponse.status, 200);
+    const repeatRunBody = await repeatRunResponse.json();
+    assert.equal(repeatRunBody.runId, runBody.runId);
+    assert.equal(repeatRunBody.planes.sagittal.runId, runBody.planes.sagittal.runId);
+    ok("5b run success es determinístico para caseId/trace/inputIds");
+
     // 6. run unknown input (mock does not validate inputId existence -- it is stateless per 87-I,
     // so an unrecognized inputId still gets a deterministic, contractually valid response; the
     // Backend's own persistence layer is what would notice a truly unknown input downstream).
-    const unknownInputRequest = { ...runRequest, caseId: "CASE-87-CONTRACT-3", planes: { sagittal: { inputId: "mock-input-does-not-exist", modelKey: "sagittal_spider" }, axial: null } };
+    const unknownInputId = "inp_00000000000000000000000000000000";
+    const unknownInputRequest = { ...runRequest, caseId: "CASE-87-CONTRACT-3", planes: { sagittal: { inputId: unknownInputId, modelKey: "sagittal_spider" }, axial: null } };
     const unknownInputResponse = await fetch(`${baseUrl}/v2/multiplanar/run`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(unknownInputRequest) });
     assert.equal(unknownInputResponse.status, 200);
     const unknownInputBody = await unknownInputResponse.json();
-    assert.equal(unknownInputBody.planes.sagittal.input.inputId, "mock-input-does-not-exist");
+    assert.equal(unknownInputBody.planes.sagittal.input.inputId, unknownInputId);
     ok("6 run con inputId desconocido sigue siendo determinístico (mock stateless, 87-I)");
 
     // 7. sagittal_spider frozen artifact counts (>= 3 masks/landmarks, >= 9 measurements --
@@ -130,6 +154,21 @@ async function main() {
     assert.equal(productBody.discLevels[0].level, "L4-L5");
     assert.equal(productBody.discLevels[0].measurements[0].structure, "disc");
     ok("8 product analyze conserva forma completed/partial con measurements reales");
+
+    const demoProductResponse = await fetch(`${baseUrl}/v1/product/analyze`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ caseId: "DEMO-LUMBAR-2026-03" }) });
+    assert.equal(demoProductResponse.status, 200);
+    const demoProductBody = await demoProductResponse.json();
+    assert.equal(demoProductBody.discLevels[0].measurements[0].majorAxisMm, 13.1);
+    assert.equal(demoProductBody.humanReviewRequired, true);
+    assert.equal(demoProductBody.notClinicalDiagnosis, true);
+    ok("8b product analyze soporta fixture demo case-specific sin random");
+
+    const sliceResponse = await fetch(`${baseUrl}/inputs/${encodeURIComponent(uploadBody.inputId)}/slices/2`);
+    assert.equal(sliceResponse.status, 200);
+    assert.equal(sliceResponse.headers.get("content-type"), "image/png");
+    const sliceBytes = new Uint8Array(await sliceResponse.arrayBuffer());
+    assert.deepEqual(Array.from(sliceBytes.slice(1, 4)), [80, 78, 71]);
+    ok("8c full-series slice route devuelve PNG determinístico");
 
     // 9. product warnings unchanged (67B2/67C).
     assert.deepEqual(productBody.warnings, ["67B2_RUNTIME_PARITY_NOT_PROVEN", "67C_RUNTIME_PARITY_NOT_PROVEN"]);
