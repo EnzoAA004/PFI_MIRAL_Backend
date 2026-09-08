@@ -75,6 +75,15 @@ public interface AiServiceOperations {
         throw new UnsupportedOperationException("subarticular_prediction_unavailable");
     }
 
+    /**
+     * EXT-03: Grad-CAM explainability asset for the subarticular classifier's own prediction on
+     * this ROI. Same scope as {@link #predictSubarticular} — punctual, not part of a run, never
+     * persisted as a finding.
+     */
+    default ar.edu.uade.pfi.backend.dto.SubarticularExplainResponseDto explainSubarticular(ar.edu.uade.pfi.backend.dto.AiSubarticularExplainRequestDto request) {
+        throw new UnsupportedOperationException("subarticular_explainability_unavailable");
+    }
+
     Map<String, Object> getAgentReport(String runId);
 
     Map<String, Object> getAgentReportSummary(String runId);

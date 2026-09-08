@@ -2,7 +2,9 @@ package ar.edu.uade.pfi.backend.controller;
 
 import ar.edu.uade.pfi.backend.client.AiServiceOperations;
 import ar.edu.uade.pfi.backend.config.error.ApiErrorCode;
+import ar.edu.uade.pfi.backend.dto.AiSubarticularExplainRequestDto;
 import ar.edu.uade.pfi.backend.dto.AiSubarticularPredictRequestDto;
+import ar.edu.uade.pfi.backend.dto.SubarticularExplainResponseDto;
 import ar.edu.uade.pfi.backend.dto.DegenerativeFindingSideV1;
 import ar.edu.uade.pfi.backend.dto.DegenerativeFindingsV1Dto;
 import ar.edu.uade.pfi.backend.dto.SubarticularPredictionRequestDto;
@@ -114,17 +116,79 @@ public class AiDegenerativeFindingsController {
         return response;
     }
 
+    private static final Set<String> ALLOWED_EXPLAIN_FIELDS = Set.of("inputId", "instanceNumber", "x", "y", "side", "level", "targetClass");
+    private static final Set<String> ALLOWED_TARGET_CLASSES = Set.of("normal_mild", "moderate", "severe");
+
+    /**
+     * EXT-03: mismo pedido que {@code /subarticular} (misma ROI), pero pidiendo el mapa de
+     * activación de la predicción en lugar de la predicción en sí. No persiste nada — igual
+     * que la predicción, es puntual y de alcance de investigación.
+     */
+    @PostMapping("/subarticular/explain")
+    public SubarticularExplainResponseDto explainSubarticular(@RequestBody JsonNode body) {
+        SubarticularPredictionRequestDto request = strictExplainRequest(body);
+        String level = request.level().trim();
+        requireValidLevel(level);
+        requireFiniteCoordinate(request.x(), "x");
+        requireFiniteCoordinate(request.y(), "y");
+        String targetClass = body.has("targetClass") && !body.get("targetClass").isNull() ? text(body, "targetClass") : null;
+        if (targetClass != null && !targetClass.isBlank() && !ALLOWED_TARGET_CLASSES.contains(targetClass)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "targetClass invalido.");
+        }
+
+        AiSubarticularExplainRequestDto upstream = new AiSubarticularExplainRequestDto(
+            request.inputId().trim(),
+            request.instanceNumber(),
+            request.x(),
+            request.y(),
+            request.side().wireValue(),
+            level,
+            targetClass == null || targetClass.isBlank() ? null : targetClass
+        );
+
+        try {
+            SubarticularExplainResponseDto response = aiServiceClient.explainSubarticular(upstream);
+            requireUsableExplainResponse(response);
+            return response;
+        } catch (UnsupportedOperationException ex) {
+            throw new ResponseStatusException(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                ApiErrorCode.AI_SUBARTICULAR_UNAVAILABLE.publicMessage()
+            );
+        }
+    }
+
+    private SubarticularPredictionRequestDto strictExplainRequest(JsonNode body) {
+        requireOnlyAllowedFields(body, ALLOWED_EXPLAIN_FIELDS);
+        return parseRoiFields(body);
+    }
+
+    /** Un mapa mal formado no se muestra a medias: si falta el PNG, es un 502, no una imagen rota. */
+    private void requireUsableExplainResponse(SubarticularExplainResponseDto response) {
+        if (response == null || response.heatmapPng() == null || response.heatmapPng().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, ApiErrorCode.AI_INVALID_RESPONSE.publicMessage());
+        }
+    }
+
     /** Rechaza cualquier campo fuera del contrato antes de construir el DTO. */
     private SubarticularPredictionRequestDto strictRequest(JsonNode body) {
+        requireOnlyAllowedFields(body, ALLOWED_FIELDS);
+        return parseRoiFields(body);
+    }
+
+    private void requireOnlyAllowedFields(JsonNode body, Set<String> allowed) {
         if (body == null || !body.isObject()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Solicitud invalida.");
         }
         Iterator<String> fieldNames = body.fieldNames();
         while (fieldNames.hasNext()) {
-            if (!ALLOWED_FIELDS.contains(fieldNames.next())) {
+            if (!allowed.contains(fieldNames.next())) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Solicitud invalida.");
             }
         }
+    }
+
+    private SubarticularPredictionRequestDto parseRoiFields(JsonNode body) {
         String inputId = text(body, "inputId");
         if (inputId.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "inputId es obligatorio.");
