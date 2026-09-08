@@ -79,14 +79,19 @@ class StudyReportControllerTest {
 
     @Test
     void pdfExportSetsAttachmentFilenameAndSanitizesUnsafeCaseId() throws Exception {
-        when(reportService.reportPdf(eq("CASE:88%20unsafe"), eq(null))).thenReturn("%PDF-1.7\n".getBytes());
+        when(reportService.reportPdf(eq("CASE:88 unsafe"), eq(null))).thenReturn("%PDF-1.7\n".getBytes());
 
+        // Stage 88 test-gap fix: la variante anterior pasaba la URL ya escapada como string crudo,
+        // que MockMvc no decodifica, así que el controller recibía el literal "CASE:88%20unsafe" y
+        // el test sólo comprobaba que '%' se sanitiza a '_'. Con la plantilla {caseId} llega un
+        // espacio real y se ejercita la sanitización verdadera: "CASE:88 unsafe" -> "CASE_88_unsafe".
         mockMvc.perform(get("/api/studies/{caseId}/report.pdf", "CASE:88 unsafe").with(reviewer()))
             .andExpect(status().isOk())
             .andExpect(content().contentType(MediaType.APPLICATION_PDF))
-            .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION, org.hamcrest.Matchers.containsString("study-report-CASE_88_20unsafe.pdf")));
+            .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION, org.hamcrest.Matchers.containsString("study-report-CASE_88_unsafe.pdf")))
+            .andExpect(content().bytes("%PDF-1.7\n".getBytes()));
 
-        verify(reportService).reportPdf("CASE:88%20unsafe", null);
+        verify(reportService).reportPdf("CASE:88 unsafe", null);
     }
 
     private StudyReportDto minimalReport(String caseId) {
