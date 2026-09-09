@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
@@ -58,6 +59,7 @@ public class SecurityStartupValidator {
             corsAllowedOrigins, corsAllowedOriginPatterns, allowPreviewPatterns, "none", null, null, false);
     }
 
+    @Autowired
     public SecurityStartupValidator(
         Environment environment,
         @Value("${pfi.auth.jwt-secret:pfi-demo-change-me-2026}") String jwtSecret,
