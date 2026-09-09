@@ -32,6 +32,31 @@ public class SecurityStartupValidator {
     private final String corsAllowedOrigins;
     private final String corsAllowedOriginPatterns;
     private final boolean allowPreviewPatterns;
+    private final String aiAuthMode;
+    private final String aiAudience;
+    private final String aiBaseUrl;
+    private final boolean privateAiRequired;
+
+    /**
+     * Sobrecarga de compatibilidad para los llamadores que no configuran el acceso al modulo de
+     * IA privado. Declara {@code none} explicitamente -que es lo que hace application.properties
+     * por defecto- y no exige IA privada: equivale a un runtime cuyo modulo de IA no pide
+     * credencial.
+     */
+    public SecurityStartupValidator(
+        Environment environment,
+        String jwtSecret,
+        boolean authEnabled,
+        boolean demoEnabled,
+        boolean exposeDevCodes,
+        String persistenceMode,
+        String corsAllowedOrigins,
+        String corsAllowedOriginPatterns,
+        boolean allowPreviewPatterns
+    ) {
+        this(environment, jwtSecret, authEnabled, demoEnabled, exposeDevCodes, persistenceMode,
+            corsAllowedOrigins, corsAllowedOriginPatterns, allowPreviewPatterns, "none", null, null, false);
+    }
 
     public SecurityStartupValidator(
         Environment environment,
@@ -42,7 +67,11 @@ public class SecurityStartupValidator {
         @Value("${pfi.persistence.mode:memory}") String persistenceMode,
         @Value("${pfi.cors.allowed-origins:}") String corsAllowedOrigins,
         @Value("${pfi.cors.allowed-origin-patterns:}") String corsAllowedOriginPatterns,
-        @Value("${pfi.cors.allow-preview-patterns:false}") boolean allowPreviewPatterns
+        @Value("${pfi.cors.allow-preview-patterns:false}") boolean allowPreviewPatterns,
+        @Value("${pfi.ai-service.auth-mode:}") String aiAuthMode,
+        @Value("${pfi.ai-service.audience:}") String aiAudience,
+        @Value("${pfi.ai-service.base-url:}") String aiBaseUrl,
+        @Value("${pfi.ai-service.private-ai-required:false}") boolean privateAiRequired
     ) {
         this.environment = environment;
         this.jwtSecret = jwtSecret;
@@ -53,10 +82,17 @@ public class SecurityStartupValidator {
         this.corsAllowedOrigins = corsAllowedOrigins;
         this.corsAllowedOriginPatterns = corsAllowedOriginPatterns;
         this.allowPreviewPatterns = allowPreviewPatterns;
+        this.aiAuthMode = aiAuthMode;
+        this.aiAudience = aiAudience;
+        this.aiBaseUrl = aiBaseUrl;
+        this.privateAiRequired = privateAiRequired;
     }
 
     @PostConstruct
     void validate() {
+        // Corre antes del corte por perfil: un runtime cloud/demo puede exigir IA privada sin
+        // estar marcado como "production".
+        validateAiServiceAuthorization();
         if (!isProductionProfile()) {
             return;
         }
@@ -125,6 +161,79 @@ public class SecurityStartupValidator {
         if (!patterns.isEmpty() && !allowPreviewPatterns) {
             fail("pfi.cors.allowed-origin-patterns must be empty in production unless "
                 + "pfi.cors.allow-preview-patterns (PFI_CORS_ALLOW_PREVIEW_PATTERNS) is explicitly true");
+        }
+    }
+
+    /**
+     * Cierra el hueco fail-open del acceso al modulo de IA privado.
+     *
+     * <p>Antes, con {@code PFI_AI_AUTH_MODE} sin definir en un runtime cloud/demo, el backend
+     * caia en silencio al proveedor Noop y llamaba al modulo de IA sin cabecera Authorization:
+     * un despliegue que se creia autenticado no lo estaba, y solo se notaba por los 401/403 del
+     * upstream. Ahora un runtime cloud/demo tiene que declarar el modo explicitamente.
+     *
+     * <p>Un runtime es cloud/demo si el perfil activo es production/prod, o si se declara
+     * {@code pfi.ai-service.private-ai-required=true} (PFI_AI_PRIVATE_REQUIRED). Fuera de eso
+     * -local y dev- el modo {@code none} sigue siendo valido y no se exige nada.
+     */
+    private void validateAiServiceAuthorization() {
+        String declaredMode = aiAuthMode == null ? "" : aiAuthMode.trim();
+        AiServiceAuthMode mode;
+        try {
+            mode = AiServiceAuthMode.fromConfigValue(declaredMode);
+        } catch (IllegalArgumentException ex) {
+            fail("pfi.ai-service.auth-mode (PFI_AI_AUTH_MODE) is not a supported value; "
+                + "use \"none\" for a local runtime or \"google-id-token\" for a private AI module");
+            return;
+        }
+
+        boolean cloudRuntime = privateAiRequired || isProductionProfile();
+
+        // En un runtime cloud/demo el modo se declara a mano. Dejarlo sin definir es justamente
+        // el caso que caia en Noop sin que nadie se enterara; "none" explicito sigue siendo una
+        // eleccion valida, pero tiene que ser una eleccion.
+        if (cloudRuntime && declaredMode.isBlank()) {
+            fail("pfi.ai-service.auth-mode (PFI_AI_AUTH_MODE) must be declared explicitly in a "
+                + "cloud/demo runtime -- \"google-id-token\" for a private AI module, or \"none\" to "
+                + "state on purpose that the AI module needs no credential; leaving it unset would "
+                + "call the AI module with no Authorization header instead of failing");
+        }
+
+        // La bandera de IA privada es la que exige credencial: declarar que se necesita y quedarse
+        // en "none" es una configuracion contradictoria, no un default aceptable.
+        if (privateAiRequired && mode != AiServiceAuthMode.GOOGLE_ID_TOKEN) {
+            fail("pfi.ai-service.auth-mode (PFI_AI_AUTH_MODE) must be \"google-id-token\" when "
+                + "pfi.ai-service.private-ai-required (PFI_AI_PRIVATE_REQUIRED) is true; "
+                + "\"none\" is only valid for a runtime whose AI module needs no credential");
+        }
+
+        if (mode != AiServiceAuthMode.GOOGLE_ID_TOKEN) {
+            return;
+        }
+
+        // En modo google-id-token la audience tiene que resolver a un origen valido. Se exige
+        // declarada y no derivada del base-url: derivarla en la nube esconde un error de config.
+        String declaredAudience = aiAudience == null ? "" : aiAudience.trim();
+        if (declaredAudience.isBlank()) {
+            if (cloudRuntime) {
+                fail("pfi.ai-service.audience (PFI_AI_SERVICE_AUDIENCE) is required when "
+                    + "PFI_AI_AUTH_MODE=google-id-token in a cloud/demo runtime, and must be the "
+                    + "AI module's own origin");
+            }
+            declaredAudience = aiBaseUrl == null ? "" : aiBaseUrl.trim();
+            if (declaredAudience.isBlank()) {
+                fail("pfi.ai-service.audience (PFI_AI_SERVICE_AUDIENCE) is required when "
+                    + "PFI_AI_AUTH_MODE=google-id-token and no base-url is configured to derive it from");
+            }
+        }
+
+        try {
+            // Reutiliza la normalizacion fail-closed ya probada en AiServiceProperties en vez de
+            // duplicar una segunda regla de validacion de audience.
+            new AiServiceProperties(null, null, null, null, "google-id-token", declaredAudience).resolvedAudience();
+        } catch (IllegalArgumentException ex) {
+            fail("pfi.ai-service.audience (PFI_AI_SERVICE_AUDIENCE) must be an absolute HTTP(S) origin "
+                + "with no path, query or fragment");
         }
     }
 
