@@ -1,0 +1,108 @@
+module.artifact_registry.data.google_artifact_registry_repository.existing[0]: Reading...
+module.artifact_registry.data.google_artifact_registry_repository.existing[0]: Read complete after 1s [id=projects/pfi-asplanatti-fabrello-v1/locations/us-central1/repositories/pfi-containers]
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  + create
+
+Terraform will perform the following actions:
+
+  # module.artifact_registry.google_artifact_registry_repository_iam_member.writers["serviceAccount:pfi-github-artifact-pusher@pfi-asplanatti-fabrello-v1.iam.gserviceaccount.com"] will be created
+  + resource "google_artifact_registry_repository_iam_member" "writers" {
+      + etag       = (known after apply)
+      + id         = (known after apply)
+      + location   = "us-central1"
+      + member     = "serviceAccount:pfi-github-artifact-pusher@pfi-asplanatti-fabrello-v1.iam.gserviceaccount.com"
+      + project    = "pfi-asplanatti-fabrello-v1"
+      + repository = "pfi-containers"
+      + role       = "roles/artifactregistry.writer"
+    }
+
+  # module.workload_identity.google_iam_workload_identity_pool.github will be created
+  + resource "google_iam_workload_identity_pool" "github" {
+      + deletion_policy           = "DELETE"
+      + description               = "Federates GitHub Actions OIDC tokens for CI/CD image publishing. No service-account JSON key is ever used."
+      + display_name              = "GitHub Actions"
+      + id                        = (known after apply)
+      + mode                      = (known after apply)
+      + name                      = (known after apply)
+      + project                   = "pfi-asplanatti-fabrello-v1"
+      + state                     = (known after apply)
+      + workload_identity_pool_id = "github-pool"
+    }
+
+  # module.workload_identity.google_iam_workload_identity_pool_provider.github will be created
+  + resource "google_iam_workload_identity_pool_provider" "github" {
+      + attribute_condition                = "assertion.repository in [\"EnzoAA004/PFI_MVPTest_Enzo_Backend\",\"EnzoAA004/PFI_MVPTest_Enzo_Frontend\",\"EnzoAA004/PFI_MVPTest_Enzo_AImodule\"]"
+      + attribute_mapping                  = {
+          + "attribute.actor"      = "assertion.actor"
+          + "attribute.ref"        = "assertion.ref"
+          + "attribute.repository" = "assertion.repository"
+          + "google.subject"       = "assertion.sub"
+        }
+      + deletion_policy                    = "DELETE"
+      + display_name                       = "GitHub OIDC"
+      + id                                 = (known after apply)
+      + name                               = (known after apply)
+      + project                            = "pfi-asplanatti-fabrello-v1"
+      + state                              = (known after apply)
+      + workload_identity_pool_id          = "github-pool"
+      + workload_identity_pool_provider_id = "github-provider"
+
+      + oidc {
+          + issuer_uri = "https://token.actions.githubusercontent.com"
+        }
+    }
+
+  # module.workload_identity.google_service_account.artifact_pusher will be created
+  + resource "google_service_account" "artifact_pusher" {
+      + account_id      = "pfi-github-artifact-pusher"
+      + deletion_policy = "DELETE"
+      + disabled        = false
+      + display_name    = "PFI GitHub Artifact Pusher"
+      + email           = "pfi-github-artifact-pusher@pfi-asplanatti-fabrello-v1.iam.gserviceaccount.com"
+      + id              = (known after apply)
+      + member          = "serviceAccount:pfi-github-artifact-pusher@pfi-asplanatti-fabrello-v1.iam.gserviceaccount.com"
+      + name            = (known after apply)
+      + project         = "pfi-asplanatti-fabrello-v1"
+      + unique_id       = (known after apply)
+    }
+
+  # module.workload_identity.google_service_account_iam_member.wif_impersonation["EnzoAA004/PFI_MVPTest_Enzo_AImodule"] will be created
+  + resource "google_service_account_iam_member" "wif_impersonation" {
+      + etag               = (known after apply)
+      + id                 = (known after apply)
+      + member             = (known after apply)
+      + role               = "roles/iam.workloadIdentityUser"
+      + service_account_id = (known after apply)
+    }
+
+  # module.workload_identity.google_service_account_iam_member.wif_impersonation["EnzoAA004/PFI_MVPTest_Enzo_Backend"] will be created
+  + resource "google_service_account_iam_member" "wif_impersonation" {
+      + etag               = (known after apply)
+      + id                 = (known after apply)
+      + member             = (known after apply)
+      + role               = "roles/iam.workloadIdentityUser"
+      + service_account_id = (known after apply)
+    }
+
+  # module.workload_identity.google_service_account_iam_member.wif_impersonation["EnzoAA004/PFI_MVPTest_Enzo_Frontend"] will be created
+  + resource "google_service_account_iam_member" "wif_impersonation" {
+      + etag               = (known after apply)
+      + id                 = (known after apply)
+      + member             = (known after apply)
+      + role               = "roles/iam.workloadIdentityUser"
+      + service_account_id = (known after apply)
+    }
+
+Plan: 7 to add, 0 to change, 0 to destroy.
+
+Changes to Outputs:
+  + artifact_pusher_email = "pfi-github-artifact-pusher@pfi-asplanatti-fabrello-v1.iam.gserviceaccount.com"
+  + wif_pool_name         = (known after apply)
+  + wif_provider_name     = (known after apply)
+
+─────────────────────────────────────────────────────────────────────────────
+
+Note: You didn't use the -out option to save this plan, so Terraform can't
+guarantee to take exactly these actions if you run "terraform apply" now.

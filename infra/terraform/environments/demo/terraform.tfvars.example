@@ -1,0 +1,23 @@
+# Copy to terraform.tfvars (gitignored). backend_image/frontend_image/
+# ai_image MUST be the exact same tags already deployed and smoke-tested in
+# DEV — never a fresh build for DEMO (CLOUD-00O: build once, deploy anywhere).
+
+project_id  = "pfi-asplanatti-fabrello-v1"
+region      = "us-central1"
+environment = "demo"
+
+github_repository = "EnzoAA004/PFI_MVPTest_Enzo_Backend"
+
+backend_image  = "us-central1-docker.pkg.dev/pfi-asplanatti-fabrello-v1/pfi-containers/backend:REPLACE_WITH_SAME_SHA_AS_DEV"
+frontend_image = "us-central1-docker.pkg.dev/pfi-asplanatti-fabrello-v1/pfi-containers/frontend:REPLACE_WITH_SAME_SHA_AS_DEV"
+ai_image       = "us-central1-docker.pkg.dev/pfi-asplanatti-fabrello-v1/pfi-containers/ai-service:REPLACE_WITH_SAME_SHA_AS_DEV"
+
+enable_cloud_sql  = false
+enable_secrets    = false
+enable_monitoring = false
+enable_ai_service = false
+
+# 0 (default) = scale-to-zero, cheapest, cold start after idle.
+# 1 = no cold start, for a scheduled live demo session — see CLOUD_06_COST_CHECK.md.
+backend_min_instances  = 0
+frontend_min_instances = 0

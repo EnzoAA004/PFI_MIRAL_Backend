@@ -1,0 +1,19 @@
+[0m[1mmodule.backend_cloud_run.google_cloud_run_v2_service.this: Modifying... [id=projects/pfi-asplanatti-fabrello-v1/locations/us-central1/services/pfi-backend-dev][0m[0m
+[0m[1mmodule.backend_cloud_run.google_cloud_run_v2_service.this: Still modifying... [id=projects/pfi-asplanatti-fabrello-v1/loc...s/us-central1/services/pfi-backend-dev, 10s elapsed][0m[0m
+[0m[1mmodule.backend_cloud_run.google_cloud_run_v2_service.this: Still modifying... [id=projects/pfi-asplanatti-fabrello-v1/loc...s/us-central1/services/pfi-backend-dev, 20s elapsed][0m[0m
+[0m[1mmodule.backend_cloud_run.google_cloud_run_v2_service.this: Still modifying... [id=projects/pfi-asplanatti-fabrello-v1/loc...s/us-central1/services/pfi-backend-dev, 30s elapsed][0m[0m
+[0m[1mmodule.backend_cloud_run.google_cloud_run_v2_service.this: Still modifying... [id=projects/pfi-asplanatti-fabrello-v1/loc...s/us-central1/services/pfi-backend-dev, 40s elapsed][0m[0m
+[0m[1mmodule.backend_cloud_run.google_cloud_run_v2_service.this: Modifications complete after 46s [id=projects/pfi-asplanatti-fabrello-v1/locations/us-central1/services/pfi-backend-dev][0m
+[0m[1m[32m
+Apply complete! Resources: 0 added, 1 changed, 0 destroyed.
+[0m[0m[1m[32m
+Outputs:
+
+[0martifact_repository = "us-central1-docker.pkg.dev/pfi-asplanatti-fabrello-v1/pfi-containers"
+backend_url = "https://pfi-backend-dev-7cxg46zwea-uc.a.run.app"
+frontend_url = "https://pfi-frontend-dev-7cxg46zwea-uc.a.run.app"
+runtime_service_accounts = {
+  "ai_runtime" = "pfi-ai-runtime@pfi-asplanatti-fabrello-v1.iam.gserviceaccount.com"
+  "backend_runtime" = "pfi-backend-runtime@pfi-asplanatti-fabrello-v1.iam.gserviceaccount.com"
+  "frontend_runtime" = "pfi-frontend-runtime-dev@pfi-asplanatti-fabrello-v1.iam.gserviceaccount.com"
+}

@@ -1,0 +1,151 @@
+name: CLOUD-07 Rollback (dry-run by default)
+
+# CLOUD-07 (experimental / plan-only stage): evaluates whether a rollback is
+# warranted (ROLLBACK_REQUIRED / NO_ROLLBACK, via scripts/cloud/
+# rollback-decision.sh) and, if `execute=true` is explicitly passed, WOULD
+# shift traffic back to the stable revision — but while CLOUD-07 stays
+# experimental, no traffic-update step exists in this file at all, so
+# `execute=true` currently only changes what gets printed, never what gets
+# run. Making `execute=true` actually perform the traffic shift is a
+# separate, explicitly authorized change to this workflow file.
+#
+# NOTE (CLOUD-07, plan-only): references vars.GCP_CI_READER_SERVICE_ACCOUNT
+# (proposed in CLOUD_06_SECURITY_REVIEW.md, not yet created) for read-only
+# checks, and a separate proposed rollback-executor identity (see
+# CLOUD_07_SECURITY_REVIEW.md) for the traffic-update permission that this
+# workflow does not yet use.
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "dev or demo"
+        required: true
+        type: choice
+        options: [dev, demo]
+      service:
+        description: "Cloud Run service name (e.g. pfi-backend-dev)."
+        required: true
+        type: string
+      stable_revision:
+        description: "Last known-good revision name to roll back to."
+        required: true
+        type: string
+      candidate_revision:
+        description: "Revision currently receiving traffic that may need rollback."
+        required: true
+        type: string
+      reason:
+        description: "Why this rollback is being considered (free text, goes into the rollback record)."
+        required: true
+        type: string
+      execute:
+        description: "Must be explicitly set true to have any effect beyond dry-run. Ignored entirely in CLOUD-07 — no execute path exists yet."
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: cloud-07-rollback-${{ inputs.environment }}-${{ inputs.service }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  evaluate-rollback:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Reject 'latest' as a revision name
+        run: |
+          if [[ "${{ inputs.stable_revision }}" == "latest" || "${{ inputs.candidate_revision }}" == "latest" ]]; then
+            echo "::error::'latest' is never a valid Cloud Run revision name."
+            exit 1
+          fi
+
+      # READ-ONLY: proposed pfi-github-ci-reader identity (roles/run.viewer).
+      - name: Authenticate to Google Cloud (read-only)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_CI_READER_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Phase 4 — Verify both revisions exist and belong to the service
+        id: revcheck
+        run: |
+          set +e
+          bash scripts/cloud/verify-cloudrun-revision.sh \
+            "${{ inputs.service }}" "${{ vars.GCP_REGION }}" \
+            "${{ inputs.candidate_revision }}" "${{ inputs.stable_revision }}"
+          echo "revision_exists=$([ $? -eq 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      - name: Check candidate health (real, read-only)
+        id: health
+        if: steps.revcheck.outputs.revision_exists == 'true'
+        run: |
+          set +e
+          URL="$(gcloud run revisions describe "${{ inputs.candidate_revision }}" --region="${{ vars.GCP_REGION }}" --format='value(status.url)')"
+          curl -fsS "${URL}/api/system/health" >/dev/null
+          echo "health_ok=$([ $? -eq 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      - name: Build rollback record (pfi-cloud-rollback.v1)
+        id: record
+        run: |
+          set -euo pipefail
+          cat > rollback-record.json <<EOF
+          {
+            "schemaVersion": "pfi-cloud-rollback.v1",
+            "triggeredAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "environment": "${{ inputs.environment }}",
+            "service": "${{ inputs.service }}",
+            "currentRevision": "${{ inputs.candidate_revision }}",
+            "candidateRevision": "${{ inputs.candidate_revision }}",
+            "stableRevision": "${{ inputs.stable_revision }}",
+            "reason": "${{ inputs.reason }}",
+            "revisionExists": ${{ steps.revcheck.outputs.revision_exists }},
+            "healthOk": ${{ steps.health.outputs.health_ok || 'false' }},
+            "executeRequested": ${{ inputs.execute }},
+            "executed": false
+          }
+          EOF
+          cat rollback-record.json
+
+      - name: Phase 14 — Decide ROLLBACK_REQUIRED vs NO_ROLLBACK
+        run: |
+          set +e
+          bash scripts/cloud/rollback-decision.sh \
+            "${{ steps.revcheck.outputs.revision_exists }}" \
+            true \
+            "${{ steps.health.outputs.health_ok || 'false' }}" \
+            true \
+            true
+          DECISION_EXIT=$?
+          if [[ ${DECISION_EXIT} -eq 1 ]]; then
+            echo "::warning::ROLLBACK_REQUIRED — see the printed reason above."
+          else
+            echo "NO_ROLLBACK — candidate looks healthy."
+          fi
+
+      - name: STOP — no traffic-update step exists in this workflow
+        run: |
+          echo "This workflow is dry-run only. The command that WOULD roll back traffic is:"
+          echo
+          echo "  gcloud run services update-traffic ${{ inputs.service }} \\"
+          echo "    --region=${{ vars.GCP_REGION }} \\"
+          echo "    --to-revisions=${{ inputs.stable_revision }}=100"
+          echo
+          echo "No traffic was changed, regardless of the 'execute' input's value."
+
+      - name: Upload rollback record
+        uses: actions/upload-artifact@v4
+        with:
+          name: pfi-cloud-rollback-record
+          path: rollback-record.json
+          retention-days: 90
