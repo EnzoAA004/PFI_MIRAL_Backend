@@ -58,6 +58,7 @@ public class AiBackendService {
     private static final Set<String> ALLOWED_INPUT_EXTENSIONS =
             Set.of("npy", "png", "jpg", "jpeg", "bmp", "tif", "tiff", "mha", "mhd", "dcm", "ima", "zip");
     private static final Set<String> ALLOWED_INPUT_PLANES = Set.of("sagittal", "axial");
+    private static final Set<String> ALLOWED_SERVER_SIDE_SOURCE_KEYS = Set.of("fixture:sagittal_sample", "fixture:axial_sample");
     /**
      * Planes a series can be listed and displayed under.
      *
@@ -389,6 +390,35 @@ public class AiBackendService {
         return response;
     }
 
+    public AiInputResponseDto registerServerSideInput(String caseId, String plane, String sourceKey) {
+        String normalizedCaseId = trimmed(caseId);
+        String normalizedPlane = normalized(plane);
+        String normalizedSourceKey = trimmed(sourceKey);
+        if (normalizedCaseId.isBlank()) {
+            throw badRequest("caseId es obligatorio.");
+        }
+        if (!CASE_ID_PATTERN.matcher(normalizedCaseId).matches()) {
+            throw badRequest("caseId invalido. Use solo letras, numeros, punto, guion, guion bajo o dos puntos; maximo 80 caracteres.");
+        }
+        if (!ALLOWED_INPUT_PLANES.contains(normalizedPlane)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "plane invalido");
+        }
+        if (!ALLOWED_SERVER_SIDE_SOURCE_KEYS.contains(normalizedSourceKey)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "sourceKey no permitido");
+        }
+        if (!normalizedSourceKey.equals("fixture:" + normalizedPlane + "_sample")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "sourceKey incompatible con plane");
+        }
+        AiInputResponseDto response = aiServiceClient.registerServerSideInput(normalizedCaseId, normalizedPlane, normalizedSourceKey);
+        audit("backend", "upload.input.server_side.completed", response.inputId(), "", Map.of(
+            "caseId", response.caseId(),
+            "plane", response.plane(),
+            "format", response.format(),
+            "size", response.size(),
+            "sourceKey", normalizedSourceKey
+        ));
+        return response;
+    }
     public StudyUploadResponseDto uploadStudy(MultipartFile file, String caseId) {
         String normalizedCaseId = trimmed(caseId);
         validateStudyUpload(file, normalizedCaseId);
@@ -1057,3 +1087,5 @@ public class AiBackendService {
         return value == null ? "" : value.toString();
     }
 }
+
+

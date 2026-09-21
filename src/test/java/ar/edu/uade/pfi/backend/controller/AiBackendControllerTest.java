@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
 import ar.edu.uade.pfi.backend.client.AiServiceOperations;
+import ar.edu.uade.pfi.backend.dto.AiInputResponseDto;
 import ar.edu.uade.pfi.backend.domain.Study;
 import ar.edu.uade.pfi.backend.repository.InMemoryStudyRepository;
 import ar.edu.uade.pfi.backend.service.AiBackendService;
@@ -136,6 +137,39 @@ class AiBackendControllerTest {
     }
 
     @Test
+    void registerServerSideInputAllowsOnlyKnownFixtures() throws Exception {
+        aiClientResponses.put("registerServerSideInput", new AiInputResponseDto(
+            "inp-fixture-123", "CASE-123", "sagittal", "npy", 262272
+        ));
+
+        mockMvc.perform(post("/api/ai/inputs/server-side")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "caseId": "CASE-123",
+                      "plane": "sagittal",
+                      "sourceKey": "fixture:sagittal_sample"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.inputId").value("inp-fixture-123"))
+            .andExpect(jsonPath("$.format").value("npy"));
+    }
+
+    @Test
+    void registerServerSideInputRejectsArbitrarySourceKeys() throws Exception {
+        mockMvc.perform(post("/api/ai/inputs/server-side")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "caseId": "CASE-123",
+                      "plane": "sagittal",
+                      "sourceKey": "../../private"
+                    }
+                    """))
+            .andExpect(status().isBadRequest());
+    }
+    @Test
     void patchReviewUpdatesLocalReview() throws Exception {
         mockMvc.perform(patch("/api/ai/review/run-123")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -187,3 +221,4 @@ class AiBackendControllerTest {
         assertEquals("review-required", agentDecision.get("technicalLabel"));
     }
 }
+

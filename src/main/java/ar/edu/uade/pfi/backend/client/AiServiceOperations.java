@@ -35,6 +35,10 @@ public interface AiServiceOperations {
         throw new UnsupportedOperationException("input_upload_unavailable");
     }
 
+    default AiInputResponseDto registerServerSideInput(String caseId, String plane, String sourceKey) {
+        throw new UnsupportedOperationException("server_side_input_unavailable");
+    }
+
     default Map<String, Object> uploadStudy(MultipartFile file, String caseId) {
         throw new UnsupportedOperationException("study_upload_unavailable");
     }
@@ -112,3 +116,4 @@ public interface AiServiceOperations {
         throw new UnsupportedOperationException("product_analyze_unavailable");
     }
 }
+

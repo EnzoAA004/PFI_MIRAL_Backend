@@ -220,6 +220,17 @@ public class AiServiceClient implements AiServiceOperations {
     }
 
     @Override
+    public AiInputResponseDto registerServerSideInput(String caseId, String plane, String sourceKey) {
+        return execute(() -> aiWebClient.post()
+            .uri("/inputs")
+            .contentType(MediaType.APPLICATION_JSON)
+            .headers(this::applyTraceHeader)
+            .bodyValue(Map.of("caseId", caseId, "plane", plane, "sourceKey", sourceKey))
+            .retrieve()
+            .bodyToMono(AiInputResponseDto.class)
+            .block(timeout));
+    }
+    @Override
     public Map<String, Object> uploadStudy(MultipartFile file, String caseId) {
         String traceId = resolveTraceId();
         MultipartBodyBuilder body = new MultipartBodyBuilder();
@@ -795,3 +806,4 @@ public class AiServiceClient implements AiServiceOperations {
             SafeLogSanitizer.sanitizeMessage(unwrapped.getMessage()));
     }
 }
+

@@ -95,6 +95,14 @@ public class AiBackendController {
         return aiBackendService.uploadInput(file, caseId, plane);
     }
 
+    @PostMapping("/inputs/server-side")
+    public AiInputResponseDto registerServerSideInput(@RequestBody Map<String, String> request) {
+        return aiBackendService.registerServerSideInput(
+            request == null ? null : request.get("caseId"),
+            request == null ? null : request.get("plane"),
+            request == null ? null : request.get("sourceKey")
+        );
+    }
     @PostMapping(value = "/studies", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public StudyUploadResponseDto uploadStudy(
         @RequestParam("file") MultipartFile file,
@@ -205,3 +213,4 @@ public class AiBackendController {
         return aiBackendService.auditTrail();
     }
 }
+

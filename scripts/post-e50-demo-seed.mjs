@@ -95,18 +95,14 @@ async function createStudy(study, accessToken) {
     return;
   }
 
-  const uploadForm = new FormData();
-  uploadForm.set("caseId", study.caseId);
-  uploadForm.set("plane", "sagittal");
-  uploadForm.set(
-    "file",
-    new Blob([`synthetic demo fixture ${fixtureId} ${study.caseId}`], { type: "application/octet-stream" }),
-    `${study.caseId}.dcm`,
-  );
-  const input = await request("/api/ai/inputs", {
+  const input = await request("/api/ai/inputs/server-side", {
     method: "POST",
     headers,
-    body: uploadForm,
+    body: JSON.stringify({
+      caseId: study.caseId,
+      plane: "sagittal",
+      sourceKey: "fixture:sagittal_sample",
+    }),
   });
 
   await request("/api/ai/multiplanar/run", {
@@ -208,3 +204,4 @@ main().catch((error) => {
   console.error(error);
   process.exit(1);
 });
+
