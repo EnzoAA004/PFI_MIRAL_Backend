@@ -36,7 +36,7 @@
     <java.version>21</java.version>
     <maven.version>3.8.3</maven.version>
 
-    <postgresql.version>42.7.4</postgresql.version>
+    <postgresql.version>42.7.13</postgresql.version>
     <!-- 2.6.x es la linea de springdoc que acompana a Spring Boot 3.3.x. -->
     <springdoc-openapi.version>2.6.0</springdoc-openapi.version>
     <testcontainers.version>1.20.4</testcontainers.version>
