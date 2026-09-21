@@ -34,7 +34,7 @@ jobs:
       # OIDC token for a short-lived GCP access token via Workload Identity
       # Federation, impersonating the dedicated push-only service account.
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
           service_account: ${{ vars.GCP_ARTIFACT_PUSH_SERVICE_ACCOUNT }}
