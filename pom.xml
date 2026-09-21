@@ -38,7 +38,7 @@
 
     <postgresql.version>42.7.4</postgresql.version>
     <!-- 2.6.x es la linea de springdoc que acompana a Spring Boot 3.3.x. -->
-    <springdoc-openapi.version>2.6.0</springdoc-openapi.version>
+    <springdoc-openapi.version>3.1.1</springdoc-openapi.version>
     <testcontainers.version>1.20.4</testcontainers.version>
     <wiremock-standalone.version>3.13.2</wiremock-standalone.version>
 
