@@ -13,7 +13,9 @@ El backend no ejecuta modelos de IA. Consume el AI Module por HTTP, normaliza el
 | Variable | Ejemplo | Uso |
 | --- | --- | --- |
 | `PORT` | `8080` | Puerto HTTP usado por Spring Boot. Render/Railway suelen inyectarlo automaticamente. |
-| `PFI_AI_SERVICE_URL` | `https://pfi-ai-module.example.com` | URL base del AI Module FastAPI desplegado. |
+| `PFI_AI_SERVICE_URL` | `https://pfi-ai-module-7cxg46zwea-uc.a.run.app` | URL base del AI Module FastAPI desplegado. |
+| `PFI_AI_AUTH_MODE` | `google-id-token` | Para AI Module privado en Cloud Run. Localmente usar `none`. |
+| `PFI_AI_SERVICE_AUDIENCE` | `https://pfi-ai-module-7cxg46zwea-uc.a.run.app` | Audience del Google ID Token. Debe ser el origen del servicio, sin path. |
 | `PFI_AI_TIMEOUT_SECONDS` | `60` | Timeout del cliente HTTP hacia el AI Module. |
 | `PFI_CORS_ALLOWED_ORIGINS` | `https://frontend.example.com` | Origenes permitidos para el frontend React. Separar varios con coma. |
 
@@ -25,6 +27,8 @@ Opcion Docker:
 2. Elegir deploy con Dockerfile.
 3. Configurar variables:
    - `PFI_AI_SERVICE_URL=https://url-del-ai-module`
+   - `PFI_AI_AUTH_MODE=none` para AI publico/local, o `google-id-token` para Cloud Run privado
+   - `PFI_AI_SERVICE_AUDIENCE=https://url-del-ai-module` cuando se use `google-id-token`
    - `PFI_AI_TIMEOUT_SECONDS=60`
    - `PFI_CORS_ALLOWED_ORIGINS=https://url-del-frontend`
 4. Render asigna `PORT`; la app lo toma con `server.port=${PORT:8080}`.
@@ -43,6 +47,7 @@ Opcion Docker:
 3. Dejar habilitado el autodeploy del branch elegido en Railway.
 4. Configurar variables:
    - `PFI_AI_SERVICE_URL=https://url-del-ai-module`
+   - `PFI_AI_AUTH_MODE=none`
    - `PFI_AI_TIMEOUT_SECONDS=180`
    - `PFI_CORS_ALLOWED_ORIGINS=https://url-del-frontend`
    - `PFI_AUTH_JWT_SECRET=<secret-largo-generado-en-railway>`
@@ -71,6 +76,7 @@ Run contra AI Module local:
 ```bash
 docker run --rm -p 8080:8080 \
   -e PFI_AI_SERVICE_URL=http://host.docker.internal:8000 \
+  -e PFI_AI_AUTH_MODE=none \
   -e PFI_AI_TIMEOUT_SECONDS=60 \
   -e PFI_CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000 \
   pfi-backend
@@ -80,10 +86,14 @@ Run contra AI Module desplegado:
 
 ```bash
 docker run --rm -p 8080:8080 \
-  -e PFI_AI_SERVICE_URL=https://url-del-ai-module \
+  -e PFI_AI_SERVICE_URL=https://pfi-ai-module-7cxg46zwea-uc.a.run.app \
+  -e PFI_AI_AUTH_MODE=google-id-token \
+  -e PFI_AI_SERVICE_AUDIENCE=https://pfi-ai-module-7cxg46zwea-uc.a.run.app \
   -e PFI_CORS_ALLOWED_ORIGINS=https://url-del-frontend \
   pfi-backend
 ```
+
+Para Cloud Run privado, desplegar el backend con la service account runtime y otorgarle `roles/run.invoker` solo sobre `pfi-ai-module`. El backend obtiene el ID token con ADC y lo agrega centralmente como `Authorization: Bearer <Google ID Token>` en el WebClient del AI Module. No requiere JSON de service account ni `GOOGLE_APPLICATION_CREDENTIALS`.
 
 ## CORS Cloud
 

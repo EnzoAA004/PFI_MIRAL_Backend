@@ -1,0 +1,11 @@
+# Copy to terraform.tfvars (gitignored). Defaults already match the real
+# project/region/repos, so an empty terraform.tfvars is valid too.
+
+project_id             = "pfi-asplanatti-fabrello-v1"
+region                 = "us-central1"
+artifact_repository_id = "pfi-containers"
+github_repositories = [
+  "EnzoAA004/PFI_MVPTest_Enzo_Backend",
+  "EnzoAA004/PFI_MVPTest_Enzo_Frontend",
+  "EnzoAA004/PFI_MVPTest_Enzo_AImodule",
+]

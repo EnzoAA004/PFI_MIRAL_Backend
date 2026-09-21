@@ -1,0 +1,31 @@
+[0m[1mmodule.iam.google_service_account.created["frontend_runtime"]: Creating...[0m[0m
+[0m[1mmodule.iam.google_service_account.created["frontend_runtime"]: Still creating... [10s elapsed][0m[0m
+[0m[1mmodule.iam.google_service_account.created["frontend_runtime"]: Creation complete after 13s [id=projects/pfi-asplanatti-fabrello-v1/serviceAccounts/pfi-frontend-runtime-dev@pfi-asplanatti-fabrello-v1.iam.gserviceaccount.com][0m
+[0m[1mmodule.backend_cloud_run.google_cloud_run_v2_service.this: Creating...[0m[0m
+[0m[1mmodule.backend_cloud_run.google_cloud_run_v2_service.this: Still creating... [10s elapsed][0m[0m
+[0m[1mmodule.backend_cloud_run.google_cloud_run_v2_service.this: Still creating... [20s elapsed][0m[0m
+[0m[1mmodule.backend_cloud_run.google_cloud_run_v2_service.this: Still creating... [30s elapsed][0m[0m
+[0m[1mmodule.backend_cloud_run.google_cloud_run_v2_service.this: Creation complete after 34s [id=projects/pfi-asplanatti-fabrello-v1/locations/us-central1/services/pfi-backend-dev][0m
+[0m[1mmodule.backend_cloud_run.google_cloud_run_v2_service_iam_member.public[0]: Creating...[0m[0m
+[0m[1mmodule.frontend_cloud_run.google_cloud_run_v2_service.this: Creating...[0m[0m
+[0m[1mmodule.backend_cloud_run.google_cloud_run_v2_service_iam_member.public[0]: Creation complete after 9s [id=projects/pfi-asplanatti-fabrello-v1/locations/us-central1/services/pfi-backend-dev/roles/run.invoker/allUsers][0m
+[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mError creating Service: googleapi: Error 400: template.containers.resources.limits.memory: Invalid value specified for memory. Total memory < 512 Mi is not supported with cpu always allocated (unthrottled).
+[31m│[0m [0mDetails:
+[31m│[0m [0m[
+[31m│[0m [0m  {
+[31m│[0m [0m    "@type": "type.googleapis.com/google.rpc.BadRequest",
+[31m│[0m [0m    "fieldViolations": [
+[31m│[0m [0m      {
+[31m│[0m [0m        "description": "Invalid value specified for memory. Total memory \u003c 512 Mi is not supported with cpu always allocated (unthrottled).",
+[31m│[0m [0m        "field": "template.containers.resources.limits.memory"
+[31m│[0m [0m      }
+[31m│[0m [0m    ]
+[31m│[0m [0m  }
+[31m│[0m [0m][0m
+[31m│[0m [0m
+[31m│[0m [0m[0m  with module.frontend_cloud_run.google_cloud_run_v2_service.this,
+[31m│[0m [0m  on ../../modules/cloud-run-service/main.tf line 1, in resource "google_cloud_run_v2_service" "this":
+[31m│[0m [0m   1: resource "google_cloud_run_v2_service" "this" [4m{[0m[0m
+[31m│[0m [0m
+[31m╵[0m[0m

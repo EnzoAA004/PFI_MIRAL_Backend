@@ -1,0 +1,53 @@
+{
+  "releaseId": "post-e50-product-rc1",
+  "createdAt": "2026-08-26T02:40:00Z",
+  "backendCommit": "dc8ed8c-plus-stage81-pending",
+  "frontendCommit": "bd4c281-plus-stage81-pending",
+  "aiRelease": "post-e50-ai-product-freeze-v1",
+  "runtimeFreeze": {
+    "aiModule": "mock (deterministic, docker/post-e50-mocks/mock-ai.mjs) for Post-E50 dev/E2E; real FastAPI AI Module supported via pfi.ai.base-url for other environments",
+    "llmProvider": "mock (deterministic, docker/post-e50-mocks/mock-llm.mjs) for Post-E50 dev/E2E; SelfHostedLlmProvider targets Qwen2.5-7B-Instruct + vLLM, not yet deployed real"
+  },
+  "capabilities": {
+    "sagittalSegmentation": "enabled",
+    "axialSegmentation": "enabled",
+    "morphometry": "enabled",
+    "67B2": "enabled_runtime_parity_not_proven",
+    "67C": "experimental_not_validated",
+    "P10.7": "blocked_preprocessing_parity",
+    "professionalReview": "enabled",
+    "longitudinalComparison": "enabled",
+    "contextualAssistant": "enabled_multi_turn",
+    "contextualAssistantRealLlm": "not_deployed"
+  },
+  "knownLimitations": [
+    "67B2 runtime parity not proven",
+    "67C runtime parity not proven",
+    "67C not validated",
+    "P10.7 automatic runtime blocked by preprocessing parity",
+    "LLM real Qwen not deployed yet",
+    "LLM Docker E2E uses deterministic mock",
+    "human review required for all AI/LLM output",
+    "non-diagnostic research prototype"
+  ],
+  "tests": {
+    "backend": { "total": 811, "failures": 0, "errors": 0, "skipped": 1 },
+    "frontend": { "suiteResult": "exit_0_no_not_ok", "post_e50_stage_suites_total": 113 }
+  },
+  "dockerE2E": {
+    "stack": "docker-compose.post-e50.yml",
+    "services": ["postgres", "backend", "frontend", "mock-ai", "mock-llm"],
+    "freshDbMigrationRuns": 2,
+    "migrationsApplied": 14,
+    "result": "pass"
+  },
+  "browserE2E": {
+    "tool": "playwright",
+    "script": "scripts/playwright-post-e50-real-backend-e2e.mjs",
+    "target": "real_backend_real_frontend_mock_ai_mock_llm",
+    "checksPassed": 5,
+    "checksTotal": 5,
+    "result": "pass"
+  },
+  "releaseStatus": "RELEASE_CANDIDATE_READY_WITH_KNOWN_LIMITATIONS"
+}

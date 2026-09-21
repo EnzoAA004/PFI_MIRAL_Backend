@@ -5,19 +5,46 @@ on:
   push:
   pull_request:
 
-jobs:
-  test:
-    runs-on: ubuntu-latest
+concurrency:
+  group: backend-ci-${{ github.ref }}
+  cancel-in-progress: true
 
+permissions:
+  contents: read
+
+jobs:
+  # Fast gate: catches compile errors in ~30s without waiting for the full suite.
+  # There is no unit/integration Surefire tag split in this project today, so this
+  # job is compile-only rather than an invented "unit" subset.
+  compile:
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Java 17
+      - name: Set up Java 21
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: "21"
+          cache: maven
+
+      - name: Compile
+        run: mvn -B -DskipTests compile
+
+  # Authoritative gate: the full suite (1070 tests en integration/final-2026, ~2 minutos en local).
+  test:
+    needs: compile
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
           cache: maven
 
       # `verify` y no `test`: es la fase donde JaCoCo genera el reporte, una vez que
@@ -25,6 +52,15 @@ jobs:
       # antes no se comprobaba en ningun lado aunque el Dockerfile dependa de eso.
       - name: Run tests with coverage
         run: mvn verify
+
+      - name: Upload Surefire reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-surefire-reports
+          path: target/surefire-reports/
+          retention-days: 14
+          if-no-files-found: ignore
 
       # El porcentaje tiene que verse sin descargar nada: va al summary del job.
       # Se lee el CSV de JaCoCo, que es la fuente de la verdad del mismo reporte HTML.
@@ -78,20 +114,12 @@ jobs:
           path: target/site/jacoco
           retention-days: 14
 
-  # La imagen se construye siempre, tambien en un PR: un Dockerfile roto tiene que
-  # aparecer antes del merge y no cuando alguien intenta desplegar. Publicar, en cambio,
-  # solo ocurre en un push a main y despues de que los tests pasen.
-  image:
-    needs: test
+  # Validates the Dockerfile actually builds — never pushed anywhere from CI at this
+  # stage (a dedicated publish stage, if/when adopted, is the one that starts pushing
+  # to a registry; deliberately not wired up here as part of this reconciliation).
+  docker-build:
+    needs: compile
     runs-on: ubuntu-latest
-
-    permissions:
-      contents: read
-      packages: write
-
-    env:
-      IMAGE: ghcr.io/enzoaa004/pfi-backend
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -99,28 +127,11 @@ jobs:
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Sin credenciales propias: GITHUB_TOKEN alcanza para GHCR del mismo owner.
-      - name: Log in to GHCR
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      # El tag por SHA es el que sirve para reproducir: `latest` se mueve y no identifica
-      # nada. La label `image.source` es la que hace que GHCR vincule el paquete a este
-      # repositorio.
-      - name: Build and push
+      - name: Build (validation only, never pushed)
         uses: docker/build-push-action@v6
         with:
           context: .
-          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-          tags: |
-            ${{ env.IMAGE }}:sha-${{ github.sha }}
-            ${{ env.IMAGE }}:latest
-          labels: |
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
+          push: false
+          tags: pfi-backend:ci-${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

@@ -3,7 +3,10 @@
 | Variable | Requerida | Default local | Ejemplo cloud | Descripcion |
 | --- | --- | --- | --- | --- |
 | `PORT` | No | `8080` | `8080` o valor inyectado por la plataforma | Puerto HTTP del backend Spring Boot. |
-| `PFI_AI_SERVICE_URL` | Si | `http://localhost:8000` | `https://pfi-ai-module.example.com` | URL base del AI Module FastAPI. |
+| `PFI_AI_SERVICE_URL` | Si | `http://localhost:8000` | `https://pfi-ai-module-7cxg46zwea-uc.a.run.app` | URL base del AI Module FastAPI. |
+| `PFI_AI_AUTH_MODE` | No | `none` | `google-id-token` | Modo de auth Backend -> AI. `none` no intenta ADC; `google-id-token` genera un Google ID Token con ADC/service identity. |
+| `PFI_AI_SERVICE_AUDIENCE` | Si con `google-id-token` | vacio | `https://pfi-ai-module-7cxg46zwea-uc.a.run.app` | Audience del ID token. Si queda vacio se deriva de `PFI_AI_SERVICE_URL` como origen HTTP(S), sin trailing slash ni path; si no puede derivarse, falla cerrado. |
+| `PFI_AI_PRIVATE_REQUIRED` | Si en runtime cloud/demo con AI privada | `false` | `true` | Marca que el modulo de IA exige credencial. En `true`, el arranque falla si `PFI_AI_AUTH_MODE` no es `google-id-token` o si la audience falta o es invalida, en vez de llamar al AI Module sin cabecera `Authorization`. |
 | `PFI_AI_TIMEOUT_SECONDS` | No | `60` | `60` | Timeout para llamadas HTTP al AI Module. |
 | `PFI_CORS_ALLOWED_ORIGINS` | Si para frontend cloud | `http://localhost:5173,http://localhost:3000` | `https://frontend.example.com` | Origenes permitidos para el frontend React. Separar varios con coma. |
 | `SPRING_PROFILES_ACTIVE` | Si en produccion | sin perfil | `production` | Activa los validadores fail-closed de produccion. |
@@ -15,6 +18,8 @@
 
 ```text
 PFI_AI_SERVICE_URL=https://pfi-ai-module.example.com
+PFI_AI_AUTH_MODE=google-id-token
+PFI_AI_SERVICE_AUDIENCE=https://pfi-ai-module.example.com
 PFI_AI_TIMEOUT_SECONDS=60
 PFI_CORS_ALLOWED_ORIGINS=https://pfi-frontend.example.com
 SPRING_PROFILES_ACTIVE=production
@@ -24,3 +29,23 @@ PFI_AUTH_JWT_SECRET=<secret-random-32-bytes-min>
 ```
 
 `PORT` normalmente lo define la plataforma. Si se configura manualmente, debe coincidir con el puerto expuesto por el servicio.
+
+## AI Module privado en Cloud Run
+
+Local sin Google Cloud:
+
+```text
+PFI_AI_SERVICE_URL=http://localhost:8000
+PFI_AI_AUTH_MODE=none
+```
+
+Cloud Run privado:
+
+```text
+PFI_AI_SERVICE_URL=https://pfi-ai-module-7cxg46zwea-uc.a.run.app
+PFI_AI_AUTH_MODE=google-id-token
+PFI_AI_SERVICE_AUDIENCE=https://pfi-ai-module-7cxg46zwea-uc.a.run.app
+PFI_AI_PRIVATE_REQUIRED=true
+```
+
+Con `google-id-token`, el backend usa Application Default Credentials. En Cloud Run esas credenciales deben venir de la service identity del backend, sin JSON de service account, sin `GOOGLE_APPLICATION_CREDENTIALS` y sin reenviar el JWT del usuario al AI Module.

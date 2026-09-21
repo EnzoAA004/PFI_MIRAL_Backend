@@ -1,0 +1,145 @@
+module.artifact_registry.data.google_artifact_registry_repository.existing[0]: Reading...
+module.iam.google_service_account.created["frontend_runtime"]: Refreshing state... [id=projects/pfi-asplanatti-fabrello-v1/serviceAccounts/pfi-frontend-runtime-dev@pfi-asplanatti-fabrello-v1.iam.gserviceaccount.com]
+data.google_cloud_run_v2_service.frontend_lookup: Reading...
+module.storage.data.google_storage_bucket.existing[0]: Reading...
+module.artifact_registry.data.google_artifact_registry_repository.existing[0]: Read complete after 1s [id=projects/pfi-asplanatti-fabrello-v1/locations/us-central1/repositories/pfi-containers]
+data.google_cloud_run_v2_service.frontend_lookup: Read complete after 1s [id=projects/pfi-asplanatti-fabrello-v1/locations/us-central1/services/pfi-frontend-dev]
+module.backend_cloud_run.google_cloud_run_v2_service.this: Refreshing state... [id=projects/pfi-asplanatti-fabrello-v1/locations/us-central1/services/pfi-backend-dev]
+module.backend_cloud_run.google_cloud_run_v2_service_iam_member.public[0]: Refreshing state... [id=projects/pfi-asplanatti-fabrello-v1/locations/us-central1/services/pfi-backend-dev/roles/run.invoker/allUsers]
+module.frontend_cloud_run.google_cloud_run_v2_service.this: Refreshing state... [id=projects/pfi-asplanatti-fabrello-v1/locations/us-central1/services/pfi-frontend-dev]
+module.storage.data.google_storage_bucket.existing[0]: Read complete after 1s [id=pfi-rm-lumbar-artifacts-2026-ef]
+module.frontend_cloud_run.google_cloud_run_v2_service_iam_member.public[0]: Refreshing state... [id=projects/pfi-asplanatti-fabrello-v1/locations/us-central1/services/pfi-frontend-dev/roles/run.invoker/allUsers]
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  + create
+
+Terraform will perform the following actions:
+
+  # module.monitoring.google_monitoring_alert_policy.backend_5xx[0] will be created
+  + resource "google_monitoring_alert_policy" "backend_5xx" {
+      + combiner              = "OR"
+      + creation_record       = (known after apply)
+      + deletion_policy       = "DELETE"
+      + display_name          = "pfi-backend-dev: 5xx rate elevated"
+      + enabled               = true
+      + id                    = (known after apply)
+      + name                  = (known after apply)
+      + notification_channels = []
+      + project               = "pfi-asplanatti-fabrello-v1"
+
+      + conditions {
+          + display_name = "5xx rate above threshold"
+          + name         = (known after apply)
+
+          + condition_threshold {
+              + comparison      = "COMPARISON_GT"
+              + duration        = "300s"
+              + filter          = "metric.type=\"run.googleapis.com/request_count\" AND resource.type=\"cloud_run_revision\" AND resource.label.service_name=\"pfi-backend-dev\" AND metric.label.response_code_class=\"5xx\""
+              + threshold_value = 5
+
+              + aggregations {
+                  + alignment_period   = "300s"
+                  + per_series_aligner = "ALIGN_RATE"
+                }
+            }
+        }
+    }
+
+  # module.monitoring.google_monitoring_alert_policy.backend_uptime_failure[0] will be created
+  + resource "google_monitoring_alert_policy" "backend_uptime_failure" {
+      + combiner              = "OR"
+      + creation_record       = (known after apply)
+      + deletion_policy       = "DELETE"
+      + display_name          = "pfi-backend-dev: uptime check failing"
+      + enabled               = true
+      + id                    = (known after apply)
+      + name                  = (known after apply)
+      + notification_channels = []
+      + project               = "pfi-asplanatti-fabrello-v1"
+
+      + conditions {
+          + display_name = "Uptime check failed"
+          + name         = (known after apply)
+
+          + condition_threshold {
+              + comparison      = "COMPARISON_LT"
+              + duration        = "300s"
+              + filter          = (known after apply)
+              + threshold_value = 1
+
+              + aggregations {
+                  + alignment_period     = "300s"
+                  + cross_series_reducer = "REDUCE_COUNT_FALSE"
+                  + per_series_aligner   = "ALIGN_FRACTION_TRUE"
+                }
+            }
+        }
+    }
+
+  # module.monitoring.google_monitoring_alert_policy.frontend_5xx[0] will be created
+  + resource "google_monitoring_alert_policy" "frontend_5xx" {
+      + combiner              = "OR"
+      + creation_record       = (known after apply)
+      + deletion_policy       = "DELETE"
+      + display_name          = "pfi-frontend-dev: 5xx rate elevated"
+      + enabled               = true
+      + id                    = (known after apply)
+      + name                  = (known after apply)
+      + notification_channels = []
+      + project               = "pfi-asplanatti-fabrello-v1"
+
+      + conditions {
+          + display_name = "5xx rate above threshold"
+          + name         = (known after apply)
+
+          + condition_threshold {
+              + comparison      = "COMPARISON_GT"
+              + duration        = "300s"
+              + filter          = "metric.type=\"run.googleapis.com/request_count\" AND resource.type=\"cloud_run_revision\" AND resource.label.service_name=\"pfi-frontend-dev\" AND metric.label.response_code_class=\"5xx\""
+              + threshold_value = 5
+
+              + aggregations {
+                  + alignment_period   = "300s"
+                  + per_series_aligner = "ALIGN_RATE"
+                }
+            }
+        }
+    }
+
+  # module.monitoring.google_monitoring_uptime_check_config.backend_health[0] will be created
+  + resource "google_monitoring_uptime_check_config" "backend_health" {
+      + checker_type    = (known after apply)
+      + deletion_policy = "DELETE"
+      + display_name    = "pfi-backend-dev: health check"
+      + id              = (known after apply)
+      + name            = (known after apply)
+      + period          = "300s"
+      + project         = "pfi-asplanatti-fabrello-v1"
+      + timeout         = "10s"
+      + uptime_check_id = (known after apply)
+
+      + http_check {
+          + headers        = (known after apply)
+          + path           = "/api/system/health"
+          + port           = 443
+          + request_method = "GET"
+          + use_ssl        = true
+          + validate_ssl   = true
+        }
+
+      + monitored_resource {
+          + labels = {
+              + "host"       = "pfi-backend-dev-7cxg46zwea-uc.a.run.app"
+              + "project_id" = "pfi-asplanatti-fabrello-v1"
+            }
+          + type   = "uptime_url"
+        }
+    }
+
+Plan: 4 to add, 0 to change, 0 to destroy.
+
+─────────────────────────────────────────────────────────────────────────────
+
+Note: You didn't use the -out option to save this plan, so Terraform can't
+guarantee to take exactly these actions if you run "terraform apply" now.
