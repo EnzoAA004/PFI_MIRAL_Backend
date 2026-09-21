@@ -25,7 +25,7 @@ import ar.edu.uade.pfi.backend.service.ChatService;
 import ar.edu.uade.pfi.backend.service.EffectiveAnalysisRunSelector;
 import ar.edu.uade.pfi.backend.service.EffectiveMeasurementResolver;
 import ar.edu.uade.pfi.backend.service.LongitudinalComparisonService;
-import ar.edu.uade.pfi.backend.service.RunReviewException;
+import ar.edu.uade.pfi.backend.service.exception.RunReviewException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.time.LocalDate;

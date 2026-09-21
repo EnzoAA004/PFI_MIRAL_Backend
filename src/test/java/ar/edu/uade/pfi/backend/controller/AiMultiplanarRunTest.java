@@ -14,7 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import ar.edu.uade.pfi.backend.client.AiMultiplanarV1ResponseAdapter;
 import ar.edu.uade.pfi.backend.client.AiServiceOperations;
-import ar.edu.uade.pfi.backend.config.ApiExceptionHandler;
+import ar.edu.uade.pfi.backend.web.error.ApiExceptionHandler;
 import ar.edu.uade.pfi.backend.domain.CanonicalMultiplanarRun;
 import ar.edu.uade.pfi.backend.domain.CanonicalPlaneRun;
 import ar.edu.uade.pfi.backend.domain.DomainAuditEvent;
@@ -151,7 +151,7 @@ class AiMultiplanarRunTest {
     @Test
     void strictValidationFailureNeverPersistsARun() throws Exception {
         AiServiceOperations ai = org.mockito.Mockito.mock(AiServiceOperations.class);
-        when(ai.runMultiplanar(any())).thenThrow(new ar.edu.uade.pfi.backend.service.AiMultiplanarContractViolationException("synthetic root debe ser false"));
+        when(ai.runMultiplanar(any())).thenThrow(new ar.edu.uade.pfi.backend.client.exception.AiMultiplanarContractViolationException("synthetic root debe ser false"));
         InMemoryStudyRepository repository = new InMemoryStudyRepository();
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(controllerWithPersistence(ai, repository))
             .setControllerAdvice(new ApiExceptionHandler())

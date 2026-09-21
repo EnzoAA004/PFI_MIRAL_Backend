@@ -1,4 +1,6 @@
 package ar.edu.uade.pfi.backend.service;
+import ar.edu.uade.pfi.backend.service.exception.StudyNotFoundException;
+import ar.edu.uade.pfi.backend.service.exception.DatabaseUnavailableException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;

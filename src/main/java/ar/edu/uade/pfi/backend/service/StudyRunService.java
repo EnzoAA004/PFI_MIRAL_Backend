@@ -1,4 +1,6 @@
 package ar.edu.uade.pfi.backend.service;
+import ar.edu.uade.pfi.backend.service.exception.StudyMetadataException;
+import ar.edu.uade.pfi.backend.service.exception.DatabaseUnavailableException;
 
 import ar.edu.uade.pfi.backend.domain.InputResource;
 import ar.edu.uade.pfi.backend.domain.DomainAuditEvent;

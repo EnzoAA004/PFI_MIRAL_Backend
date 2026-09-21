@@ -1,4 +1,5 @@
 package ar.edu.uade.pfi.backend.service;
+import ar.edu.uade.pfi.backend.service.exception.AiContractViolationException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -15,7 +16,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import ar.edu.uade.pfi.backend.client.AiServiceOperations;
-import ar.edu.uade.pfi.backend.config.ApiExceptionHandler;
+import ar.edu.uade.pfi.backend.web.error.ApiExceptionHandler;
 import ar.edu.uade.pfi.backend.config.SagittalRealBaselineProperties;
 import ar.edu.uade.pfi.backend.controller.AiBackendController;
 import ar.edu.uade.pfi.backend.controller.AiModelSyncController;

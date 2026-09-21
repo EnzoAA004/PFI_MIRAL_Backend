@@ -1,4 +1,5 @@
 package ar.edu.uade.pfi.backend.service;
+import ar.edu.uade.pfi.backend.service.exception.StudyMetadataException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;

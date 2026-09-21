@@ -1,7 +1,7 @@
 package ar.edu.uade.pfi.backend.controller;
 
 import ar.edu.uade.pfi.backend.client.AiServiceOperations;
-import ar.edu.uade.pfi.backend.config.error.ApiErrorCode;
+import ar.edu.uade.pfi.backend.web.error.ApiErrorCode;
 import ar.edu.uade.pfi.backend.dto.AiSubarticularExplainRequestDto;
 import ar.edu.uade.pfi.backend.dto.AiSubarticularPredictRequestDto;
 import ar.edu.uade.pfi.backend.dto.SubarticularExplainResponseDto;

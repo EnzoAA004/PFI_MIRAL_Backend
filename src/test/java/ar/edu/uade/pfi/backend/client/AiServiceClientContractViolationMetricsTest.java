@@ -10,9 +10,9 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 
 import ar.edu.uade.pfi.backend.config.AiServiceProperties;
-import ar.edu.uade.pfi.backend.config.TraceIdFilter;
+import ar.edu.uade.pfi.backend.web.filter.TraceIdFilter;
 import ar.edu.uade.pfi.backend.dto.MultiplanarRunRequestDto;
-import ar.edu.uade.pfi.backend.service.AiMultiplanarContractViolationException;
+import ar.edu.uade.pfi.backend.client.exception.AiMultiplanarContractViolationException;
 import ar.edu.uade.pfi.backend.service.MultiplanarRealBaselineContractValidator;
 import ar.edu.uade.pfi.backend.service.MultiplanarV2RealBaselineValidator;
 import ar.edu.uade.pfi.backend.service.OperationalMetricsService;

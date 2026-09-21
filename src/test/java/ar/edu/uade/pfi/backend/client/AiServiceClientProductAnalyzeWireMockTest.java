@@ -8,7 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import ar.edu.uade.pfi.backend.config.AiServiceProperties;
-import ar.edu.uade.pfi.backend.config.TraceIdFilter;
+import ar.edu.uade.pfi.backend.web.filter.TraceIdFilter;
 import ar.edu.uade.pfi.backend.dto.AiProductAnalyzeRequestDto;
 import ar.edu.uade.pfi.backend.dto.AiProductAnalyzeResponseDto;
 import ar.edu.uade.pfi.backend.service.AiProductUpstreamException;

@@ -1,4 +1,5 @@
 package ar.edu.uade.pfi.backend.service;
+import ar.edu.uade.pfi.backend.client.exception.AiMultiplanarContractViolationException;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;

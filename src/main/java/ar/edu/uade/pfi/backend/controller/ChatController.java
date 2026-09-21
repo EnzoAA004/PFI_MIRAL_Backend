@@ -1,6 +1,6 @@
 package ar.edu.uade.pfi.backend.controller;
+import ar.edu.uade.pfi.backend.web.filter.TraceIdFilter;
 
-import ar.edu.uade.pfi.backend.config.TraceIdFilter;
 import ar.edu.uade.pfi.backend.dto.ChatConversationDetailDto;
 import ar.edu.uade.pfi.backend.dto.ChatConversationHistoryResponseDto;
 import ar.edu.uade.pfi.backend.dto.ChatRequestDto;

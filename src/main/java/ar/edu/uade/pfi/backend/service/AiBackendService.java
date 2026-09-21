@@ -1,4 +1,6 @@
 package ar.edu.uade.pfi.backend.service;
+import ar.edu.uade.pfi.backend.service.exception.DatabaseUnavailableException;
+import ar.edu.uade.pfi.backend.service.exception.AssetContentUnavailableException;
 
 import ar.edu.uade.pfi.backend.client.AiServiceOperations;
 import ar.edu.uade.pfi.backend.dto.AiInputResponseDto;
@@ -18,7 +20,7 @@ import ar.edu.uade.pfi.backend.dto.StudyUploadInputDto;
 import ar.edu.uade.pfi.backend.dto.StudyUploadResponseDto;
 import ar.edu.uade.pfi.backend.dto.StudyUploadSeriesDto;
 import ar.edu.uade.pfi.backend.config.AiServiceProperties;
-import ar.edu.uade.pfi.backend.config.SafeLogSanitizer;
+import ar.edu.uade.pfi.backend.util.SafeLogSanitizer;
 import ar.edu.uade.pfi.backend.repository.StudyRepository;
 import ar.edu.uade.pfi.backend.util.ResponseNormalizer;
 import ar.edu.uade.pfi.backend.domain.RunArtifact;

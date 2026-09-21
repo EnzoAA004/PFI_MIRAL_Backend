@@ -30,7 +30,7 @@ import ar.edu.uade.pfi.backend.service.AiProductAnalysisReviewService;
 import ar.edu.uade.pfi.backend.service.AiProductContractViolationException;
 import ar.edu.uade.pfi.backend.service.AiStudyInputResolver;
 import ar.edu.uade.pfi.backend.service.AuditService;
-import ar.edu.uade.pfi.backend.service.RunReviewException;
+import ar.edu.uade.pfi.backend.service.exception.RunReviewException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Instant;
 import java.util.List;

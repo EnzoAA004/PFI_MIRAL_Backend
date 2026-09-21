@@ -1,8 +1,8 @@
 package ar.edu.uade.pfi.backend.client;
 
 import ar.edu.uade.pfi.backend.config.LlmProperties;
-import ar.edu.uade.pfi.backend.config.error.ApiErrorCode;
-import ar.edu.uade.pfi.backend.service.RunReviewException;
+import ar.edu.uade.pfi.backend.web.error.ApiErrorCode;
+import ar.edu.uade.pfi.backend.service.exception.RunReviewException;
 import io.netty.handler.timeout.ReadTimeoutException;
 import java.time.Duration;
 import java.util.LinkedHashMap;

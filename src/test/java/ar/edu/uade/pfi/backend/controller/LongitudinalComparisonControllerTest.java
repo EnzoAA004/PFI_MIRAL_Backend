@@ -12,7 +12,7 @@ import ar.edu.uade.pfi.backend.repository.InMemoryStudyRepository;
 import ar.edu.uade.pfi.backend.service.EffectiveAnalysisRunSelector;
 import ar.edu.uade.pfi.backend.service.EffectiveMeasurementResolver;
 import ar.edu.uade.pfi.backend.service.LongitudinalComparisonService;
-import ar.edu.uade.pfi.backend.service.StudyNotFoundException;
+import ar.edu.uade.pfi.backend.service.exception.StudyNotFoundException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;

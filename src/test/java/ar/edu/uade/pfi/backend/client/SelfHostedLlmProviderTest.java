@@ -9,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import ar.edu.uade.pfi.backend.config.LlmProperties;
-import ar.edu.uade.pfi.backend.service.RunReviewException;
+import ar.edu.uade.pfi.backend.service.exception.RunReviewException;
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
 import java.time.Duration;
 import java.util.List;

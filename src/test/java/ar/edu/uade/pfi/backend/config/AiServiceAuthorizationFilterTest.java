@@ -1,4 +1,5 @@
 package ar.edu.uade.pfi.backend.config;
+import ar.edu.uade.pfi.backend.web.filter.TraceIdFilter;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.exactly;

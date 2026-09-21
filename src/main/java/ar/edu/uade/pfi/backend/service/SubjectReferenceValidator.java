@@ -1,4 +1,5 @@
 package ar.edu.uade.pfi.backend.service;
+import ar.edu.uade.pfi.backend.service.exception.StudyMetadataException;
 
 import java.util.regex.Pattern;
 import org.springframework.http.HttpStatus;

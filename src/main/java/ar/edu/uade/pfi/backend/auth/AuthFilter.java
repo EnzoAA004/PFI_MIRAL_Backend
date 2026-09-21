@@ -1,6 +1,6 @@
 package ar.edu.uade.pfi.backend.auth;
 
-import ar.edu.uade.pfi.backend.config.error.ApiErrorWriter;
+import ar.edu.uade.pfi.backend.web.error.ApiErrorWriter;
 import ar.edu.uade.pfi.backend.service.OperationalMetricsService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;

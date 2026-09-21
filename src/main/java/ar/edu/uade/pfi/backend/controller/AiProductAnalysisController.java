@@ -3,7 +3,7 @@ package ar.edu.uade.pfi.backend.controller;
 import ar.edu.uade.pfi.backend.auth.AuthFilter;
 import ar.edu.uade.pfi.backend.auth.RoleAuthorizationService;
 import ar.edu.uade.pfi.backend.auth.TokenService;
-import ar.edu.uade.pfi.backend.config.TraceIdFilter;
+import ar.edu.uade.pfi.backend.web.filter.TraceIdFilter;
 import ar.edu.uade.pfi.backend.dto.AiMeasurementCorrectionRequestDto;
 import ar.edu.uade.pfi.backend.dto.AiProductAnalysisApiRequestDto;
 import ar.edu.uade.pfi.backend.dto.AiProductAnalysisHistoryResponseDto;
