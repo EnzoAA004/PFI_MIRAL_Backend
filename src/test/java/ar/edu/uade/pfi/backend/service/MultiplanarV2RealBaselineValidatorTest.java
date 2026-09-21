@@ -81,6 +81,23 @@ class MultiplanarV2RealBaselineValidatorTest {
     }
 
     @Test
+    void twoDimensionalSingleSliceInputPasses() {
+        PlaneFixture plane = new PlaneFixture();
+        plane.input.put("nativeShape", List.of(256, 256));
+        plane.input.put("canonicalShape", List.of(256, 256));
+        plane.input.put("sliceCount", 1);
+        plane.input.put("selectedSliceIndex", 0);
+        assertDoesNotThrow(() -> validator.validate(sagittalOnlyRequest(), root(plane).build()));
+    }
+
+    @Test
+    void missingSliceCountFieldFails() {
+        PlaneFixture plane = new PlaneFixture();
+        plane.input.remove("sliceCount");
+        assertFails(root(plane));
+    }
+
+    @Test
     void selectedSliceIndexOutOfRangeFails() {
         PlaneFixture plane = new PlaneFixture();
         plane.input.put("selectedSliceIndex", 99);
@@ -223,6 +240,7 @@ class MultiplanarV2RealBaselineValidatorTest {
             "inputId", "inp_sagittal_001",
             "nativeShape", List.of(352, 384, 17),
             "canonicalShape", List.of(352, 384, 17),
+            "sliceCount", 17,
             "selectedSliceIndex", 8
         ));
         Map<String, Object> coordinateSpace = new LinkedHashMap<>(Map.of("width", 256, "height", 256));

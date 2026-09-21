@@ -157,6 +157,26 @@ class AiBackendControllerTest {
     }
 
     @Test
+    void registerServerSideInputAllowsAxialFixture() throws Exception {
+        aiClientResponses.put("registerServerSideInput", new AiInputResponseDto(
+            "inp-fixture-456", "CASE-123", "axial", "npy", 131136
+        ));
+
+        mockMvc.perform(post("/api/ai/inputs/server-side")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "caseId": "CASE-123",
+                      "plane": "axial",
+                      "sourceKey": "fixture:axial_sample"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.inputId").value("inp-fixture-456"))
+            .andExpect(jsonPath("$.plane").value("axial"));
+    }
+
+    @Test
     void registerServerSideInputRejectsArbitrarySourceKeys() throws Exception {
         mockMvc.perform(post("/api/ai/inputs/server-side")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -165,6 +185,34 @@ class AiBackendControllerTest {
                       "caseId": "CASE-123",
                       "plane": "sagittal",
                       "sourceKey": "../../private"
+                    }
+                    """))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void registerServerSideInputRejectsPlaneSourceKeyMismatch() throws Exception {
+        mockMvc.perform(post("/api/ai/inputs/server-side")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "caseId": "CASE-123",
+                      "plane": "sagittal",
+                      "sourceKey": "fixture:axial_sample"
+                    }
+                    """))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void registerServerSideInputRejectsInvalidCaseId() throws Exception {
+        mockMvc.perform(post("/api/ai/inputs/server-side")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "caseId": "../etc/passwd",
+                      "plane": "sagittal",
+                      "sourceKey": "fixture:sagittal_sample"
                     }
                     """))
             .andExpect(status().isBadRequest());

@@ -8,6 +8,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
@@ -18,6 +20,7 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class MultiplanarV2RealBaselineValidator {
+    private static final Logger log = LoggerFactory.getLogger(MultiplanarV2RealBaselineValidator.class);
     private static final String V2_SCHEMA_VERSION = "pfi.multiplanar-run.v2";
     static final String SAGITTAL_MODEL_KEY = "sagittal_spider";
     static final String SAGITTAL_MODEL_VERSION = "sagittal-spider-final-v1";
@@ -103,7 +106,7 @@ public class MultiplanarV2RealBaselineValidator {
         List<Integer> canonicalShape = intList(input.get("canonicalShape"));
         requireTrue(isValidShape(nativeShape), "input.nativeShape sagittal invalido");
         requireTrue(isValidShape(canonicalShape), "input.canonicalShape sagittal invalido");
-        int sliceCount = nativeShape.get(nativeShape.size() - 1);
+        int sliceCount = intValue(input.get("sliceCount"), -1);
         requireTrue(sliceCount > 0, "sliceCount sagittal debe ser mayor a 0");
         Object selectedSliceIndex = input.get("selectedSliceIndex");
         if (selectedSliceIndex != null) {
@@ -197,8 +200,14 @@ public class MultiplanarV2RealBaselineValidator {
         return false;
     }
 
+    /**
+     * A 2D single-slice input (e.g. the server-side sagittal fixture) reports a
+     * 2-element shape (height, width); a volumetric input reports 3 (slices, height,
+     * width). Both are legitimate; sliceCount is read from its own explicit field
+     * rather than inferred from shape length.
+     */
     private boolean isValidShape(List<Integer> shape) {
-        if (shape == null || shape.size() != 3) return false;
+        if (shape == null || (shape.size() != 2 && shape.size() != 3)) return false;
         for (Integer value : shape) {
             if (value == null || value <= 0) return false;
         }
@@ -268,6 +277,7 @@ public class MultiplanarV2RealBaselineValidator {
     }
 
     private void fail(String message) {
+        log.warn("event=multiplanar_v2_contract_violation reason=\"{}\"", message);
         throw new AiMultiplanarContractViolationException(message);
     }
 
