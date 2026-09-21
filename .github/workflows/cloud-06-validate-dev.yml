@@ -59,7 +59,7 @@ jobs:
           service_account: ${{ vars.GCP_CI_READER_SERVICE_ACCOUNT }}
 
       - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
+        uses: google-github-actions/setup-gcloud@v3
 
       - name: Step 1-2 — Confirm images exist in Artifact Registry, resolve digests
         id: digests
