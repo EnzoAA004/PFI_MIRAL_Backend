@@ -23,6 +23,7 @@ class CorsResponseFilterTest {
     filter.doFilter(request, response, chain);
 
     verify(response).setHeader("Access-Control-Allow-Origin", "https://spaced.example.com");
+    verify(response).setHeader("Access-Control-Expose-Headers", "Content-Disposition,X-Trace-Id,X-PFI-Revision");
     verify(chain).doFilter(request, response);
   }
 

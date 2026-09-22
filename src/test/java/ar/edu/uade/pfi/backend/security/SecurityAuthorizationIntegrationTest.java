@@ -27,6 +27,7 @@ import ar.edu.uade.pfi.backend.dto.StudyUploadResponseDto;
 import ar.edu.uade.pfi.backend.service.AiBackendService;
 import ar.edu.uade.pfi.backend.service.AuditService;
 import ar.edu.uade.pfi.backend.service.ProfessionalAccessAuditService;
+import ar.edu.uade.pfi.backend.service.RuntimeDiagnosticsService;
 import ar.edu.uade.pfi.backend.service.StudyRunService;
 import ar.edu.uade.pfi.backend.service.StudyWorklistService;
 import ar.edu.uade.pfi.backend.service.SystemDiagnosticsService;
@@ -64,6 +65,7 @@ class SecurityAuthorizationIntegrationTest {
     private AiBackendService aiBackendService;
     private StudyWorklistService studyWorklistService;
     private SystemDiagnosticsService systemDiagnosticsService;
+    private RuntimeDiagnosticsService runtimeDiagnosticsService;
     private MockMvc mockMvc;
 
     @BeforeEach
@@ -72,6 +74,15 @@ class SecurityAuthorizationIntegrationTest {
         aiBackendService = mock(AiBackendService.class);
         studyWorklistService = mock(StudyWorklistService.class);
         systemDiagnosticsService = mock(SystemDiagnosticsService.class);
+        runtimeDiagnosticsService = mock(RuntimeDiagnosticsService.class);
+        when(runtimeDiagnosticsService.diagnostics()).thenReturn(Map.of(
+            "status", "ok",
+            "cloudRun", Map.of("revision", "rev-test", "service", "svc-test", "configuration", "cfg-test", "detected", true),
+            "persistence", Map.of("mode", "postgres", "postgresEnabled", true),
+            "storage", Map.of("provider", "gcs", "gcsConfigured", true),
+            "dataSource", Map.of("beanPresent", true, "poolType", "HikariDataSource", "maximumPoolSize", 4)
+        ));
+        when(runtimeDiagnosticsService.revision()).thenReturn("rev-test");
 
         StudyController studyController = new StudyController(
             studyWorklistService,
@@ -81,7 +92,7 @@ class SecurityAuthorizationIntegrationTest {
         );
         AiMultiplanarController multiplanarController = new AiMultiplanarController(aiServiceClient);
         AiBackendController backendController = new AiBackendController(aiBackendService, authorizationService);
-        SystemController systemController = new SystemController(systemDiagnosticsService, authorizationService);
+        SystemController systemController = new SystemController(systemDiagnosticsService, authorizationService, runtimeDiagnosticsService);
 
         mockMvc = MockMvcBuilders
             .standaloneSetup(studyController, multiplanarController, backendController, systemController)
@@ -246,7 +257,22 @@ class SecurityAuthorizationIntegrationTest {
         void anonymousSystemHealthIsPublicAndMinimal() throws Exception {
             mockMvc.perform(get("/api/system/health"))
                 .andExpect(status().isOk())
+                .andExpect(header().string("X-PFI-Revision", "rev-test"))
                 .andExpect(jsonPath("$.status").value("ok"));
+        }
+
+        @Test
+        void anonymousRuntimeDiagnosticsIsPublicAndNonSecret() throws Exception {
+            mockMvc.perform(get("/api/system/runtime-diagnostics"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ok"))
+                .andExpect(jsonPath("$.cloudRun.revision").value("rev-test"))
+                .andExpect(jsonPath("$.persistence.mode").value("postgres"))
+                .andExpect(jsonPath("$.storage.provider").value("gcs"))
+                .andExpect(jsonPath("$.dataSource.maximumPoolSize").value(4))
+                .andExpect(jsonPath("$.databaseUrl").doesNotExist())
+                .andExpect(jsonPath("$.bucket").doesNotExist())
+                .andExpect(jsonPath("$.jwtSecret").doesNotExist());
         }
 
         @Test

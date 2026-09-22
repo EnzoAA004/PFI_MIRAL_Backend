@@ -74,7 +74,7 @@ public class CorsResponseFilter extends OncePerRequestFilter {
       response.setHeader(
           "Access-Control-Allow-Headers",
           "Authorization,Content-Type,Accept,Origin,X-Requested-With,X-Trace-Id");
-      response.setHeader("Access-Control-Expose-Headers", "Content-Disposition,X-Trace-Id");
+      response.setHeader("Access-Control-Expose-Headers", "Content-Disposition,X-Trace-Id,X-PFI-Revision");
       response.setHeader("Access-Control-Max-Age", "3600");
     }
 
