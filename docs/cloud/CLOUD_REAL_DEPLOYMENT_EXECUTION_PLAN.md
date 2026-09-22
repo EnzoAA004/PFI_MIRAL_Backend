@@ -7,6 +7,62 @@ it. Where a command below would create/modify/delete a billed resource, it is ma
 `[NOT EXECUTED -- requires explicit authorization]` and must not be run without that
 authorization arriving in a later, separate instruction.
 
+## 0. Stage 2 status (2026-09-22, executed)
+
+`CLOUD_DEPLOYMENT_STAGE_2_LOW_COST_FOUNDATION` ran the subset of §3–§6 below that was
+explicitly authorized. Everything else in this document (Cloud SQL instance, Backend/AI
+redeploy, AI image push) remains `[NOT EXECUTED]`.
+
+**APIs enabled** (previously disabled, confirmed via `gcloud services list --enabled`
+before/after):
+- `secretmanager.googleapis.com` — enabled
+- `sqladmin.googleapis.com` — enabled
+
+**Cloud SQL tier check** (`gcloud sql tiers list`, read-only, no instance created):
+`db-f1-micro` is available in `us-central1` (614.4 MiB RAM, shared-core). The tiers API
+does not expose per-engine/per-edition compatibility, so `POSTGRES_15` + `ENTERPRISE`
+compatibility for this tier is confirmed only at actual instance-creation time — not
+testable via a list call, and instance creation is still not authorized. No alternate
+tier is needed unless creation itself rejects `db-f1-micro`.
+
+**Bucket created**: `gs://pfi-backend-durable-dev` — `us-central1`, `STANDARD`, uniform
+bucket-level access, public access prevention `enforced`, versioning off. (GCS's default
+7-day soft-delete retention applied automatically at creation — a different mechanism
+from versioning, not something this step turned on deliberately, and it does not conflict
+with "versioning: disabled".)
+
+**Bucket IAM** (verified via `get-iam-policy` after every binding): `pfi-backend-runtime@...`
+and `pfi-ai-runtime@...` each hold exactly `roles/storage.objectCreator` +
+`roles/storage.objectViewer`, scoped to this bucket only. No `allUsers`, no
+`allAuthenticatedUsers`, no `storage.admin`. (The bucket also carries GCS's automatic
+`legacyBucketOwner`/`legacyObjectOwner`/`legacyBucketReader`/`legacyObjectReader`
+bindings for `projectEditor`/`projectOwner`/`projectViewer` — a Cloud Storage default
+applied to every new bucket, not something granted by this step; worth a follow-up
+hygiene pass since the default compute SA already holds project-wide `roles/editor`.)
+
+**Storage smoke test**: uploaded a non-sensitive text file to `smoke/smoke.txt` (owner
+credentials — the account running this session lacks `iam.serviceAccountTokenCreator`
+on either runtime SA, so a true impersonated-as-the-SA write wasn't possible; IAM
+correctness was instead verified by direct policy inspection above), read it back,
+confirmed identical SHA-256, deleted it. Bucket confirmed empty (`0 B`) afterward.
+
+**Secrets created** (no values recorded anywhere in this repo or report):
+- `pfi-dev-database-url` — container created, **0 versions** (`PENDING_VALUE` — Cloud
+  SQL does not exist yet, so no real connection string exists to load; loading a fake
+  one was explicitly disallowed).
+- `pfi-dev-jwt-secret` — 1 version, `enabled`, generated locally with
+  `openssl rand -base64 48` and piped directly into `gcloud secrets create --data-file=-`
+  (never written to a file, never printed).
+
+**Secret IAM**: `pfi-backend-runtime@...` holds `roles/secretmanager.secretAccessor` on
+each secret individually (not project-wide). `pfi-ai-runtime@...` was given no secret
+access (no evidence it needs DB/JWT secrets).
+
+**Cost incurred by this step**: bucket at 0 B (negligible), 2 secrets (1 with a version,
+1 empty) — Secret Manager bills ~US$0.06/active-version/month, so ~US$0.06/month total
+for the one loaded version. No Cloud SQL, no Cloud Run changes. See the updated §13
+cost gate below for the still-pending Cloud SQL number.
+
 ## 1. Current GCP inventory (as of this read)
 
 | Item | Value |
@@ -226,24 +282,15 @@ Target (unchanged from the existing Terraform plan, re-verified against this rea
 PostgreSQL 15, `ENTERPRISE` edition, `db-f1-micro`, `us-central1`, `ZONAL`, 10 GB
 `PD_SSD`, no HA, no PITR, backups disabled, `deletion_protection = true`.
 
-**Blocker to resolve before Stage 2, not before**: `db-f1-micro` needs to be confirmed
-still orderable for PostgreSQL under the `ENTERPRISE` edition in this project/region —
-GCP has been narrowing shared-core tier availability by edition over the last couple of
-years and I have not independently verified current tier availability (that requires
-`gcloud sql tiers list`, which itself requires enabling `sqladmin.googleapis.com` first
-— a project-config change, so it's listed as `[NOT EXECUTED]` here rather than run
-during this read-only pass).
-
-`[NOT EXECUTED -- requires explicit authorization]`
-```bash
-gcloud services enable sqladmin.googleapis.com --project=pfi-asplanatti-fabrello-v1
-gcloud sql tiers list --project=pfi-asplanatti-fabrello-v1 --filter="region:us-central1"
-```
-
-If `db-f1-micro` is gone, the minimum-equivalent replacement is `db-g1-small` (1 vCPU
-shared, 1.7 GB) or the newer `db-perf-optimized-N-1`/`db-custom-1-3840` shared-core
-tiers — whichever `gcloud sql tiers list` actually reports as available; do not guess
-at a name that isn't returned by that call.
+**Resolved in Stage 2** (2026-09-22): `sqladmin.googleapis.com` enabled,
+`gcloud sql tiers list --project=pfi-asplanatti-fabrello-v1` run (read-only, zero
+instances created). `db-f1-micro` **is available in `us-central1`** (614.4 MiB RAM,
+shared-core, 3 TiB max disk quota for this tier). The Cloud SQL Tiers API does not
+expose per-engine/per-edition compatibility (no field distinguishes MySQL/Postgres/SQL
+Server or Enterprise/Enterprise Plus support per tier), so `POSTGRES_15` +
+`ENTERPRISE`-edition compatibility for `db-f1-micro` is only fully confirmed at actual
+instance-creation time — still gated behind Cloud SQL creation authorization, not this
+read-only tier check. No alternate tier is proposed unless creation itself rejects it.
 
 **Estimated monthly fixed cost** (list-price estimate, not pulled from a live Billing
 API call in this pass — verify with the Cloud Billing Catalog before committing):
@@ -373,8 +420,8 @@ CLOUD-10  Cost/performance measurement                     (§15)
 
 | Resource | Expected config | Est. monthly fixed | Est. variable | Scale to zero? | Deletion command | Risk |
 |---|---|---|---|---|---|---|
-| GCS bucket | STANDARD regional, no versioning | ~US$0.02/GB/mo stored (negligible at DEV volume) | per-op, negligible at DEV volume | n/a (storage isn't compute) | `gcloud storage buckets delete gs://pfi-backend-durable-dev` (must be empty, or add `--recursive` with the data-loss implications understood) | Low — reversible, no data until first upload |
-| Secret Manager | 2 secrets | ~US$0.12/mo (2 × $0.06/active version) | ~US$0.03/10k accesses | n/a | `gcloud secrets delete <name>` | Low |
+| GCS bucket — **CREATED** 2026-09-22 | STANDARD regional, no versioning, currently 0 B | ~US$0.02/GB/mo stored (0 B today = ~US$0) | per-op, negligible at DEV volume | n/a (storage isn't compute) | `gcloud storage buckets delete gs://pfi-backend-durable-dev` (must be empty, or add `--recursive` with the data-loss implications understood) | Low — reversible, currently empty |
+| Secret Manager — **CREATED** 2026-09-22 | 2 secrets (`pfi-dev-jwt-secret`: 1 version; `pfi-dev-database-url`: 0 versions, `PENDING_VALUE`) | ~US$0.06/mo (1 active version today) | ~US$0.03/10k accesses | n/a | `gcloud secrets delete <name>` | Low |
 | **Cloud SQL `db-f1-micro`** | ZONAL, 10GB PD_SSD, no backups | **~US$11–13/mo, runs 24/7** | negligible at DEV query volume | **No** — Cloud SQL does not scale to zero | `gcloud sql instances delete pfi-postgres-dev` (blocked while `deletion_protection=true`; must first `gcloud sql instances patch pfi-postgres-dev --no-deletion-protection`) | **Highest fixed-cost item in this plan** — the one to get explicit sign-off on before creating |
 | AI Cloud Run new revision | 4 vCPU/2Gi, min=0 | US$0 idle | per-request CPU/RAM-seconds while serving | **Yes** | `gcloud run services delete pfi-ai-module` (or just stop routing traffic to the new revision) | Low — already scale-to-zero today |
 | Backend Cloud Run redeploy | 1 vCPU/512Mi, min=0 | US$0 idle | per-request | Yes | `gcloud run services delete pfi-backend-dev` | Low |
