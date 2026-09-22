@@ -66,6 +66,21 @@
       <version>${postgresql.version}</version>
     </dependency>
     <!--
+      Cloud SQL Java Connector (PostgreSQL socket factory). No JDBC URL/code path
+      changes needed: every PostgresXxxRepository/Service's toJdbcUrl() already
+      passes a jdbc:postgresql://... string through unchanged, and
+      "jdbc:postgresql:///{db}?cloudSqlInstance=...&socketFactory=..." matches that
+      same prefix. This dependency only puts the SocketFactory class the driver
+      looks up by name on the classpath. Auth is ADC via the Cloud Run runtime
+      service account, already granted roles/cloudsql.client: no service-account
+      JSON, no VPC connector, no public-IP TCP connection.
+    -->
+    <dependency>
+      <groupId>com.google.cloud.sql</groupId>
+      <artifactId>postgres-socket-factory</artifactId>
+      <version>1.20.1</version>
+    </dependency>
+    <!--
       Documentacion OpenAPI generada desde el propio codigo. Se prefiere que la
       referencia de la API salga de los controllers y DTOs reales y no de un documento
       escrito a mano, que envejece sin que nadie se entere.
