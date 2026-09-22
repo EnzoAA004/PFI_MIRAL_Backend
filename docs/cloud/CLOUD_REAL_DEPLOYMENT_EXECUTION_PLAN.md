@@ -149,6 +149,110 @@ with `PFI_PERSISTENCE_MODE=postgres` against this instance will auto-apply all 2
 first connection — confirmed ready, **not run against this instance in this stage**
 (no Backend redeploy/connection was authorized).
 
+## 0c. Stage 4 status (2026-09-22, executed — code wired, redeploy blocked on a real finding)
+
+`CLOUD_DEPLOYMENT_STAGE_4_BACKEND_SQL_GCS_WIRING` added the Cloud SQL Java Connector
+dependency, built and pushed a new Backend image, and repeatedly attempted a live Cloud
+Run redeploy. **Live traffic was never left on the new revision** — every attempt that
+looked unsafe was rolled back within seconds, and `pfi-backend-dev` is currently serving
+100% traffic from the original revision `pfi-backend-dev-00002-jwd` (`PFI_PERSISTENCE_MODE=memory`),
+exactly as before this stage.
+
+### Network path decision, confirmed working
+
+Cloud SQL Java Connector, no VPC connector, no private IP — **confirmed correct**. The
+`pfi-dev-database-url` secret was rewritten (version 3; version 2's public-IP TCP URL was
+left in place, not destroyed) to:
+`jdbc:postgresql:///pfi?cloudSqlInstance=pfi-asplanatti-fabrello-v1:us-central1:pfi-postgres-dev&socketFactory=com.google.cloud.sql.postgres.SocketFactory&user=pfi_app&password=...`
+No Java code changes were needed for this — confirmed by audit that every
+`PostgresXxxRepository`/`Service`'s `toJdbcUrl()` already passes any `jdbc:postgresql://`-prefixed
+string through unchanged, and this shape matches that prefix. Added dependency:
+`com.google.cloud.sql:postgres-socket-factory:1.20.1` (commit `1db7a90`).
+
+### What was proven to work
+
+- **Cloud SQL connectivity, end-to-end, twice independently**: once via `java -jar` run
+  locally against the real secret value (Spring context started in ~25-31s, all 20
+  migrations applied, confirmed via `psql` — `domain_durable_object_assets` and 28 other
+  tables present, `schema_migrations` has 20 rows), and again via the deployed Cloud Run
+  revision itself (multiple `STARTUP HTTP probe succeeded ... status=200` log lines
+  across several redeploy attempts).
+- **The pushed image under Cloud-Run-matching constraints, locally**: `docker run
+  --memory=512m --cpus=1` with the real `DATABASE_URL` secret (via mounted ADC) served
+  15 consecutive `/api/system/health` requests over ~45s, memory flat at ~200MiB/512MiB
+  the whole time. Rules out the container image, the dependency, or the JDBC URL shape
+  as the problem.
+- **The Cloud Run revision, when reached via the `traffic-tag: stage4-cloudsql-gcs`
+  header on the stable base URL** (an alternate, officially-supported routing path that
+  bypasses the separate tag-subdomain and the "active/default serving" path): 200 OK,
+  fast (~0.25-0.32s, no cold start), repeatedly, both before and after the failed
+  cutover attempts below. This also verified, safely and without touching real traffic:
+  demo-doctor auth works (JWT secret binding correct), and the invalid-DICOM regression
+  still holds — a non-ZIP payload to `POST /api/ai/studies` returns 400
+  (`"El archivo del estudio no parece un ZIP valido"`), never 500/502.
+
+### What failed, and the real finding
+
+Every attempt to serve traffic through the **separate tag-subdomain URL**
+(`stage4-cloudsql-gcs---pfi-backend-dev-....run.app`) or through a **100%
+`update-traffic` cutover on the base URL** failed with `503`/connection-reset/timeout,
+across multiple redeploy variations tried in sequence to isolate the cause:
+`execution-environment` default (gen1) vs explicit `gen2`; memory `512Mi` vs `1Gi`;
+`min-instances` `0` vs `1`. None of these changes fixed it, and the failure was absent
+both locally (identical image, identical memory cap) and via the `traffic-tag`-header
+routing path.
+
+That isolation points to a specific, real gap: **the application opens a brand-new
+`DriverManager.getConnection(...)` per repository call, with no connection pool**
+(`PostgresStudyRepository`, `PostgresDurableObjectAssetRepository`, and five other
+`PostgresXxx` classes each do this independently — pre-existing pattern, not introduced
+by this stage). That was cheap enough over a plain TCP socket to never matter. The Cloud
+SQL Java Connector's per-connection setup is materially more expensive (an mTLS
+handshake per connection, backed by the connector's credential/certificate machinery).
+Cloud Run's load balancer runs its own backend-service health checking against the
+*actively serving* revision — separate from, and with different concurrency
+characteristics than, both the container's own `--startup-probe` and an occasional
+ad-hoc `curl`. The working hypothesis is that this concurrent health-check + real-traffic
+load, only present once a revision is the **active/100%** target, drove enough
+simultaneous connector handshakes on a single vCPU to exhaust the request queue and
+produce exactly what was observed: healthy in isolation, healthy under sustained serial
+load, unhealthy the moment it becomes the thing Cloud Run's LB is actively
+health-checking as primary.
+
+**This is not confirmed root cause** — it is the strongest hypothesis after ruling out
+the sandbox generation, memory, and cold-start explanations with direct evidence against
+each. The concrete, actionable fix is connection pooling (e.g., HikariCP, or at minimum
+a shared `DataSource` per `PostgresXxx` class instead of a raw `DriverManager.getConnection()`
+per call) — a real code change, correctly out of scope for a same-day Stage 4 wiring
+pass, and not attempted here.
+
+### Rollback performed (twice)
+
+1. After the first `100%` cutover attempt (revision `pfi-backend-dev-00009-pew`) failed
+   the base-URL check 3 seconds post-cutover: `update-traffic --to-revisions=pfi-backend-dev-00002-jwd=100`,
+   verified `200 {"status":"ok"}` immediately after.
+2. After the second `100%` cutover attempt (revision `pfi-backend-dev-00013-zam`, gen2)
+   failed repeatedly over ~50s post-cutover: same rollback command, same immediate
+   `200 OK` verification.
+
+No Cloud SQL, bucket, or secret was touched by either rollback — only Cloud Run traffic
+routing.
+
+### Resources changed this stage
+
+- Backend `pom.xml` + one new migration-free dependency (commit `1db7a90`, pushed to
+  `cloud-p0-durable-asset-persistence`).
+- New image pushed: `us-central1-docker.pkg.dev/pfi-asplanatti-fabrello-v1/pfi-containers/backend:backend-cloud-sql-gcs-1db7a90`
+  (digest `sha256:4fcfb0f036c0712beaeddd97f784536f9bce34d20539e4547e9bb9967fde8d94`, 463MB).
+  Previous images (`dee0826c...` and earlier) left untouched.
+- `pfi-dev-database-url` secret: version 3 added (Cloud SQL Connector JDBC URL); version
+  2 (public-IP JDBC URL) left in place, not destroyed.
+- 6 Cloud Run revisions created during iteration (`00003` through `00013`, several
+  superseded by later fixes), all currently at 0% traffic, tagged revision pinned to
+  `00013-zam` (the gen2/512Mi build — healthy via `traffic-tag` routing, not yet safe
+  for 100% traffic per the finding above).
+- **`pfi-backend-dev`'s live traffic is unchanged: 100% on `pfi-backend-dev-00002-jwd`.**
+
 **Cost baseline for later measurement**: tier `db-f1-micro`, 10 GB provisioned, DB size
 at creation ~8 MB (fresh `pfi` database, no application data), 0 active connections at
 rest, creation timestamp `2026-09-22T17:33:08Z` — starting point for the Stage 2/§15
