@@ -7,6 +7,22 @@ it. Where a command below would create/modify/delete a billed resource, it is ma
 `[NOT EXECUTED -- requires explicit authorization]` and must not be run without that
 authorization arriving in a later, separate instruction.
 
+## Backend service status (updated 2026-09-22, after Stage 4I)
+
+| Service | Role | Status |
+|---|---|---|
+| `pfi-backend-dev` | **LEGACY / ROLLBACK** | Still serving 100% of Backend traffic (`pfi-backend-dev-00002-jwd`), untouched throughout Stages 4G/4H/4I. Its percentage-split traffic mechanism was found unreliable (Stages 4G/4H) — do not use `update-traffic` percentage splits on this service again; keep it only as the safety rollback target. |
+| `pfi-backend-v2-dev` | **GREEN CANDIDATE** | New, single-revision-only Cloud Run service (blue/green replacement, not a revision split). Passed 1000-request concurrent warm load (0 errors) and 3/3 natural scale-to-zero cold-start cycles (all 200, ~20.6s cold / ~0.25s warm) — see `CLOUD_STAGE_4I_BACKEND_GREEN_SERVICE_REPORT.md`. **Not yet production-ready**: Frontend still points at the legacy URL, AI is not wired, and full DICOM E2E has not been exercised against it. |
+
+Do not call `pfi-backend-v2-dev` "production-ready" until the Frontend
+switch (Stage 9 of the roadmap below) and AI wiring (Stages 5-8) are
+also validated.
+
+**Roadmap from here** (per user direction, 2026-09-22):
+Stage 5 (AI durable redeploy) → Stage 6 (Backend v2 → private AI) →
+Stage 7 (full DICOM E2E) → Stage 8 (persistence/restart evidence) →
+Stage 9 (Frontend → Backend v2) → Stage 10 (real cost measurement).
+
 ## 0. Stage 2 status (2026-09-22, executed)
 
 `CLOUD_DEPLOYMENT_STAGE_2_LOW_COST_FOUNDATION` ran the subset of §3–§6 below that was
