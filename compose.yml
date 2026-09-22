@@ -89,8 +89,15 @@ services:
       # se pueda entrar al sistema sin registro previo; ver la advertencia de ese archivo.
       PFI_AUTH_DEMO_ENABLED: ${PFI_AUTH_DEMO_ENABLED:-false}
       PFI_CORS_ALLOWED_ORIGINS: ${PFI_CORS_ALLOWED_ORIGINS:-http://localhost:8088}
+      # Cloud P0B: durable object storage for raw study inputs. filesystem root below is
+      # a named volume (backend-storage), not the container's ephemeral layer.
+      PFI_STORAGE_PROVIDER: ${PFI_STORAGE_PROVIDER:-filesystem}
+      PFI_STORAGE_LOCAL_ROOT: /app/storage/object_storage
+      PFI_STORAGE_GCS_BUCKET: ${PFI_STORAGE_GCS_BUCKET:-}
     ports:
       - "${BACKEND_PORT:-8080}:8080"
+    volumes:
+      - backend-storage:/app/storage
     depends_on:
       postgres:
         condition: service_healthy
@@ -136,3 +143,4 @@ volumes:
   postgres-data:
   ai-outputs:
   ai-uploads:
+  backend-storage:
