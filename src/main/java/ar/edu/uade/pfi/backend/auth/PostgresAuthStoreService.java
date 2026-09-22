@@ -1,11 +1,11 @@
 package ar.edu.uade.pfi.backend.auth;
 
+import ar.edu.uade.pfi.backend.repository.PfiHikariDataSourceFactory;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Timestamp;
@@ -14,20 +14,43 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import javax.sql.DataSource;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
 public class PostgresAuthStoreService {
-  private final String jdbcUrl;
+  private final DataSource dataSource;
   private final boolean enabled;
 
+  /**
+   * The app-wide pooled DataSource only exists as a bean in postgres mode
+   * ({@code PfiDataSourceConfig}); {@link ObjectProvider} is how a bean that's always
+   * created (this one) tolerates that bean sometimes not existing.
+   */
+  @Autowired
   public PostgresAuthStoreService(
       @Value("${pfi.persistence.mode:memory}") String persistenceMode,
-      @Value("${pfi.database.url:${DATABASE_URL:}}") String databaseUrl) {
-    this.jdbcUrl = toJdbcUrl(databaseUrl == null ? "" : databaseUrl.trim());
-    this.enabled = "postgres".equalsIgnoreCase(persistenceMode) && !this.jdbcUrl.isBlank();
+      ObjectProvider<DataSource> dataSourceProvider) {
+    this(persistenceMode, dataSourceProvider.getIfAvailable());
+  }
+
+  public PostgresAuthStoreService(String persistenceMode, DataSource dataSource) {
+    this.dataSource = dataSource;
+    this.enabled = "postgres".equalsIgnoreCase(persistenceMode) && this.dataSource != null;
     if (enabled) migrate();
+  }
+
+  /** Test convenience: builds its own small pool from a raw JDBC/connection URL. */
+  public PostgresAuthStoreService(String persistenceMode, String databaseUrl) {
+    this(persistenceMode, buildDataSourceOrNull(databaseUrl));
+  }
+
+  private static DataSource buildDataSourceOrNull(String databaseUrl) {
+    String jdbcUrl = toJdbcUrl(databaseUrl == null ? "" : databaseUrl.trim());
+    return jdbcUrl.isBlank() ? null : PfiHikariDataSourceFactory.create(jdbcUrl);
   }
 
   public boolean enabled() {
@@ -630,10 +653,10 @@ public class PostgresAuthStoreService {
   }
 
   private Connection connection() throws Exception {
-    return DriverManager.getConnection(jdbcUrl);
+    return dataSource.getConnection();
   }
 
-  private String toJdbcUrl(String databaseUrl) {
+  private static String toJdbcUrl(String databaseUrl) {
     if (databaseUrl.isBlank()) return "";
     if (databaseUrl.startsWith("jdbc:postgresql://")) return databaseUrl;
     if (!databaseUrl.startsWith("postgres://") && !databaseUrl.startsWith("postgresql://"))

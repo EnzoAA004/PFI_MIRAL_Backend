@@ -3,6 +3,7 @@ package ar.edu.uade.pfi.backend.service;
 import ar.edu.uade.pfi.backend.domain.RunArtifact;
 import ar.edu.uade.pfi.backend.domain.RunAssetContent;
 import ar.edu.uade.pfi.backend.domain.RunAssetStorageDiagnostics;
+import ar.edu.uade.pfi.backend.repository.PfiHikariDataSourceFactory;
 import ar.edu.uade.pfi.backend.repository.SqlMigrationRunner;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -10,7 +11,6 @@ import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Timestamp;
@@ -18,6 +18,7 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import javax.sql.DataSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -29,19 +30,19 @@ public class PostgresRunAssetContentStorage implements RunAssetContentStorage {
   static final String STORAGE_KIND = "postgres_bytea";
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-  private final String jdbcUrl;
+  private final DataSource dataSource;
   private final long maxBytes;
 
   @Autowired
   public PostgresRunAssetContentStorage(
-      @Value("${pfi.database.url:${DATABASE_URL:}}") String databaseUrl,
+      DataSource dataSource,
       @Value("${pfi.asset-storage.max-bytes:5242880}") long maxBytes) {
-    this(databaseUrl, maxBytes, true);
+    this(dataSource, maxBytes, true);
   }
 
   public PostgresRunAssetContentStorage(
-      String databaseUrl, long maxBytes, boolean applyMigrations) {
-    this.jdbcUrl = toJdbcUrl(databaseUrl == null ? "" : databaseUrl.trim());
+      DataSource dataSource, long maxBytes, boolean applyMigrations) {
+    this.dataSource = dataSource;
     this.maxBytes = maxBytes;
     if (applyMigrations) {
       try (Connection connection = connection()) {
@@ -51,6 +52,11 @@ public class PostgresRunAssetContentStorage implements RunAssetContentStorage {
             "Could not initialize PostgreSQL run asset content storage", ex);
       }
     }
+  }
+
+  public PostgresRunAssetContentStorage(
+      String databaseUrl, long maxBytes, boolean applyMigrations) {
+    this(PfiHikariDataSourceFactory.create(toJdbcUrl(databaseUrl == null ? "" : databaseUrl.trim())), maxBytes, applyMigrations);
   }
 
   @Override
@@ -239,10 +245,10 @@ public class PostgresRunAssetContentStorage implements RunAssetContentStorage {
   }
 
   private Connection connection() throws Exception {
-    return DriverManager.getConnection(jdbcUrl);
+    return dataSource.getConnection();
   }
 
-  private String toJdbcUrl(String databaseUrl) {
+  private static String toJdbcUrl(String databaseUrl) {
     if (databaseUrl.isBlank()) return "";
     if (databaseUrl.startsWith("jdbc:postgresql://")) return databaseUrl;
     if (!databaseUrl.startsWith("postgres://") && !databaseUrl.startsWith("postgresql://"))

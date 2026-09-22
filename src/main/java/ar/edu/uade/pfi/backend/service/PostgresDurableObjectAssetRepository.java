@@ -1,12 +1,12 @@
 package ar.edu.uade.pfi.backend.service;
 
 import ar.edu.uade.pfi.backend.domain.DurableObjectAsset;
+import ar.edu.uade.pfi.backend.repository.PfiHikariDataSourceFactory;
 import ar.edu.uade.pfi.backend.repository.SqlMigrationRunner;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Timestamp;
@@ -14,8 +14,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import javax.sql.DataSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Repository;
 
@@ -23,16 +23,15 @@ import org.springframework.stereotype.Repository;
 @ConditionalOnProperty(name = "pfi.persistence.mode", havingValue = "postgres")
 public class PostgresDurableObjectAssetRepository implements DurableObjectAssetRepository {
 
-    private final String jdbcUrl;
+    private final DataSource dataSource;
 
     @Autowired
-    public PostgresDurableObjectAssetRepository(
-        @Value("${pfi.database.url:${DATABASE_URL:}}") String databaseUrl) {
-        this(databaseUrl, true);
+    public PostgresDurableObjectAssetRepository(DataSource dataSource) {
+        this(dataSource, true);
     }
 
-    public PostgresDurableObjectAssetRepository(String databaseUrl, boolean applyMigrations) {
-        this.jdbcUrl = toJdbcUrl(databaseUrl == null ? "" : databaseUrl.trim());
+    public PostgresDurableObjectAssetRepository(DataSource dataSource, boolean applyMigrations) {
+        this.dataSource = dataSource;
         if (applyMigrations) {
             try (Connection connection = connection()) {
                 new SqlMigrationRunner(SqlMigrationRunner.DEFAULT_MIGRATIONS_DIRECTORY).apply(connection);
@@ -40,6 +39,10 @@ public class PostgresDurableObjectAssetRepository implements DurableObjectAssetR
                 throw new IllegalStateException("Could not initialize durable object asset repository", ex);
             }
         }
+    }
+
+    public PostgresDurableObjectAssetRepository(String databaseUrl, boolean applyMigrations) {
+        this(PfiHikariDataSourceFactory.create(toJdbcUrl(databaseUrl == null ? "" : databaseUrl.trim())), applyMigrations);
     }
 
     @Override
@@ -143,10 +146,10 @@ public class PostgresDurableObjectAssetRepository implements DurableObjectAssetR
     }
 
     private Connection connection() throws Exception {
-        return DriverManager.getConnection(jdbcUrl);
+        return dataSource.getConnection();
     }
 
-    private String toJdbcUrl(String databaseUrl) {
+    private static String toJdbcUrl(String databaseUrl) {
         if (databaseUrl.isBlank()) return "";
         if (databaseUrl.startsWith("jdbc:postgresql://")) return databaseUrl;
         if (!databaseUrl.startsWith("postgres://") && !databaseUrl.startsWith("postgresql://")) {

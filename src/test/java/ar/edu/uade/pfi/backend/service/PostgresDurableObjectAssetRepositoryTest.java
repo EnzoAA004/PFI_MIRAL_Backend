@@ -68,4 +68,27 @@ class PostgresDurableObjectAssetRepositoryTest {
         assertEquals(second.assetId(), latest.assetId());
         assertTrue(latest.createdAt().isAfter(first.createdAt()));
     }
+
+    @Test
+    void repeatedRepositoryOperationsReuseThePoolInsteadOfOpeningANewConnectionEachTime() {
+        PostgresDurableObjectAssetRepository repo = repository();
+        String studyId = "study-pool-" + UUID.randomUUID();
+
+        // Cloud P0B/4B: this is the exact pattern (one DriverManager.getConnection()
+        // per call) that made every real request to Cloud Run's active revision
+        // exhaust the connector's per-connection handshake cost under load. 30
+        // sequential save+read cycles must all succeed without the pool growing
+        // connection-per-call -- see PfiHikariDataSourceFactoryTest for direct pool
+        // bookkeeping assertions.
+        for (int i = 0; i < 30; i++) {
+            DurableObjectAsset asset = new DurableObjectAsset(
+                UUID.randomUUID().toString(), studyId, null, null,
+                "studies/" + studyId + "/inputs/a" + i + "/study.zip", "application/zip",
+                (long) (i + 1), "hash-" + i, "study_input", "filesystem", "study.zip", Instant.now());
+            repo.save(asset);
+            assertTrue(repo.findById(asset.assetId()).isPresent());
+        }
+
+        assertEquals(30, repo.findByStudyId(studyId).size());
+    }
 }

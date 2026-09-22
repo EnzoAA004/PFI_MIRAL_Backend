@@ -27,7 +27,6 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Date;
@@ -38,8 +37,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import javax.sql.DataSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Repository;
 
@@ -50,20 +49,17 @@ public class PostgresStudyRepository implements StudyRepository {
     private static final TypeReference<List<Map<String, Object>>> JSON_MAP_LIST = new TypeReference<>() {};
     private static final TypeReference<List<String>> JSON_STRING_LIST = new TypeReference<>() {};
 
-    private final String jdbcUrl;
+    private final DataSource dataSource;
     private final ObjectMapper objectMapper;
 
     @Autowired
-    public PostgresStudyRepository(
-        ObjectMapper objectMapper,
-        @Value("${pfi.database.url:${DATABASE_URL:}}") String databaseUrl
-    ) {
-        this(objectMapper, databaseUrl, true);
+    public PostgresStudyRepository(ObjectMapper objectMapper, DataSource dataSource) {
+        this(objectMapper, dataSource, true);
     }
 
-    public PostgresStudyRepository(ObjectMapper objectMapper, String databaseUrl, boolean applyMigrations) {
+    public PostgresStudyRepository(ObjectMapper objectMapper, DataSource dataSource, boolean applyMigrations) {
         this.objectMapper = objectMapper;
-        this.jdbcUrl = toJdbcUrl(databaseUrl == null ? "" : databaseUrl.trim());
+        this.dataSource = dataSource;
         if (applyMigrations) {
             try (Connection connection = connection()) {
                 new SqlMigrationRunner(SqlMigrationRunner.DEFAULT_MIGRATIONS_DIRECTORY).apply(connection);
@@ -71,6 +67,10 @@ public class PostgresStudyRepository implements StudyRepository {
                 throw new IllegalStateException("Could not initialize PostgreSQL study repository", ex);
             }
         }
+    }
+
+    public PostgresStudyRepository(ObjectMapper objectMapper, String databaseUrl, boolean applyMigrations) {
+        this(objectMapper, PfiHikariDataSourceFactory.create(toJdbcUrl(databaseUrl == null ? "" : databaseUrl.trim())), applyMigrations);
     }
 
     @Override
@@ -998,10 +998,10 @@ public class PostgresStudyRepository implements StudyRepository {
     }
 
     private Connection connection() throws Exception {
-        return DriverManager.getConnection(jdbcUrl);
+        return dataSource.getConnection();
     }
 
-    private String toJdbcUrl(String databaseUrl) {
+    private static String toJdbcUrl(String databaseUrl) {
         if (databaseUrl.isBlank()) return "";
         if (databaseUrl.startsWith("jdbc:postgresql://")) return databaseUrl;
         if (!databaseUrl.startsWith("postgres://") && !databaseUrl.startsWith("postgresql://")) return databaseUrl;

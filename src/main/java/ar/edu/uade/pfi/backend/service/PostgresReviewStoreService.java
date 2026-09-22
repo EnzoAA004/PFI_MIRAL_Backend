@@ -4,12 +4,12 @@ import ar.edu.uade.pfi.backend.dto.AuditEventDto;
 import ar.edu.uade.pfi.backend.dto.MeasurementSaveDto;
 import ar.edu.uade.pfi.backend.dto.ReviewSnapshotDto;
 import ar.edu.uade.pfi.backend.dto.ReviewStatusDto;
+import ar.edu.uade.pfi.backend.repository.PfiHikariDataSourceFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Timestamp;
@@ -18,6 +18,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import javax.sql.DataSource;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -25,19 +28,34 @@ import org.springframework.stereotype.Service;
 @Deprecated(since = "P8-A", forRemoval = false)
 public class PostgresReviewStoreService {
   private final ObjectMapper objectMapper;
-  private final String jdbcUrl;
+  private final DataSource dataSource;
   private final boolean enabled;
 
+  @Autowired
   public PostgresReviewStoreService(
       ObjectMapper objectMapper,
       @Value("${pfi.persistence.mode:memory}") String persistenceMode,
-      @Value("${pfi.database.url:${DATABASE_URL:}}") String databaseUrl) {
+      ObjectProvider<DataSource> dataSourceProvider) {
+    this(objectMapper, persistenceMode, dataSourceProvider.getIfAvailable());
+  }
+
+  public PostgresReviewStoreService(ObjectMapper objectMapper, String persistenceMode, DataSource dataSource) {
     this.objectMapper = objectMapper;
-    this.jdbcUrl = toJdbcUrl(databaseUrl == null ? "" : databaseUrl.trim());
-    this.enabled = "postgres".equalsIgnoreCase(persistenceMode) && !this.jdbcUrl.isBlank();
+    this.dataSource = dataSource;
+    this.enabled = "postgres".equalsIgnoreCase(persistenceMode) && this.dataSource != null;
     if (enabled) {
       migrate();
     }
+  }
+
+  /** Test convenience: builds its own small pool from a raw JDBC/connection URL. */
+  public PostgresReviewStoreService(ObjectMapper objectMapper, String persistenceMode, String databaseUrl) {
+    this(objectMapper, persistenceMode, buildDataSourceOrNull(databaseUrl));
+  }
+
+  private static DataSource buildDataSourceOrNull(String databaseUrl) {
+    String jdbcUrl = toJdbcUrl(databaseUrl == null ? "" : databaseUrl.trim());
+    return jdbcUrl.isBlank() ? null : PfiHikariDataSourceFactory.create(jdbcUrl);
   }
 
   public boolean enabled() {
@@ -304,10 +322,10 @@ public class PostgresReviewStoreService {
   }
 
   private Connection connection() throws Exception {
-    return DriverManager.getConnection(jdbcUrl);
+    return dataSource.getConnection();
   }
 
-  private String toJdbcUrl(String databaseUrl) {
+  private static String toJdbcUrl(String databaseUrl) {
     if (databaseUrl.isBlank()) return "";
     if (databaseUrl.startsWith("jdbc:postgresql://")) return databaseUrl;
     if (!databaseUrl.startsWith("postgres://") && !databaseUrl.startsWith("postgresql://"))
