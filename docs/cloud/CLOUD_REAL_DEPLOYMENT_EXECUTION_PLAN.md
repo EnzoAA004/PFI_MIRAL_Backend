@@ -63,6 +63,97 @@ access (no evidence it needs DB/JWT secrets).
 for the one loaded version. No Cloud SQL, no Cloud Run changes. See the updated §13
 cost gate below for the still-pending Cloud SQL number.
 
+## 0b. Stage 3 status (2026-09-22, executed — Cloud SQL DEV created)
+
+`CLOUD_DEPLOYMENT_STAGE_3_CLOUD_SQL` created the first fixed-cost (non-scale-to-zero)
+resource in this plan. **This instance now accrues ~US$11–13/month, 24/7, until it is
+deleted.**
+
+**Instance**: `pfi-postgres-dev`, state `RUNNABLE`.
+
+| | |
+|---|---|
+| Database version | `POSTGRES_15` (installed `15.19`) |
+| Edition | `ENTERPRISE` |
+| Tier | `db-f1-micro` |
+| Region / zone | `us-central1` / `us-central1-c` |
+| Availability | `ZONAL` |
+| Storage | 10 GB `PD_SSD`, autoresize disabled |
+| Backups | disabled |
+| PITR | disabled |
+| Deletion protection | `true` |
+| Connection name | `pfi-asplanatti-fabrello-v1:us-central1:pfi-postgres-dev` |
+| Public IP | `34.172.44.200` (present, per the pre-existing Terraform plan's `ipv4Enabled=true`) |
+| Authorized networks | **none configured** — the public IP exists but is unreachable over raw TCP; Cloud SQL itself reports "Configuring authorized network or using CloudSQL auth proxy or language connectors is a prerequisite for connecting to Public IP" |
+| `requireSsl` / `sslMode` | `false` / `ALLOW_UNENCRYPTED_AND_ENCRYPTED` (default; flagged below, not changed — not in this stage's authorized action list) |
+| Creation timestamp (cost baseline start) | `2026-09-22T17:33:08Z` |
+
+**Network exposure review**: confirmed no `0.0.0.0/0` and no other entries in authorized
+networks — nothing added by this stage. The only connection made during this stage went
+through the **Cloud SQL Auth Proxy** (`gcloud components install cloud-sql-proxy`,
+tunneled via the Cloud SQL Admin API using this session's own IAM identity, never via a
+raw TCP connection to the public IP). This is the "supported by current architecture"
+path requested: Backend's `PostgresStudyRepository`/`PostgresDurableObjectAssetRepository`
+etc. only know how to consume a plain `jdbc:postgresql://host:port/db?user=&password=`
+URL (confirmed — no `com.google.cloud.sql:*-socket-factory` dependency in `pom.xml`), so
+for Cloud Run to reach this instance in Stage 4 it will need **either** (a) a Serverless
+VPC Access connector + Private IP on this instance (TCP, no code change, but a new
+billed resource not authorized in this stage), **or** (b) adding the Cloud SQL socket
+factory dependency and switching to Cloud Run's native `--add-cloudsql-instances`
+integration (a code change). Neither was decided or executed here — flagged for the
+Stage 4 authorization request.
+
+**Application database**: `pfi` — created, matching the name already fixed in the
+pre-existing (never-applied) Terraform plan (`docs/cloud/CLOUD_05_TERRAFORM_PLAN_OUTPUT_F1MICRO.txt`)
+rather than the `pfi_backend` name used only as a local-dev-compose default (Backend's
+code does not hardcode a database name — it consumes whatever `DATABASE_URL` gives it —
+so there was no code-mandated name to defer to; the existing Terraform plan's name was
+treated as the standing decision).
+
+**Application user**: `pfi_app` — created (first attempt used a `tr`-mangled password
+that silently produced no user, caught by checking `gcloud sql users list` rather than
+trusting an unconditional success echo; the user was then created for real and its
+password set explicitly with a clean `openssl rand -hex 24` value, verified end-to-end
+by the connectivity test below).
+
+**DB secret** (`pfi-dev-database-url`): now holds a real, working
+`jdbc:postgresql://<public-ip>:5432/pfi?user=pfi_app&password=...&sslmode=require`
+connection string as its one `enabled` version (version 2; version 1, created with the
+mismatched password from the failed first attempt, was destroyed). No secret value
+appears anywhere in this repo, this document, or any report.
+
+**Secret IAM**: unchanged from Stage 2 — `pfi-backend-runtime@...` holds
+`secretAccessor` on `pfi-dev-database-url`.
+
+**Cloud SQL IAM**: `pfi-backend-runtime@...` granted `roles/cloudsql.client` at the
+project level (matches the pre-existing Terraform plan's planned binding). SA now holds
+exactly `roles/run.invoker` + `roles/cloudsql.client` — no Cloud SQL Admin, no Editor,
+no Owner.
+
+**Connectivity test**: PASS, via Cloud SQL Auth Proxy on `127.0.0.1:5433` (localhost
+only) + `psql` (run from the `postgres:16-alpine` image already used by the local
+Backend stack, connecting to `host.docker.internal:5433`):
+- `SELECT version()` → `PostgreSQL 15.19 on x86_64-pc-linux-gnu, ...`
+- `CREATE TABLE p0b_connectivity_check(...)`, one `INSERT ... RETURNING`, one
+  `SELECT count(*)` (returned `1`), then `DROP TABLE` — table does not exist afterward.
+  No real/sensitive data touched the instance.
+- Proxy stopped afterward; confirmed via `netstat`/`tasklist` that neither the process
+  nor the listening port remain.
+
+**Migration readiness**: 20 migration files under `docs/migrations/`, lexicographically
+ordered by filename (`V20260922_023_durable_object_assets.sql` sorts last, correctly),
+tracked via an idempotent `schema_migrations` table with advisory-lock concurrency
+protection (`SqlMigrationRunner.java`). Nothing here is PostgreSQL-16+-specific; all 20
+files use standard DDL compatible with `15.19`. The next Backend process that connects
+with `PFI_PERSISTENCE_MODE=postgres` against this instance will auto-apply all 20 on
+first connection — confirmed ready, **not run against this instance in this stage**
+(no Backend redeploy/connection was authorized).
+
+**Cost baseline for later measurement**: tier `db-f1-micro`, 10 GB provisioned, DB size
+at creation ~8 MB (fresh `pfi` database, no application data), 0 active connections at
+rest, creation timestamp `2026-09-22T17:33:08Z` — starting point for the Stage 2/§15
+cost-measurement plan once Stage 4 wires Backend to this instance.
+
 ## 1. Current GCP inventory (as of this read)
 
 | Item | Value |
@@ -422,7 +513,7 @@ CLOUD-10  Cost/performance measurement                     (§15)
 |---|---|---|---|---|---|---|
 | GCS bucket — **CREATED** 2026-09-22 | STANDARD regional, no versioning, currently 0 B | ~US$0.02/GB/mo stored (0 B today = ~US$0) | per-op, negligible at DEV volume | n/a (storage isn't compute) | `gcloud storage buckets delete gs://pfi-backend-durable-dev` (must be empty, or add `--recursive` with the data-loss implications understood) | Low — reversible, currently empty |
 | Secret Manager — **CREATED** 2026-09-22 | 2 secrets (`pfi-dev-jwt-secret`: 1 version; `pfi-dev-database-url`: 0 versions, `PENDING_VALUE`) | ~US$0.06/mo (1 active version today) | ~US$0.03/10k accesses | n/a | `gcloud secrets delete <name>` | Low |
-| **Cloud SQL `db-f1-micro`** | ZONAL, 10GB PD_SSD, no backups | **~US$11–13/mo, runs 24/7** | negligible at DEV query volume | **No** — Cloud SQL does not scale to zero | `gcloud sql instances delete pfi-postgres-dev` (blocked while `deletion_protection=true`; must first `gcloud sql instances patch pfi-postgres-dev --no-deletion-protection`) | **Highest fixed-cost item in this plan** — the one to get explicit sign-off on before creating |
+| **Cloud SQL `db-f1-micro`** — **CREATED** 2026-09-22T17:33:08Z | ZONAL, 10GB PD_SSD, no backups, instance `pfi-postgres-dev` | **~US$11–13/mo, runs 24/7 starting now** | negligible at DEV query volume | **No** — Cloud SQL does not scale to zero | `gcloud sql instances delete pfi-postgres-dev` (blocked while `deletion_protection=true`; must first `gcloud sql instances patch pfi-postgres-dev --no-deletion-protection`) | **Now the plan's only active fixed-cost item — running since the timestamp above** |
 | AI Cloud Run new revision | 4 vCPU/2Gi, min=0 | US$0 idle | per-request CPU/RAM-seconds while serving | **Yes** | `gcloud run services delete pfi-ai-module` (or just stop routing traffic to the new revision) | Low — already scale-to-zero today |
 | Backend Cloud Run redeploy | 1 vCPU/512Mi, min=0 | US$0 idle | per-request | Yes | `gcloud run services delete pfi-backend-dev` | Low |
 | Artifact Registry image push | ~450 MB new manifest | ~US$0.05–0.10/mo beyond free tier | egress on pull | n/a | `gcloud artifacts docker images delete ...` | Low |
