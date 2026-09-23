@@ -733,3 +733,19 @@ schema but are not wired into any live code path, in
 Test data retained (not cleaned up) for Stage 8/10:
 studyId `073f44ab7d1945579d570a9e91d3540f`, runId `6c60404bdca1a206`,
 both clearly synthetic, no PHI.
+
+## 19. Stage 8 status — Final persistence stability
+
+**PASS.** The Stage 7 synthetic study/run survived 5x sequential
+reprocess, a 40-request concurrent mixed load (40/40 success,
+p95=0.703s), and one AI service restart, with zero duplication and
+zero unexpected errors across 16 cumulative reprocess calls. Full
+detail in
+[`CLOUD_STAGE_8_FINAL_PERSISTENCE_STABILITY_REPORT.md`](CLOUD_STAGE_8_FINAL_PERSISTENCE_STABILITY_REPORT.md),
+including a persistence-component classification table and the
+`domain_studies`/`domain_ai_analysis_runs` finding, reclassified as
+non-blocking architectural debt (not fixed, per instruction).
+
+FINAL_PERSISTENCE_STABLE = YES
+READY_FOR_FRONTEND_SWITCH = YES
+READY_FOR_COST_MEASUREMENT = YES
