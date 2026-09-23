@@ -340,7 +340,7 @@ numbers.
 | `pfi-backend-dev-stage4f-clean` (revision) | Same -- confirmed retired, not billing | **KEEP** |
 | Artifact Registry old/untagged image layers | 1.35 GB total across all Backend/AI/Frontend builds this session; mostly within free tier | **KEEP** (negligible cost; deleting risks losing rollback images) |
 | GCS objects | No duplicates found across 2 upload attempts x 35 studies (verified: `domain_durable_object_assets` count increases exactly 1:1 with study count in every batch) | **KEEP** |
-| **`pfi-backend-dev` (legacy) service-level `autoscaling.knative.dev/minScale=1`** | **Live right now.** Confirmed via `gcloud run services describe` (service-level annotation, distinct from any per-revision setting) and zero "Shutdown" log entries in the last 6 hours -- an instance has been running continuously. At its 1 vCPU/512 Mi allocation, this is **~$60-66/month** of unattributed always-on compute (using the same published Cloud Run rates as section 14), separate from and larger than every other fixed-cost line in this report combined. This does not match Stage 4H's own report, which documented reverting this service's scaling to `min=0` after its warm-revision testing concluded -- it was apparently re-set to 1 at some point since. | **INVESTIGATE** -- not touched this stage (legacy Backend instructed to stay untouched across every prior stage), but flagged prominently since it is real, ongoing, and unrelated to any measured workload in this report. |
+| **`pfi-backend-dev` (legacy) service-level `autoscaling.knative.dev/minScale=1`** | **Live right now.** Confirmed via `gcloud run services describe` (service-level annotation, distinct from any per-revision setting) and zero "Shutdown" log entries in the last 6 hours -- an instance has been running continuously. At its 1 vCPU/512 Mi allocation, this is **~$60-66/month** of unattributed always-on compute (using the same published Cloud Run rates as section 14), separate from and larger than every other fixed-cost line in this report combined. This does not match Stage 4H's own report, which documented reverting this service's scaling to `min=0` after its warm-revision testing concluded -- it was apparently re-set to 1 at some point since. | **INVESTIGATE** -- not touched this stage (legacy Backend instructed to stay untouched across every prior stage), but flagged prominently since it is real, ongoing, and unrelated to any measured workload in this report. **UPDATE (Stage 10B, same day): RESOLVED.** See [`CLOUD_STAGE_10B_COST_ANOMALY_CLEANUP.md`](CLOUD_STAGE_10B_COST_ANOMALY_CLEANUP.md) -- minScale reverted to 0 (absent), maxScale=2 preserved, traffic/image/IAM untouched, health confirmed 200 after a real cold start. |
 
 **No resources were deleted or modified in this stage**, per instruction.
 
@@ -372,7 +372,8 @@ study_id, run_id, error).
 None blocking the Cloud technical work itself. One operational item
 requiring the user's decision, not a technical blocker: whether to
 revert `pfi-backend-dev`'s `minScale=1` (section 23) -- explicitly not
-decided or acted on in this stage.
+decided or acted on in this stage. **Resolved same-day in Stage 10B**
+(see `CLOUD_STAGE_10B_COST_ANOMALY_CLEANUP.md`).
 
 ## 28. Final summary
 
