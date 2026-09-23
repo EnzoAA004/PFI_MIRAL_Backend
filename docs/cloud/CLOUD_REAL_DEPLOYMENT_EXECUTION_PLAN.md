@@ -700,3 +700,19 @@ Cloud Run variable cost for 50 studies + Storage delta) / 50` replaces:
 
 No change to `GestionadorLatex-Enzo_PFI_SEGUNDA_ENTREGA_WORK`'s financial model in this
 pass — that repo was not touched, per instruction.
+
+## 17. Stage 6 status — Backend Green -> Private AI auth
+
+**VALIDATED.** `pfi-backend-v2-dev` (revision `pfi-backend-v2-dev-00002-hdw`)
+invokes the private `pfi-ai-module` using Google ID token authentication
+(ADC -> `IdTokenCredentials`, audience = AI's own canonical service URL).
+Config-only change (`PFI_AI_SERVICE_URL`, `PFI_AI_AUTH_MODE=google-id-token`,
+`PFI_AI_SERVICE_AUDIENCE`, `PFI_AI_PRIVATE_REQUIRED=true`) — the auth
+implementation already existed in the Backend source. AI remains fully
+private (zero IAM bindings, unauthenticated requests get 403). Full detail,
+including a real cold-start/degraded-mode finding, in
+[`CLOUD_STAGE_6_BACKEND_PRIVATE_AI_AUTH_REPORT.md`](CLOUD_STAGE_6_BACKEND_PRIVATE_AI_AUTH_REPORT.md).
+
+`pfi-backend-runtime`'s `roles/run.invoker` grant is project-wide rather
+than scoped to `pfi-ai-module` — functions correctly, flagged as a future
+least-privilege hardening item, not changed this stage.
