@@ -716,3 +716,20 @@ including a real cold-start/degraded-mode finding, in
 `pfi-backend-runtime`'s `roles/run.invoker` grant is project-wide rather
 than scoped to `pfi-ai-module` — functions correctly, flagged as a future
 least-privilege hardening item, not changed this stage.
+
+## 18. Stage 7 status — Full DICOM E2E
+
+**PASS.** The full Cloud pipeline was proven with a synthetic/non-PHI
+DICOM ZIP: Backend Green upload -> durable GCS input -> authenticated
+private-AI real inference -> durable AI output assets (each with its
+own Stage-5B-fixed metadata object) -> retrieval through the product
+API -> reprocess without re-upload -> byte-identical asset checksums
+through freshly restarted Backend AND AI instances simultaneously
+(the cross-service durability gate). Full detail, including an honest
+finding that `domain_studies`/`domain_ai_analysis_runs` exist in the
+schema but are not wired into any live code path, in
+[`CLOUD_STAGE_7_FULL_DICOM_E2E_REPORT.md`](CLOUD_STAGE_7_FULL_DICOM_E2E_REPORT.md).
+
+Test data retained (not cleaned up) for Stage 8/10:
+studyId `073f44ab7d1945579d570a9e91d3540f`, runId `6c60404bdca1a206`,
+both clearly synthetic, no PHI.
