@@ -774,3 +774,35 @@ revision) both remain untouched, available as rollback/reference.
 FRONTEND_GREEN_SWITCH = PASS
 CLOUD_PRODUCT_BROWSER_E2E = PARTIAL
 READY_FOR_COST_MEASUREMENT = YES
+
+## 21. Stage 10 status — Real cost & performance measurement
+
+**COMPLETE.** 35 real synthetic-study Cloud E2E runs (10 + 25 studies,
+0 failures) produced a converged, reproducible cost/performance model:
+variable cost ~$0.0024/study (measured), fixed cost ~$11-13/month
+(Cloud SQL-dominated), storage growth a perfectly consistent 391,490
+bytes/study across every measurement window since Stage 7. Full
+methodology, per-scenario financial model inputs, and prior-estimate
+comparison in
+[`CLOUD_STAGE_10_REAL_COST_PERFORMANCE_REPORT.md`](CLOUD_STAGE_10_REAL_COST_PERFORMANCE_REPORT.md);
+raw per-study data in
+[`CLOUD_STAGE_10_MEASUREMENTS.csv`](CLOUD_STAGE_10_MEASUREMENTS.csv).
+
+**Cost anomaly found and flagged, not fixed**: `pfi-backend-dev`
+(legacy) currently has `autoscaling.knative.dev/minScale=1` at the
+service level -- an instance has been running continuously (~$60-66/mo
+unattributed), contradicting Stage 4H's own report of reverting this
+to `min=0`. Not corrected in Stage 10 per instruction (legacy Backend
+stays untouched); requires a user decision.
+
+REAL_COST_MODEL_READY = YES
+CLOUD_TECHNICAL_WORK_COMPLETE = YES (one open operational item: the
+minScale anomaly above, not a functional blocker)
+
+---
+
+This closes the CLOUD_STAGE_1 through CLOUD_STAGE_10 sequence
+documented across this file and the per-stage reports in this
+directory. The live architecture (Backend Green, private durable AI,
+Frontend pointed at Green, Cloud SQL, GCS) is functional,
+persistence-tested, and has a real cost/performance baseline.
