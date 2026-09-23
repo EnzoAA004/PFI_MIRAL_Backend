@@ -749,3 +749,28 @@ non-blocking architectural debt (not fixed, per instruction).
 FINAL_PERSISTENCE_STABLE = YES
 READY_FOR_FRONTEND_SWITCH = YES
 READY_FOR_COST_MEASUREMENT = YES
+
+## 20. Stage 9 status — Frontend Green switch
+
+**PASS (switch), PARTIAL (browser product E2E).** `pfi-frontend-dev`
+(revision `pfi-frontend-dev-00002-bv5`, rebuilt from current Frontend
+`main` at `ff191e1`) now points `BACKEND_URL` at
+`pfi-backend-v2-dev`. Proven at every layer: `env.js` runtime config,
+`window.__PFI_CONFIG__` in the live page, and real browser network
+traffic (Performance API resource entries) hitting only
+`pfi-backend-v2-dev`, never legacy. Auth flow and page load both work
+cleanly with zero console errors. A full click-through upload-to-
+result flow could not be completed via pure browser automation this
+session (tooling limitation, not a product defect) — a real
+browser-driven upload attempt did reach Backend Green and received a
+controlled 422 for an intentionally-too-small test fixture, proving
+full connectivity; the equivalent successful path with a valid fixture
+was already proven server-side in Stage 7/8. Full detail in
+[`CLOUD_STAGE_9_FRONTEND_GREEN_SWITCH_REPORT.md`](CLOUD_STAGE_9_FRONTEND_GREEN_SWITCH_REPORT.md).
+
+Legacy `pfi-backend-dev` and `pfi-frontend-dev-00001-c7v` (prior
+revision) both remain untouched, available as rollback/reference.
+
+FRONTEND_GREEN_SWITCH = PASS
+CLOUD_PRODUCT_BROWSER_E2E = PARTIAL
+READY_FOR_COST_MEASUREMENT = YES
