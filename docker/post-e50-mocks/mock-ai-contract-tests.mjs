@@ -95,6 +95,37 @@ async function main() {
     assert.ok(uploadBody.size > 0);
     ok("3 upload response tiene el shape determinístico esperado (format/size)");
 
+    // The deterministic demo seed uses the real AI Module's JSON registration form.
+    const serverSideResponse = await fetch(`${baseUrl}/inputs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        caseId: "DEMO-LUMBAR-2026-01",
+        plane: "sagittal",
+        sourceKey: "fixture:sagittal_sample",
+      }),
+    });
+    assert.equal(serverSideResponse.status, 200);
+    const serverSideBody = await serverSideResponse.json();
+    assert.match(serverSideBody.inputId, backendInputIdPattern);
+    assert.equal(serverSideBody.caseId, "DEMO-LUMBAR-2026-01");
+    assert.equal(serverSideBody.plane, "sagittal");
+    assert.equal(serverSideBody.format, "npy");
+    assert.equal(serverSideBody.size, 262272);
+    ok("3b registro server-side JSON replica el contrato real del AI Module");
+
+    const mismatchResponse = await fetch(`${baseUrl}/inputs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        caseId: "DEMO-LUMBAR-2026-01",
+        plane: "axial",
+        sourceKey: "fixture:sagittal_sample",
+      }),
+    });
+    assert.equal(mismatchResponse.status, 400);
+    ok("3c registro server-side rechaza plane/sourceKey incompatibles");
+
     // 4. invalid upload (no file part).
     const noFileBody = Buffer.from(`------x\r\nContent-Disposition: form-data; name="caseId"\r\n\r\nCASE-87-NO-FILE\r\n------x--\r\n`, "utf8");
     const invalidUpload = await fetch(`${baseUrl}/inputs`, { method: "POST", headers: { "Content-Type": "multipart/form-data; boundary=----x" }, body: noFileBody });

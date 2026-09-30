@@ -9,9 +9,8 @@ import crypto from "node:crypto";
  *
  * Endpoints:
  *   GET  /health              -- liveness, matches the real ai-module's healthcheck contract.
- *   POST /inputs               -- Stage 87: multipart upload, mirrors AiServiceClient.uploadInput's
- *                                 real contract (multipart fields: file, caseId, plane) ->
- *                                 {inputId, caseId, plane, format, size} (AiInputResponseDto).
+ *   POST /inputs               -- multipart upload or JSON server-side fixture registration,
+ *                                 matching both forms accepted by the real AI Module.
  *   POST /v2/multiplanar/run   -- Stage 87: the pfi.multiplanar-run.v2 contract
  *                                 (AiMultiplanarV2RequestDto in, AiMultiplanarV2ResponseDto out),
  *                                 same wire shape as the real, already-tested fixture at
@@ -365,6 +364,39 @@ const server = http.createServer((request, response) => {
 
   if (request.method === "POST" && request.url === "/inputs") {
     readBody(request).then((buffer) => {
+      const contentType = String(request.headers["content-type"] ?? "").toLowerCase();
+      if (contentType.startsWith("application/json")) {
+        let payload;
+        try {
+          payload = JSON.parse(buffer.toString("utf8") || "{}");
+        } catch {
+          return jsonResponse(response, 400, { status: "error", code: "INVALID_JSON", message: "Cuerpo invalido." });
+        }
+        const caseId = String(payload.caseId ?? "");
+        const plane = String(payload.plane ?? "");
+        const sourceKey = String(payload.sourceKey ?? "");
+        if (mode === "error" || isFailUpload(caseId)) {
+          return jsonResponse(response, 500, { status: "error", code: "MOCK_UPLOAD_FAILURE", message: "Simulated AI Module upload failure." });
+        }
+        const fixture = {
+          "fixture:sagittal_sample": { plane: "sagittal", size: 262272 },
+          "fixture:axial_sample": { plane: "axial", size: 131136 },
+        }[sourceKey];
+        if (!caseId || !fixture) {
+          return jsonResponse(response, 400, { status: "error", code: "INVALID_SERVER_SIDE_INPUT", message: "caseId y sourceKey registrado son obligatorios." });
+        }
+        if (plane !== fixture.plane) {
+          return jsonResponse(response, 400, { status: "error", code: "PLANE_SOURCE_MISMATCH", message: "plane incompatible con sourceKey." });
+        }
+        return jsonResponse(response, 200, {
+          inputId: deterministicInputId(caseId, plane, sourceKey, fixture.size),
+          caseId,
+          plane,
+          format: "npy",
+          size: fixture.size,
+        });
+      }
+
       const { fields, hasFile, fileSize, fileName } = parseMultipart(buffer, request.headers["content-type"]);
       const caseId = fields.caseId ?? "";
       const plane = fields.plane ?? "sagittal";
