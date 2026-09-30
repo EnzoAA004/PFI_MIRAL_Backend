@@ -14,13 +14,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import ar.edu.uade.pfi.backend.client.AiMultiplanarV1ResponseAdapter;
 import ar.edu.uade.pfi.backend.client.AiServiceOperations;
+import ar.edu.uade.pfi.backend.web.error.ApiExceptionHandler;
 import ar.edu.uade.pfi.backend.domain.CanonicalMultiplanarRun;
 import ar.edu.uade.pfi.backend.domain.CanonicalPlaneRun;
 import ar.edu.uade.pfi.backend.domain.DomainAuditEvent;
 import ar.edu.uade.pfi.backend.domain.InputResource;
 import ar.edu.uade.pfi.backend.domain.MeasurementCorrection;
-import ar.edu.uade.pfi.backend.domain.ReviewerAnnotation;
 import ar.edu.uade.pfi.backend.domain.RunArtifact;
+import ar.edu.uade.pfi.backend.domain.ReviewerAnnotation;
 import ar.edu.uade.pfi.backend.domain.RunReview;
 import ar.edu.uade.pfi.backend.domain.Study;
 import ar.edu.uade.pfi.backend.domain.StudyRun;
@@ -31,7 +32,6 @@ import ar.edu.uade.pfi.backend.repository.InMemoryStudyRepository;
 import ar.edu.uade.pfi.backend.repository.StudyRepository;
 import ar.edu.uade.pfi.backend.service.MultiplanarRunPersistenceService;
 import ar.edu.uade.pfi.backend.service.StudyRunService;
-import ar.edu.uade.pfi.backend.web.error.ApiExceptionHandler;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -49,48 +49,34 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.server.ResponseStatusException;
 
 class AiMultiplanarRunTest {
-  private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
-  @Test
-  void contractFallbackDoesNotExposeInternalExceptionMessage() throws Exception {
-    AiServiceOperations ai = org.mockito.Mockito.mock(AiServiceOperations.class);
-    when(ai.getMultiplanarContract())
-        .thenThrow(
-            new RuntimeException("http://ai-module.internal:8000 refused C:\\secret\\stack"));
-    MockMvc mockMvc =
-        MockMvcBuilders.standaloneSetup(new AiMultiplanarController(ai))
+    @Test
+    void contractFallbackDoesNotExposeInternalExceptionMessage() throws Exception {
+        AiServiceOperations ai = org.mockito.Mockito.mock(AiServiceOperations.class);
+        when(ai.getMultiplanarContract()).thenThrow(new RuntimeException("http://ai-module.internal:8000 refused C:\\secret\\stack"));
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new AiMultiplanarController(ai))
             .setControllerAdvice(new ApiExceptionHandler())
             .build();
 
-    mockMvc
-        .perform(get("/api/ai/multiplanar/contract"))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.message").value("AI Module no disponible."))
-        .andExpect(
-            jsonPath("$.message")
-                .value(
-                    org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("ai-module.internal"))))
-        .andExpect(
-            jsonPath("$.message")
-                .value(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("C:\\"))));
-  }
+        mockMvc.perform(get("/api/ai/multiplanar/contract"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.message").value("AI Module no disponible."))
+            .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("ai-module.internal"))))
+            .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("C:\\"))));
+    }
 
-  @Test
-  void runUsesInputIdsAndReturnsFrozenResponseFields() throws Exception {
-    AiServiceOperations ai = org.mockito.Mockito.mock(AiServiceOperations.class);
-    when(ai.runMultiplanar(any())).thenReturn(multiplanarResponse());
-    MockMvc mockMvc =
-        MockMvcBuilders.standaloneSetup(new AiMultiplanarController(ai))
+    @Test
+    void runUsesInputIdsAndReturnsFrozenResponseFields() throws Exception {
+        AiServiceOperations ai = org.mockito.Mockito.mock(AiServiceOperations.class);
+        when(ai.runMultiplanar(any())).thenReturn(multiplanarResponse());
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new AiMultiplanarController(ai))
             .setControllerAdvice(new ApiExceptionHandler())
             .build();
 
-    mockMvc
-        .perform(
-            post("/api/ai/multiplanar/run")
+        mockMvc.perform(post("/api/ai/multiplanar/run")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(
-                    """
+                .content("""
                     {
                       "caseId": "CASE-1",
                       "studyMetadata": {
@@ -110,57 +96,44 @@ class AiMultiplanarRunTest {
                       }
                     }
                     """))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.runId").value("multi-123"))
-        .andExpect(jsonPath("$.traceId").value("trace-123"))
-        .andExpect(jsonPath("$.effectiveInferenceMode").value("real_baseline"))
-        .andExpect(jsonPath("$.planes.sagittal.runId").value("run-sag-123"))
-        .andExpect(jsonPath("$.planes.sagittal.effectiveInferenceMode").value("real_baseline"))
-        .andExpect(jsonPath("$.planes.sagittal.inferenceMode").value("real_baseline"))
-        .andExpect(
-            jsonPath("$.planes.sagittal.assets['overlay.png']")
-                .value("/api/ai/assets/run-sag-123/sagittal/overlay.png"))
-        .andExpect(jsonPath("$.planes.axial.runId").value("run-ax-123"))
-        .andExpect(jsonPath("$.planes.axial.effectiveInferenceMode").value("real_baseline"))
-        .andExpect(
-            jsonPath("$.planes.axial.assets['mask-preview.png']")
-                .value("/api/ai/assets/run-ax-123/axial/mask-preview.png"));
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.runId").value("multi-123"))
+            .andExpect(jsonPath("$.traceId").value("trace-123"))
+            .andExpect(jsonPath("$.effectiveInferenceMode").value("real_baseline"))
+            .andExpect(jsonPath("$.planes.sagittal.runId").value("run-sag-123"))
+            .andExpect(jsonPath("$.planes.sagittal.effectiveInferenceMode").value("real_baseline"))
+            .andExpect(jsonPath("$.planes.sagittal.inferenceMode").value("real_baseline"))
+            .andExpect(jsonPath("$.planes.sagittal.assets['overlay.png']").value("/api/ai/assets/run-sag-123/sagittal/overlay.png"))
+            .andExpect(jsonPath("$.planes.axial.runId").value("run-ax-123"))
+            .andExpect(jsonPath("$.planes.axial.effectiveInferenceMode").value("real_baseline"))
+            .andExpect(jsonPath("$.planes.axial.assets['mask-preview.png']").value("/api/ai/assets/run-ax-123/axial/mask-preview.png"));
 
-    ArgumentCaptor<MultiplanarRunRequestDto> request =
-        ArgumentCaptor.forClass(MultiplanarRunRequestDto.class);
-    verify(ai).runMultiplanar(request.capture());
-    assertEquals("input-sag-1", request.getValue().sagittalInputId());
-    assertEquals("input-ax-1", request.getValue().axialInputId());
-    assertEquals("sagittal_spider", request.getValue().sagittalModelKey());
-    assertEquals("axial_t2_alkafri", request.getValue().axialModelKey());
-    assertEquals(true, request.getValue().allowContractFallback());
-    assertEquals(true, request.getValue().metadata().get("allowContractFallback"));
-    assertEquals("real_baseline", request.getValue().metadata().get("inferenceMode"));
-    String serializedTechnicalRequest = objectMapper.writeValueAsString(request.getValue());
-    org.junit.jupiter.api.Assertions.assertFalse(
-        serializedTechnicalRequest.contains("studyMetadata"));
-    org.junit.jupiter.api.Assertions.assertFalse(serializedTechnicalRequest.contains("subjectRef"));
-    org.junit.jupiter.api.Assertions.assertFalse(serializedTechnicalRequest.contains("SPIDER-101"));
-  }
+        ArgumentCaptor<MultiplanarRunRequestDto> request = ArgumentCaptor.forClass(MultiplanarRunRequestDto.class);
+        verify(ai).runMultiplanar(request.capture());
+        assertEquals("input-sag-1", request.getValue().sagittalInputId());
+        assertEquals("input-ax-1", request.getValue().axialInputId());
+        assertEquals("sagittal_spider", request.getValue().sagittalModelKey());
+        assertEquals("axial_t2_alkafri", request.getValue().axialModelKey());
+        assertEquals(true, request.getValue().allowContractFallback());
+        assertEquals(true, request.getValue().metadata().get("allowContractFallback"));
+        assertEquals("real_baseline", request.getValue().metadata().get("inferenceMode"));
+        String serializedTechnicalRequest = objectMapper.writeValueAsString(request.getValue());
+        org.junit.jupiter.api.Assertions.assertFalse(serializedTechnicalRequest.contains("studyMetadata"));
+        org.junit.jupiter.api.Assertions.assertFalse(serializedTechnicalRequest.contains("subjectRef"));
+        org.junit.jupiter.api.Assertions.assertFalse(serializedTechnicalRequest.contains("SPIDER-101"));
+    }
 
-  @Test
-  void runWithFallbackDisabledPropagatesSemanticError() throws Exception {
-    AiServiceOperations ai = org.mockito.Mockito.mock(AiServiceOperations.class);
-    when(ai.runMultiplanar(any()))
-        .thenThrow(
-            new ResponseStatusException(
-                HttpStatus.BAD_REQUEST, "axial plane requires real_baseline; fallback disabled"));
-    MockMvc mockMvc =
-        MockMvcBuilders.standaloneSetup(new AiMultiplanarController(ai))
+    @Test
+    void runWithFallbackDisabledPropagatesSemanticError() throws Exception {
+        AiServiceOperations ai = org.mockito.Mockito.mock(AiServiceOperations.class);
+        when(ai.runMultiplanar(any())).thenThrow(new ResponseStatusException(HttpStatus.BAD_REQUEST, "axial plane requires real_baseline; fallback disabled"));
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new AiMultiplanarController(ai))
             .setControllerAdvice(new ApiExceptionHandler())
             .build();
 
-    mockMvc
-        .perform(
-            post("/api/ai/multiplanar/run")
+        mockMvc.perform(post("/api/ai/multiplanar/run")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(
-                    """
+                .content("""
                     {
                       "caseId": "CASE-1",
                       "sagittalInputId": "input-sag-1",
@@ -171,30 +144,22 @@ class AiMultiplanarRunTest {
                       }
                     }
                     """))
-        .andExpect(status().isBadRequest())
-        .andExpect(
-            jsonPath("$.message").value("axial plane requires real_baseline; fallback disabled"));
-  }
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value("axial plane requires real_baseline; fallback disabled"));
+    }
 
-  @Test
-  void strictValidationFailureNeverPersistsARun() throws Exception {
-    AiServiceOperations ai = org.mockito.Mockito.mock(AiServiceOperations.class);
-    when(ai.runMultiplanar(any()))
-        .thenThrow(
-            new ar.edu.uade.pfi.backend.client.exception.AiMultiplanarContractViolationException(
-                "synthetic root debe ser false"));
-    InMemoryStudyRepository repository = new InMemoryStudyRepository();
-    MockMvc mockMvc =
-        MockMvcBuilders.standaloneSetup(controllerWithPersistence(ai, repository))
+    @Test
+    void strictValidationFailureNeverPersistsARun() throws Exception {
+        AiServiceOperations ai = org.mockito.Mockito.mock(AiServiceOperations.class);
+        when(ai.runMultiplanar(any())).thenThrow(new ar.edu.uade.pfi.backend.client.exception.AiMultiplanarContractViolationException("synthetic root debe ser false"));
+        InMemoryStudyRepository repository = new InMemoryStudyRepository();
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(controllerWithPersistence(ai, repository))
             .setControllerAdvice(new ApiExceptionHandler())
             .build();
 
-    mockMvc
-        .perform(
-            post("/api/ai/multiplanar/run")
+        mockMvc.perform(post("/api/ai/multiplanar/run")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(
-                    """
+                .content("""
                     {
                       "caseId": "CASE-NO-PERSIST",
                       "sagittalInputId": "inp_sagittal_001",
@@ -202,27 +167,22 @@ class AiMultiplanarRunTest {
                       "metadata": {"inferenceMode": "real_baseline"}
                     }
                     """))
-        .andExpect(status().isBadGateway());
+            .andExpect(status().isBadGateway());
 
-    Optional<Study> study = repository.findStudyByCaseId("CASE-NO-PERSIST");
-    assertTrue(study.isEmpty() || repository.findRunsByStudyId(study.get().id()).isEmpty());
-  }
+        Optional<Study> study = repository.findStudyByCaseId("CASE-NO-PERSIST");
+        assertTrue(study.isEmpty() || repository.findRunsByStudyId(study.get().id()).isEmpty());
+    }
 
-  @Test
-  void invalidSubjectRefIsRejectedBeforeCallingAiModule() throws Exception {
-    AiServiceOperations ai = org.mockito.Mockito.mock(AiServiceOperations.class);
-    MockMvc mockMvc =
-        MockMvcBuilders.standaloneSetup(
-                controllerWithPersistence(ai, new InMemoryStudyRepository()))
+    @Test
+    void invalidSubjectRefIsRejectedBeforeCallingAiModule() throws Exception {
+        AiServiceOperations ai = org.mockito.Mockito.mock(AiServiceOperations.class);
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(controllerWithPersistence(ai, new InMemoryStudyRepository()))
             .setControllerAdvice(new ApiExceptionHandler())
             .build();
 
-    mockMvc
-        .perform(
-            post("/api/ai/multiplanar/run")
+        mockMvc.perform(post("/api/ai/multiplanar/run")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(
-                    """
+                .content("""
                     {
                       "caseId": "CASE-INVALID-SUBJECT",
                       "studyMetadata": { "subjectRef": "SPIDER 101" },
@@ -230,32 +190,24 @@ class AiMultiplanarRunTest {
                       "metadata": { "inferenceMode": "real_baseline" }
                     }
                     """))
-        .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.code").value("INVALID_SUBJECT_REFERENCE"));
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("INVALID_SUBJECT_REFERENCE"));
 
-    verifyNoInteractions(ai);
-  }
+        verifyNoInteractions(ai);
+    }
 
-  @Test
-  void subjectRefConflictIsRejectedBeforeCallingAiModule() throws Exception {
-    AiServiceOperations ai = org.mockito.Mockito.mock(AiServiceOperations.class);
-    InMemoryStudyRepository repository = new InMemoryStudyRepository();
-    new StudyRunService(repository)
-        .upsertStudyMetadata(
-            "CASE-CONFLICT-RUN",
-            "ready",
-            new StudyMetadataDto("SPIDER-101", null, null, null, null));
-    MockMvc mockMvc =
-        MockMvcBuilders.standaloneSetup(controllerWithPersistence(ai, repository))
+    @Test
+    void subjectRefConflictIsRejectedBeforeCallingAiModule() throws Exception {
+        AiServiceOperations ai = org.mockito.Mockito.mock(AiServiceOperations.class);
+        InMemoryStudyRepository repository = new InMemoryStudyRepository();
+        new StudyRunService(repository).upsertStudyMetadata("CASE-CONFLICT-RUN", "ready", new StudyMetadataDto("SPIDER-101", null, null, null, null));
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(controllerWithPersistence(ai, repository))
             .setControllerAdvice(new ApiExceptionHandler())
             .build();
 
-    mockMvc
-        .perform(
-            post("/api/ai/multiplanar/run")
+        mockMvc.perform(post("/api/ai/multiplanar/run")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(
-                    """
+                .content("""
                     {
                       "caseId": "CASE-CONFLICT-RUN",
                       "studyMetadata": { "subjectRef": "SPIDER-999" },
@@ -263,26 +215,22 @@ class AiMultiplanarRunTest {
                       "metadata": { "inferenceMode": "real_baseline" }
                     }
                     """))
-        .andExpect(status().isConflict())
-        .andExpect(jsonPath("$.code").value("SUBJECT_REFERENCE_CONFLICT"));
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.code").value("SUBJECT_REFERENCE_CONFLICT"));
 
-    verifyNoInteractions(ai);
-  }
+        verifyNoInteractions(ai);
+    }
 
-  @Test
-  void databaseUnavailableDuringMetadataPreflightDoesNotCallAiModule() throws Exception {
-    AiServiceOperations ai = org.mockito.Mockito.mock(AiServiceOperations.class);
-    MockMvc mockMvc =
-        MockMvcBuilders.standaloneSetup(controllerWithPersistence(ai, new BrokenStudyRepository()))
+    @Test
+    void databaseUnavailableDuringMetadataPreflightDoesNotCallAiModule() throws Exception {
+        AiServiceOperations ai = org.mockito.Mockito.mock(AiServiceOperations.class);
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(controllerWithPersistence(ai, new BrokenStudyRepository()))
             .setControllerAdvice(new ApiExceptionHandler())
             .build();
 
-    mockMvc
-        .perform(
-            post("/api/ai/multiplanar/run")
+        mockMvc.perform(post("/api/ai/multiplanar/run")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(
-                    """
+                .content("""
                     {
                       "caseId": "CASE-DB-DOWN",
                       "studyMetadata": { "subjectRef": "SPIDER-101" },
@@ -290,28 +238,23 @@ class AiMultiplanarRunTest {
                       "metadata": { "inferenceMode": "real_baseline" }
                     }
                     """))
-        .andExpect(status().isServiceUnavailable())
-        .andExpect(jsonPath("$.code").value("DATABASE_UNAVAILABLE"));
+            .andExpect(status().isServiceUnavailable())
+            .andExpect(jsonPath("$.code").value("DATABASE_UNAVAILABLE"));
 
-    verifyNoInteractions(ai);
-  }
+        verifyNoInteractions(ai);
+    }
 
-  @Test
-  void validMetadataCallsAiModuleOnceAndSendsTechnicalDtoOnly() throws Exception {
-    AiServiceOperations ai = org.mockito.Mockito.mock(AiServiceOperations.class);
-    when(ai.runMultiplanar(any())).thenReturn(multiplanarResponse());
-    MockMvc mockMvc =
-        MockMvcBuilders.standaloneSetup(
-                controllerWithPersistence(ai, new InMemoryStudyRepository()))
+    @Test
+    void validMetadataCallsAiModuleOnceAndSendsTechnicalDtoOnly() throws Exception {
+        AiServiceOperations ai = org.mockito.Mockito.mock(AiServiceOperations.class);
+        when(ai.runMultiplanar(any())).thenReturn(multiplanarResponse());
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(controllerWithPersistence(ai, new InMemoryStudyRepository()))
             .setControllerAdvice(new ApiExceptionHandler())
             .build();
 
-    mockMvc
-        .perform(
-            post("/api/ai/multiplanar/run")
+        mockMvc.perform(post("/api/ai/multiplanar/run")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(
-                    """
+                .content("""
                     {
                       "caseId": " CASE-VALID-META ",
                       "studyMetadata": { "subjectRef": " SPIDER-101 ", "reviewPriority": "alta" },
@@ -319,34 +262,28 @@ class AiMultiplanarRunTest {
                       "metadata": { "inferenceMode": "real_baseline" }
                     }
                     """))
-        .andExpect(status().isOk());
+            .andExpect(status().isOk());
 
-    ArgumentCaptor<MultiplanarRunRequestDto> request =
-        ArgumentCaptor.forClass(MultiplanarRunRequestDto.class);
-    verify(ai, times(1)).runMultiplanar(request.capture());
-    assertEquals("CASE-VALID-META", request.getValue().caseId());
-    String serializedTechnicalRequest = objectMapper.writeValueAsString(request.getValue());
-    org.junit.jupiter.api.Assertions.assertFalse(
-        serializedTechnicalRequest.contains("studyMetadata"));
-    org.junit.jupiter.api.Assertions.assertFalse(serializedTechnicalRequest.contains("subjectRef"));
-    org.junit.jupiter.api.Assertions.assertFalse(serializedTechnicalRequest.contains("SPIDER-101"));
-  }
+        ArgumentCaptor<MultiplanarRunRequestDto> request = ArgumentCaptor.forClass(MultiplanarRunRequestDto.class);
+        verify(ai, times(1)).runMultiplanar(request.capture());
+        assertEquals("CASE-VALID-META", request.getValue().caseId());
+        String serializedTechnicalRequest = objectMapper.writeValueAsString(request.getValue());
+        org.junit.jupiter.api.Assertions.assertFalse(serializedTechnicalRequest.contains("studyMetadata"));
+        org.junit.jupiter.api.Assertions.assertFalse(serializedTechnicalRequest.contains("subjectRef"));
+        org.junit.jupiter.api.Assertions.assertFalse(serializedTechnicalRequest.contains("SPIDER-101"));
+    }
 
-  @Test
-  void strictRealBaselineNormalizesRequestAndReturnsPresentedContract() throws Exception {
-    AiServiceOperations ai = org.mockito.Mockito.mock(AiServiceOperations.class);
-    when(ai.runMultiplanar(any())).thenReturn(contractFixture());
-    MockMvc mockMvc =
-        MockMvcBuilders.standaloneSetup(new AiMultiplanarController(ai))
+    @Test
+    void strictRealBaselineNormalizesRequestAndReturnsPresentedContract() throws Exception {
+        AiServiceOperations ai = org.mockito.Mockito.mock(AiServiceOperations.class);
+        when(ai.runMultiplanar(any())).thenReturn(contractFixture());
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new AiMultiplanarController(ai))
             .setControllerAdvice(new ApiExceptionHandler())
             .build();
 
-    mockMvc
-        .perform(
-            post("/api/ai/multiplanar/run")
+        mockMvc.perform(post("/api/ai/multiplanar/run")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(
-                    """
+                .content("""
                     {
                       "caseId": "CASE-001",
                       "sagittalInputId": "inp_sagittal_001",
@@ -360,43 +297,34 @@ class AiMultiplanarRunTest {
                       }
                     }
                     """))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.planes.sagittal.effectiveInferenceMode").value("real_baseline"))
-        .andExpect(jsonPath("$.planes.sagittal.inferenceMode").value("real_baseline"))
-        .andExpect(
-            jsonPath("$.planes.sagittal.assets['overlay.png']")
-                .value("/api/ai/assets/run-sag-001/sagittal/overlay.png"))
-        .andExpect(jsonPath("$.planes.sagittal.assets['mask.npy']").doesNotExist())
-        .andExpect(jsonPath("$.planes.sagittal.metadata.sourcePath").doesNotExist());
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.planes.sagittal.effectiveInferenceMode").value("real_baseline"))
+            .andExpect(jsonPath("$.planes.sagittal.inferenceMode").value("real_baseline"))
+            .andExpect(jsonPath("$.planes.sagittal.assets['overlay.png']").value("/api/ai/assets/run-sag-001/sagittal/overlay.png"))
+            .andExpect(jsonPath("$.planes.sagittal.assets['mask.npy']").doesNotExist())
+            .andExpect(jsonPath("$.planes.sagittal.metadata.sourcePath").doesNotExist());
 
-    ArgumentCaptor<MultiplanarRunRequestDto> request =
-        ArgumentCaptor.forClass(MultiplanarRunRequestDto.class);
-    verify(ai).runMultiplanar(request.capture());
-    assertEquals("sagittal_spider", request.getValue().sagittalModelKey());
-    assertEquals("axial_t2_alkafri", request.getValue().axialModelKey());
-    assertEquals(false, request.getValue().allowContractFallback());
-    assertEquals(false, request.getValue().metadata().get("allowContractFallback"));
-    assertEquals("real_baseline", request.getValue().metadata().get("requestedInferenceMode"));
-    assertEquals("trace-client-001", request.getValue().metadata().get("traceId"));
-  }
+        ArgumentCaptor<MultiplanarRunRequestDto> request = ArgumentCaptor.forClass(MultiplanarRunRequestDto.class);
+        verify(ai).runMultiplanar(request.capture());
+        assertEquals("sagittal_spider", request.getValue().sagittalModelKey());
+        assertEquals("axial_t2_alkafri", request.getValue().axialModelKey());
+        assertEquals(false, request.getValue().allowContractFallback());
+        assertEquals(false, request.getValue().metadata().get("allowContractFallback"));
+        assertEquals("real_baseline", request.getValue().metadata().get("requestedInferenceMode"));
+        assertEquals("trace-client-001", request.getValue().metadata().get("traceId"));
+    }
 
-  @Test
-  void strictRealBaselineExposesLegacyAiOutputAndMetadataWithoutLeakingInternalPaths()
-      throws Exception {
-    AiServiceOperations ai = org.mockito.Mockito.mock(AiServiceOperations.class);
-    when(ai.runMultiplanar(any())).thenReturn(contractFixture());
-    MockMvc mockMvc =
-        MockMvcBuilders.standaloneSetup(new AiMultiplanarController(ai))
+    @Test
+    void strictRealBaselineExposesLegacyAiOutputAndMetadataWithoutLeakingInternalPaths() throws Exception {
+        AiServiceOperations ai = org.mockito.Mockito.mock(AiServiceOperations.class);
+        when(ai.runMultiplanar(any())).thenReturn(contractFixture());
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new AiMultiplanarController(ai))
             .setControllerAdvice(new ApiExceptionHandler())
             .build();
 
-    String payload =
-        mockMvc
-            .perform(
-                post("/api/ai/multiplanar/run")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content(
-                        """
+        String payload = mockMvc.perform(post("/api/ai/multiplanar/run")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
                     {
                       "caseId": "CASE-001",
                       "sagittalInputId": "inp_sagittal_001",
@@ -413,45 +341,36 @@ class AiMultiplanarRunTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.planes.sagittal.aiOutput.realInferenceAvailable").value(true))
             .andExpect(jsonPath("$.planes.sagittal.aiOutput.inferenceMode").value("real_baseline"))
-            .andExpect(
-                jsonPath("$.planes.sagittal.aiOutput.artifactHash")
-                    .value("cf11dcc0ad77a7c787e64a796a2fd7398ef906add461cef4b3d61f1a5238e944"))
+            .andExpect(jsonPath("$.planes.sagittal.aiOutput.artifactHash").value(
+                "cf11dcc0ad77a7c787e64a796a2fd7398ef906add461cef4b3d61f1a5238e944"))
             .andExpect(jsonPath("$.planes.sagittal.metadata.inputShapeNative[0]").value(17))
             .andExpect(jsonPath("$.planes.sagittal.metadata.inputShapeCanonical[2]").value(17))
-            .andExpect(
-                jsonPath("$.planes.sagittal.metadata.inputOrientationTransform")
-                    .value("move_axis_0_to_last"))
+            .andExpect(jsonPath("$.planes.sagittal.metadata.inputOrientationTransform").value("move_axis_0_to_last"))
             .andExpect(jsonPath("$.planes.sagittal.metadata.selectedSlice").value(9))
             .andExpect(jsonPath("$.planes.sagittal.metadata.sliceCount").value(17))
             .andExpect(jsonPath("$.planes.sagittal.metadata.selectedAxis").value(2))
             .andExpect(jsonPath("$.planes.sagittal.metadata.inPlaneSpacingUnit").value("mm"))
             .andExpect(jsonPath("$.planes.sagittal.allowContractFallback").value(false))
-            .andReturn()
-            .getResponse()
-            .getContentAsString();
+            .andReturn().getResponse().getContentAsString();
 
-    org.junit.jupiter.api.Assertions.assertFalse(payload.contains("/tmp"));
-    org.junit.jupiter.api.Assertions.assertFalse(payload.toLowerCase().contains("c:\\\\"));
-    org.junit.jupiter.api.Assertions.assertFalse(payload.contains("mask.npy"));
-    org.junit.jupiter.api.Assertions.assertFalse(payload.contains("confidence.npy"));
-    org.junit.jupiter.api.Assertions.assertFalse(payload.contains("/content"));
-  }
+        org.junit.jupiter.api.Assertions.assertFalse(payload.contains("/tmp"));
+        org.junit.jupiter.api.Assertions.assertFalse(payload.toLowerCase().contains("c:\\\\"));
+        org.junit.jupiter.api.Assertions.assertFalse(payload.contains("mask.npy"));
+        org.junit.jupiter.api.Assertions.assertFalse(payload.contains("confidence.npy"));
+        org.junit.jupiter.api.Assertions.assertFalse(payload.contains("/content"));
+    }
 
-  @Test
-  void strictRealBaselineSagittalOnlyNormalizesAndCallsAiModule() throws Exception {
-    AiServiceOperations ai = org.mockito.Mockito.mock(AiServiceOperations.class);
-    when(ai.runMultiplanar(any())).thenReturn(sagittalOnlyFixture());
-    MockMvc mockMvc =
-        MockMvcBuilders.standaloneSetup(new AiMultiplanarController(ai))
+    @Test
+    void strictRealBaselineSagittalOnlyNormalizesAndCallsAiModule() throws Exception {
+        AiServiceOperations ai = org.mockito.Mockito.mock(AiServiceOperations.class);
+        when(ai.runMultiplanar(any())).thenReturn(sagittalOnlyFixture());
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new AiMultiplanarController(ai))
             .setControllerAdvice(new ApiExceptionHandler())
             .build();
 
-    mockMvc
-        .perform(
-            post("/api/ai/multiplanar/run")
+        mockMvc.perform(post("/api/ai/multiplanar/run")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(
-                    """
+                .content("""
                     {
                       "caseId": "CASE-001",
                       "sagittalInputId": "inp_sagittal_001",
@@ -463,66 +382,54 @@ class AiMultiplanarRunTest {
                       }
                     }
                     """))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.effectiveInferenceMode").value("mixed"))
-        .andExpect(jsonPath("$.planes.sagittal.effectiveInferenceMode").value("real_baseline"))
-        .andExpect(jsonPath("$.planes.sagittal.modelKey").value("sagittal_spider"))
-        .andExpect(jsonPath("$.planes.axial").doesNotExist())
-        .andExpect(jsonPath("$.humanReviewRequired").value(true))
-        .andExpect(jsonPath("$.notClinicalDiagnosis").value(true));
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.effectiveInferenceMode").value("mixed"))
+            .andExpect(jsonPath("$.planes.sagittal.effectiveInferenceMode").value("real_baseline"))
+            .andExpect(jsonPath("$.planes.sagittal.modelKey").value("sagittal_spider"))
+            .andExpect(jsonPath("$.planes.axial").doesNotExist())
+            .andExpect(jsonPath("$.humanReviewRequired").value(true))
+            .andExpect(jsonPath("$.notClinicalDiagnosis").value(true));
 
-    ArgumentCaptor<MultiplanarRunRequestDto> request =
-        ArgumentCaptor.forClass(MultiplanarRunRequestDto.class);
-    verify(ai).runMultiplanar(request.capture());
-    assertEquals("inp_sagittal_001", request.getValue().sagittalInputId());
-    assertEquals(null, request.getValue().axialInputId());
-    assertEquals("sagittal_spider", request.getValue().sagittalModelKey());
-    assertEquals("axial_t2_alkafri", request.getValue().axialModelKey());
-    assertEquals(false, request.getValue().allowContractFallback());
-    assertEquals(false, request.getValue().metadata().get("allowContractFallback"));
-    assertEquals("optional_not_provided", request.getValue().metadata().get("axialMode"));
-  }
+        ArgumentCaptor<MultiplanarRunRequestDto> request = ArgumentCaptor.forClass(MultiplanarRunRequestDto.class);
+        verify(ai).runMultiplanar(request.capture());
+        assertEquals("inp_sagittal_001", request.getValue().sagittalInputId());
+        assertEquals(null, request.getValue().axialInputId());
+        assertEquals("sagittal_spider", request.getValue().sagittalModelKey());
+        assertEquals("axial_t2_alkafri", request.getValue().axialModelKey());
+        assertEquals(false, request.getValue().allowContractFallback());
+        assertEquals(false, request.getValue().metadata().get("allowContractFallback"));
+        assertEquals("optional_not_provided", request.getValue().metadata().get("axialMode"));
+    }
 
-  @Test
-  void strictRealBaselineRejectsMissingSagittalAmbiguousInputsAndDemoPaths() throws Exception {
-    MockMvc mockMvc =
-        MockMvcBuilders.standaloneSetup(
-                new AiMultiplanarController(org.mockito.Mockito.mock(AiServiceOperations.class)))
+    @Test
+    void strictRealBaselineRejectsMissingSagittalAmbiguousInputsAndDemoPaths() throws Exception {
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new AiMultiplanarController(org.mockito.Mockito.mock(AiServiceOperations.class)))
             .setControllerAdvice(new ApiExceptionHandler())
             .build();
 
-    mockMvc
-        .perform(
-            post("/api/ai/multiplanar/run")
+        mockMvc.perform(post("/api/ai/multiplanar/run")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(strictBody("", "", null, null)))
-        .andExpect(status().isBadRequest());
+            .andExpect(status().isBadRequest());
 
-    mockMvc
-        .perform(
-            post("/api/ai/multiplanar/run")
+        mockMvc.perform(post("/api/ai/multiplanar/run")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(strictBody("inp_sagittal_001", "", "some/path", null)))
-        .andExpect(status().isBadRequest());
+            .andExpect(status().isBadRequest());
 
-    mockMvc
-        .perform(
-            post("/api/ai/multiplanar/run")
+        mockMvc.perform(post("/api/ai/multiplanar/run")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(strictBody("inp_sagittal_001", "inp_axial_001", null, "some/axial/path")))
-        .andExpect(status().isBadRequest());
+            .andExpect(status().isBadRequest());
 
-    mockMvc
-        .perform(
-            post("/api/ai/multiplanar/run")
+        mockMvc.perform(post("/api/ai/multiplanar/run")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(strictBody("demo/sag", "", null, null)))
-        .andExpect(status().isBadRequest());
-  }
+            .andExpect(status().isBadRequest());
+    }
 
-  private CanonicalMultiplanarRun multiplanarResponse() {
-    CanonicalPlaneRun sagittal =
-        new CanonicalPlaneRun(
+    private CanonicalMultiplanarRun multiplanarResponse() {
+        CanonicalPlaneRun sagittal = new CanonicalPlaneRun(
             "run-sag-123",
             "sagittal",
             "completed",
@@ -537,9 +444,9 @@ class AiMultiplanarRunTest {
             List.of(),
             List.of(Map.of("name", "L4_left_pedicle", "x", 124.2, "y", 210.5)),
             List.of(Map.of("id", "canalAreaMm2", "value", 82.4)),
-            Map.of("sliceIndex", 42));
-    CanonicalPlaneRun axial =
-        new CanonicalPlaneRun(
+            Map.of("sliceIndex", 42)
+        );
+        CanonicalPlaneRun axial = new CanonicalPlaneRun(
             "run-ax-123",
             "axial",
             "completed",
@@ -554,66 +461,59 @@ class AiMultiplanarRunTest {
             List.of(),
             List.of(Map.of("name", "canal_center", "x", 93.3, "y", 118.8)),
             List.of(Map.of("id", "leftForamenMm", "value", 3.1)),
-            Map.of("sliceIndex", 18));
-    Map<String, CanonicalPlaneRun> planes = new LinkedHashMap<>();
-    planes.put("sagittal", sagittal);
-    planes.put("axial", axial);
-    return new CanonicalMultiplanarRun(
-        "multiplanar_run_ready",
-        "multiplanar-run-v1",
-        "multi-123",
-        "trace-123",
-        "CASE-1",
-        "dual_plane_with_3d_context",
-        "real_baseline",
-        "real_baseline",
-        List.of("sagittal", "axial"),
-        List.of("sagittal", "axial"),
-        false,
-        null,
-        Map.of(),
-        planes,
-        Map.of(),
-        Map.of(),
-        Map.of("status", "pendiente"),
-        new CanonicalMultiplanarRun.Governance(true, true, true, false));
-  }
+            Map.of("sliceIndex", 18)
+        );
+        Map<String, CanonicalPlaneRun> planes = new LinkedHashMap<>();
+        planes.put("sagittal", sagittal);
+        planes.put("axial", axial);
+        return new CanonicalMultiplanarRun(
+            "multiplanar_run_ready",
+            "multiplanar-run-v1",
+            "multi-123",
+            "trace-123",
+            "CASE-1",
+            "dual_plane_with_3d_context",
+            "real_baseline",
+            "real_baseline",
+            List.of("sagittal", "axial"),
+            List.of("sagittal", "axial"),
+            false,
+            null,
+            Map.of(),
+            planes,
+            Map.of(),
+            Map.of(),
+            Map.of("status", "pendiente"),
+            new CanonicalMultiplanarRun.Governance(true, true, true, false)
+        );
+    }
 
-  private CanonicalMultiplanarRun contractFixture() throws Exception {
-    String json =
-        Files.readString(
-            Path.of("src/test/resources/contracts/ai-module-multiplanar-real-baseline.json"));
-    MultiplanarRunResponseDto dto = objectMapper.readValue(json, MultiplanarRunResponseDto.class);
-    return new AiMultiplanarV1ResponseAdapter().toCanonical(dto);
-  }
+    private CanonicalMultiplanarRun contractFixture() throws Exception {
+        String json = Files.readString(Path.of("src/test/resources/contracts/ai-module-multiplanar-real-baseline.json"));
+        MultiplanarRunResponseDto dto = objectMapper.readValue(json, MultiplanarRunResponseDto.class);
+        return new AiMultiplanarV1ResponseAdapter().toCanonical(dto);
+    }
 
-  @SuppressWarnings("unchecked")
-  private CanonicalMultiplanarRun sagittalOnlyFixture() throws Exception {
-    Map<String, Object> response =
-        objectMapper.readValue(
-            Files.readString(
-                Path.of("src/test/resources/contracts/ai-module-multiplanar-real-baseline.json")),
-            Map.class);
-    response.put("effectiveInferenceMode", "mixed");
-    Map<String, Object> planes = (Map<String, Object>) response.get("planes");
-    planes.remove("axial");
-    response.put(
-        "quality",
-        Map.of(
+    @SuppressWarnings("unchecked")
+    private CanonicalMultiplanarRun sagittalOnlyFixture() throws Exception {
+        Map<String, Object> response = objectMapper.readValue(
+            Files.readString(Path.of("src/test/resources/contracts/ai-module-multiplanar-real-baseline.json")),
+            Map.class
+        );
+        response.put("effectiveInferenceMode", "mixed");
+        Map<String, Object> planes = (Map<String, Object>) response.get("planes");
+        planes.remove("axial");
+        response.put("quality", Map.of(
             "sagittalRunReady", true,
             "axialRunReady", false,
-            "dualRunReady", false));
-    MultiplanarRunResponseDto dto =
-        objectMapper.convertValue(response, MultiplanarRunResponseDto.class);
-    return new AiMultiplanarV1ResponseAdapter().toCanonical(dto);
-  }
+            "dualRunReady", false
+        ));
+        MultiplanarRunResponseDto dto = objectMapper.convertValue(response, MultiplanarRunResponseDto.class);
+        return new AiMultiplanarV1ResponseAdapter().toCanonical(dto);
+    }
 
-  private String strictBody(
-      String sagittalInputId,
-      String axialInputId,
-      String sagittalInputPath,
-      String axialInputPath) {
-    return """
+    private String strictBody(String sagittalInputId, String axialInputId, String sagittalInputPath, String axialInputPath) {
+        return """
             {
               "caseId": "CASE-001",
               "sagittalInputId": "%s",
@@ -625,176 +525,76 @@ class AiMultiplanarRunTest {
                 "inferenceMode": "real_baseline"
               }
             }
-            """
-        .formatted(
+            """.formatted(
             sagittalInputId,
             axialInputId,
             sagittalInputPath == null ? "null" : "\"" + sagittalInputPath + "\"",
-            axialInputPath == null ? "null" : "\"" + axialInputPath + "\"");
-  }
-
-  private AiMultiplanarController controllerWithPersistence(
-      AiServiceOperations ai, StudyRepository repository) {
-    return new AiMultiplanarController(
-        ai, new MultiplanarRunPersistenceService(new StudyRunService(repository)));
-  }
-
-  private static class BrokenStudyRepository implements StudyRepository {
-    @Override
-    public List<Study> findAllStudies() {
-      throw new UnsupportedOperationException();
+            axialInputPath == null ? "null" : "\"" + axialInputPath + "\""
+        );
     }
 
-    @Override
-    public Study saveStudy(Study study) {
-      throw new UnsupportedOperationException();
+    private AiMultiplanarController controllerWithPersistence(AiServiceOperations ai, StudyRepository repository) {
+        return new AiMultiplanarController(
+            ai,
+            new MultiplanarRunPersistenceService(new StudyRunService(repository))
+        );
     }
 
-    @Override
-    public InputResource saveInput(InputResource input) {
-      throw new UnsupportedOperationException();
+    private static class BrokenStudyRepository implements StudyRepository {
+        @Override public List<Study> findAllStudies() { throw new UnsupportedOperationException(); }
+        @Override public Study saveStudy(Study study) { throw new UnsupportedOperationException(); }
+        @Override public InputResource saveInput(InputResource input) { throw new UnsupportedOperationException(); }
+        @Override public StudyRun saveRun(StudyRun run) { throw new UnsupportedOperationException(); }
+        @Override public Optional<Study> findStudyByCaseId(String caseId) { throw new IllegalStateException("postgres down"); }
+        @Override public List<Study> findStudiesBySubjectRef(String subjectRef) { throw new UnsupportedOperationException(); }
+        @Override public List<Study> findStudiesByPatientId(String patientId) { throw new UnsupportedOperationException(); }
+        @Override public Optional<Study> updatePatientIfExpected(String caseId, String targetPatientId, String expectedPatientId) { throw new UnsupportedOperationException(); }
+        @Override public List<InputResource> findInputsByStudyId(String studyId) { throw new UnsupportedOperationException(); }
+        @Override public List<StudyRun> findRunsByStudyId(String studyId) { throw new UnsupportedOperationException(); }
+        @Override public Optional<StudyRun> findLatestRunByStudyId(String studyId) { throw new UnsupportedOperationException(); }
+        @Override public Optional<StudyRun> findRunByMultiplanarRunId(String multiplanarRunId) { throw new UnsupportedOperationException(); }
+        @Override public Optional<StudyRun> findRunByTraceId(String traceId) { throw new UnsupportedOperationException(); }
+        @Override public List<RunArtifact> findArtifactsByRunId(String studyRunId) { throw new UnsupportedOperationException(); }
+        @Override public Optional<RunArtifact> findArtifactByRunPlaneAndName(String runId, String plane, String assetName) { throw new UnsupportedOperationException(); }
+        @Override public RunArtifact updateArtifactStorage(String artifactId, String storageStatus, String storageKind, Long sizeBytes, String sha256) { throw new UnsupportedOperationException(); }
+        @Override public StudyRun updateRunMetricsSnapshot(String multiplanarRunId, Map<String, Object> metricsSnapshot) { throw new UnsupportedOperationException(); }
+        @Override public RunReview saveReview(String multiplanarRunId, String reviewStatus, String reviewer, Instant reviewedAt, String comments, List<MeasurementCorrection> corrections) { throw new UnsupportedOperationException(); }
+        @Override public RunReview saveReview(String multiplanarRunId, String reviewStatus, String reviewer, Instant reviewedAt, String comments, List<MeasurementCorrection> corrections, DomainAuditEvent auditEvent) { throw new UnsupportedOperationException(); }
+        @Override public Optional<RunReview> findReviewByMultiplanarRunId(String multiplanarRunId) { throw new UnsupportedOperationException(); }
+        @Override public List<MeasurementCorrection> findCorrectionsByStudyRunId(String studyRunId) { throw new UnsupportedOperationException(); }
+        @Override public List<ReviewerAnnotation> replaceAnnotations(String multiplanarRunId, List<ReviewerAnnotation> annotations) { throw new UnsupportedOperationException(); }
+        @Override public List<ReviewerAnnotation> findAnnotationsByRunId(String multiplanarRunId) { throw new UnsupportedOperationException(); }
+        @Override public DomainAuditEvent saveAuditEvent(DomainAuditEvent event) { throw new UnsupportedOperationException(); }
+        @Override public List<DomainAuditEvent> findAuditEventsByTraceId(String traceId) { throw new UnsupportedOperationException(); }
+        @Override public List<DomainAuditEvent> findAuditEventsByEntityId(String entityId) { throw new UnsupportedOperationException(); }
+        @Override public List<DomainAuditEvent> findAuditEventsByStudyId(String studyId) { throw new UnsupportedOperationException(); }
+        @Override public ar.edu.uade.pfi.backend.domain.AiProductAnalysisRun saveAiProductAnalysisRun(ar.edu.uade.pfi.backend.domain.AiProductAnalysisRun run, List<ar.edu.uade.pfi.backend.domain.AiDiscLevelResult> discLevels, List<ar.edu.uade.pfi.backend.domain.AiMeasurementResult> measurements) { throw new UnsupportedOperationException(); }
+        @Override public List<ar.edu.uade.pfi.backend.domain.AiProductAnalysisRun> findAiProductAnalysisRunsByStudyId(String studyId) { throw new UnsupportedOperationException(); }
+        @Override public Optional<ar.edu.uade.pfi.backend.domain.AiProductAnalysisRun> findAiProductAnalysisRunById(String id) { throw new UnsupportedOperationException(); }
+        @Override public List<ar.edu.uade.pfi.backend.domain.AiDiscLevelResult> findAiDiscLevelResultsByAnalysisRunId(String analysisRunId) { throw new UnsupportedOperationException(); }
+        @Override public List<ar.edu.uade.pfi.backend.domain.AiMeasurementResult> findAiMeasurementResultsByAnalysisRunId(String analysisRunId) { throw new UnsupportedOperationException(); }
+        @Override public ar.edu.uade.pfi.backend.domain.AiProductAnalysisRunReview upsertAiProductAnalysisRunReview(String analysisRunId, String reviewStatus, String reviewComment, String reviewedBy, Instant reviewedAt) { throw new UnsupportedOperationException(); }
+        @Override public Optional<ar.edu.uade.pfi.backend.domain.AiProductAnalysisRunReview> findAiProductAnalysisRunReview(String analysisRunId) { throw new UnsupportedOperationException(); }
+        @Override public ar.edu.uade.pfi.backend.domain.AiDiscLevelReview upsertAiDiscLevelReview(String discLevelResultId, String reviewStatus, String reviewComment, String reviewedBy, Instant reviewedAt) { throw new UnsupportedOperationException(); }
+        @Override public Optional<ar.edu.uade.pfi.backend.domain.AiDiscLevelReview> findAiDiscLevelReview(String discLevelResultId) { throw new UnsupportedOperationException(); }
+        @Override public List<ar.edu.uade.pfi.backend.domain.AiDiscLevelReview> findAiDiscLevelReviewsByAnalysisRunId(String analysisRunId) { throw new UnsupportedOperationException(); }
+        @Override public ar.edu.uade.pfi.backend.domain.AiMeasurementCorrection saveAiMeasurementCorrection(ar.edu.uade.pfi.backend.domain.AiMeasurementCorrection correction) { throw new UnsupportedOperationException(); }
+        @Override public List<ar.edu.uade.pfi.backend.domain.AiMeasurementCorrection> findAiMeasurementCorrectionsByAnalysisRunId(String analysisRunId) { throw new UnsupportedOperationException(); }
+        @Override public ar.edu.uade.pfi.backend.domain.AiEvidenceRegion saveAiEvidenceRegion(ar.edu.uade.pfi.backend.domain.AiEvidenceRegion region) { throw new UnsupportedOperationException(); }
+        @Override public List<ar.edu.uade.pfi.backend.domain.AiEvidenceRegion> findAiEvidenceRegionsByAnalysisRunId(String analysisRunId) { throw new UnsupportedOperationException(); }
+        @Override public ar.edu.uade.pfi.backend.domain.AiEvidenceRegionCorrection saveAiEvidenceRegionCorrection(ar.edu.uade.pfi.backend.domain.AiEvidenceRegionCorrection correction) { throw new UnsupportedOperationException(); }
+        @Override public List<ar.edu.uade.pfi.backend.domain.AiEvidenceRegionCorrection> findAiEvidenceRegionCorrectionsByAnalysisRunId(String analysisRunId) { throw new UnsupportedOperationException(); }
+        @Override public ar.edu.uade.pfi.backend.domain.ProfessionalFeedbackCandidate saveProfessionalFeedbackCandidate(ar.edu.uade.pfi.backend.domain.ProfessionalFeedbackCandidate candidate) { throw new UnsupportedOperationException(); }
+        @Override public boolean existsProfessionalFeedbackCandidate(String source, String correctionId) { throw new UnsupportedOperationException(); }
+        @Override public List<ar.edu.uade.pfi.backend.domain.ProfessionalFeedbackCandidate> findProfessionalFeedbackCandidatesByCaseId(String caseId) { throw new UnsupportedOperationException(); }
+        @Override public Optional<ar.edu.uade.pfi.backend.domain.ProfessionalFeedbackCandidate> findProfessionalFeedbackCandidateById(String id) { throw new UnsupportedOperationException(); }
+        @Override public ar.edu.uade.pfi.backend.domain.ProfessionalFeedbackCandidate recordFeedbackCandidateStatusChange(String id, String toStatus, String curatorId, String reason, String note, java.time.Instant changedAt) { throw new UnsupportedOperationException(); }
+        @Override public List<ar.edu.uade.pfi.backend.domain.ProfessionalFeedbackStatusChange> findFeedbackCandidateStatusChanges(String candidateId) { throw new UnsupportedOperationException(); }
+        @Override public ar.edu.uade.pfi.backend.domain.ChatConversation saveChatConversation(ar.edu.uade.pfi.backend.domain.ChatConversation conversation) { throw new UnsupportedOperationException(); }
+        @Override public ar.edu.uade.pfi.backend.domain.ChatMessage saveChatMessage(ar.edu.uade.pfi.backend.domain.ChatMessage message) { throw new UnsupportedOperationException(); }
+        @Override public List<ar.edu.uade.pfi.backend.domain.ChatConversation> findChatConversationsByStudyId(String studyId) { throw new UnsupportedOperationException(); }
+        @Override public Optional<ar.edu.uade.pfi.backend.domain.ChatConversation> findChatConversationById(String conversationId) { throw new UnsupportedOperationException(); }
+        @Override public List<ar.edu.uade.pfi.backend.domain.ChatMessage> findChatMessagesByConversationId(String conversationId) { throw new UnsupportedOperationException(); }
+        @Override public void saveChatTurn(ar.edu.uade.pfi.backend.domain.ChatConversation conversationToCreate, ar.edu.uade.pfi.backend.domain.ChatMessage userMessage, ar.edu.uade.pfi.backend.domain.ChatMessage assistantMessage) { throw new UnsupportedOperationException(); }
     }
-
-    @Override
-    public StudyRun saveRun(StudyRun run) {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public Optional<Study> findStudyByCaseId(String caseId) {
-      throw new IllegalStateException("postgres down");
-    }
-
-    @Override
-    public List<Study> findStudiesBySubjectRef(String subjectRef) {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public List<Study> findStudiesByPatientId(String patientId) {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public Optional<Study> updatePatientIfExpected(
-        String caseId, String targetPatientId, String expectedPatientId) {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public List<InputResource> findInputsByStudyId(String studyId) {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public List<StudyRun> findRunsByStudyId(String studyId) {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public Optional<StudyRun> findLatestRunByStudyId(String studyId) {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public Optional<StudyRun> findRunByMultiplanarRunId(String multiplanarRunId) {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public Optional<StudyRun> findRunByTraceId(String traceId) {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public List<RunArtifact> findArtifactsByRunId(String studyRunId) {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public Optional<RunArtifact> findArtifactByRunPlaneAndName(
-        String runId, String plane, String assetName) {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public RunArtifact updateArtifactStorage(
-        String artifactId,
-        String storageStatus,
-        String storageKind,
-        Long sizeBytes,
-        String sha256) {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public StudyRun updateRunMetricsSnapshot(
-        String multiplanarRunId, Map<String, Object> metricsSnapshot) {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public RunReview saveReview(
-        String multiplanarRunId,
-        String reviewStatus,
-        String reviewer,
-        Instant reviewedAt,
-        String comments,
-        List<MeasurementCorrection> corrections) {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public RunReview saveReview(
-        String multiplanarRunId,
-        String reviewStatus,
-        String reviewer,
-        Instant reviewedAt,
-        String comments,
-        List<MeasurementCorrection> corrections,
-        DomainAuditEvent auditEvent) {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public Optional<RunReview> findReviewByMultiplanarRunId(String multiplanarRunId) {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public List<MeasurementCorrection> findCorrectionsByStudyRunId(String studyRunId) {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public List<ReviewerAnnotation> replaceAnnotations(
-        String multiplanarRunId, List<ReviewerAnnotation> annotations) {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public List<ReviewerAnnotation> findAnnotationsByRunId(String multiplanarRunId) {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public DomainAuditEvent saveAuditEvent(DomainAuditEvent event) {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public List<DomainAuditEvent> findAuditEventsByTraceId(String traceId) {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public List<DomainAuditEvent> findAuditEventsByEntityId(String entityId) {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public List<DomainAuditEvent> findAuditEventsByStudyId(String studyId) {
-      throw new UnsupportedOperationException();
-    }
-  }
 }

@@ -1,0 +1,89 @@
+{
+  "fixtureId": "post-e50-demo-fixture-v1",
+  "subjectRefs": ["DEMO-PAT-001", "DEMO-PAT-002"],
+  "studies": [
+    {
+      "caseId": "DEMO-LUMBAR-2026-01",
+      "subjectRef": "DEMO-PAT-001",
+      "studyDate": "2026-02-01",
+      "description": "Demo sintético histórico A",
+      "expectedAnalysisStatus": "partial",
+      "expectedMajorAxisMm": {
+        "automatic": 11.9,
+        "effective": 11.9,
+        "source": "ai_original"
+      }
+    },
+    {
+      "caseId": "DEMO-LUMBAR-2026-02",
+      "subjectRef": "DEMO-PAT-001",
+      "studyDate": "2026-05-10",
+      "description": "Demo sintético histórico B",
+      "expectedAnalysisStatus": "partial",
+      "expectedMajorAxisMm": {
+        "automatic": 12.3,
+        "effective": 12.3,
+        "source": "ai_original"
+      }
+    },
+    {
+      "caseId": "DEMO-LUMBAR-2026-03",
+      "subjectRef": "DEMO-PAT-001",
+      "studyDate": "2026-08-25",
+      "description": "Demo sintético actual con corrección profesional",
+      "expectedAnalysisStatus": "partial",
+      "expectedMajorAxisMm": {
+        "automatic": 13.1,
+        "corrected": 12.9,
+        "effective": 12.9,
+        "source": "professional_correction"
+      }
+    },
+    {
+      "caseId": "DEMO-LUMBAR-ALT-01",
+      "subjectRef": "DEMO-PAT-002",
+      "studyDate": "2026-08-20",
+      "description": "Demo sintético paciente alternativo",
+      "expectedAnalysisStatus": "partial",
+      "expectedMajorAxisMm": {
+        "automatic": 12.3,
+        "effective": 12.3,
+        "source": "ai_original"
+      }
+    }
+  ],
+  "expectedCorrection": {
+    "caseId": "DEMO-LUMBAR-2026-03",
+    "level": "L4-L5",
+    "plane": "sagittal",
+    "structure": "disc",
+    "metric": "majorAxisMm",
+    "automatic": 13.1,
+    "reviewer": 12.9,
+    "unit": "mm",
+    "status": "accepted"
+  },
+  "expectedComparison": {
+    "baselineCaseId": "DEMO-LUMBAR-2026-02",
+    "currentCaseId": "DEMO-LUMBAR-2026-03",
+    "metric": "majorAxisMm",
+    "baselineEffective": 12.3,
+    "currentEffective": 12.9,
+    "deltaApproxMm": 0.6,
+    "interpretation": "mathematical_delta_only"
+  },
+  "mockAiMode": "caseId_deterministic",
+  "mockLlmMode": "deterministic_openai_compatible",
+  "humanReviewRequired": true,
+  "notClinicalDiagnosis": true,
+  "blockedCapabilitiesPreserved": ["67C experimental", "P10.7 blocked_preprocessing_parity"],
+  "report": {
+    "json": "available",
+    "pdf": "available",
+    "schemaVersion": "pfi.study-report.v1"
+  },
+  "chat": {
+    "question": "¿Qué cambió respecto del estudio anterior?",
+    "expectedAnswerContains": ["12.3 mm", "12.9 mm", "0.6 mm", "corrección profesional"]
+  }
+}

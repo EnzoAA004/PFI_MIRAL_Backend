@@ -1,7 +1,7 @@
 package ar.edu.uade.pfi.backend.auth;
 
-import ar.edu.uade.pfi.backend.service.OperationalMetricsService;
 import ar.edu.uade.pfi.backend.web.error.ApiErrorWriter;
+import ar.edu.uade.pfi.backend.service.OperationalMetricsService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -19,251 +19,197 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * Fail-closed authentication gate. Anything not explicitly listed in PUBLIC_AUTH_PATHS (or an
- * OPTIONS preflight) requires a valid Bearer JWT; there is no wildcard fallback that treats
- * unrecognized paths as public.
+ * Fail-closed authentication gate. Anything not explicitly listed in PUBLIC_AUTH_PATHS
+ * (or an OPTIONS preflight) requires a valid Bearer JWT; there is no wildcard fallback
+ * that treats unrecognized paths as public.
  */
 @Component
 public class AuthFilter extends OncePerRequestFilter {
-  public static final String AUTH_CLAIMS_ATTRIBUTE = "pfi.auth.claims";
+    public static final String AUTH_CLAIMS_ATTRIBUTE = "pfi.auth.claims";
+    /** Technical actor id (JWT subject, post-revalidation) — set here so TraceIdFilter can log it without depending on controllers. */
+    public static final String ACTOR_ID_ATTRIBUTE = "pfi.auth.actorId";
+    /** Technical, effective roles (post-revalidation) — same rationale as ACTOR_ID_ATTRIBUTE. */
+    public static final String ACTOR_ROLES_ATTRIBUTE = "pfi.auth.actorRoles";
+    private static final Set<String> KNOWN_ROLES = Set.of("ADMIN", "DOCTOR", "REVIEWER", "PENDING_APPROVAL");
+    private static final String DEMO_DOCTOR_PATH = "/api/auth/demo-doctor";
+    private static final Set<String> PUBLIC_AUTH_PATHS = Set.of(
+        "/api/auth/register",
+        "/api/auth/verify-registration",
+        "/api/auth/login",
+        "/api/auth/verify-login",
+        "/api/auth/refresh",
+        "/api/auth/logout"
+    );
+    /** Only a minimal, no-detail liveness endpoint is anonymously reachable — see P10-A.1 §7. */
+    private static final Set<String> PUBLIC_LIVENESS_PATHS = Set.of("/api/system/health");
 
-  /**
-   * Technical actor id (JWT subject, post-revalidation) — set here so TraceIdFilter can log it
-   * without depending on controllers.
-   */
-  public static final String ACTOR_ID_ATTRIBUTE = "pfi.auth.actorId";
+    /**
+     * Documentacion OpenAPI, cuando esta habilitada. Son prefijos y no rutas exactas porque
+     * springdoc sirve un pequeno arbol bajo cada una (los documentos agrupados bajo
+     * {@code /v3/api-docs/**} y los assets propios de la UI bajo {@code /swagger-ui/**}).
+     *
+     * <p>Lo que exponen es la forma de la API -paths, esquemas, codigos-, nunca datos y nunca una
+     * forma de llamar a nada: toda operacion documentada sigue pasando por este mismo filtro.
+     * Estan atadas a {@code springdoc.api-docs.enabled}, asi un despliegue que no quiera publicar
+     * su referencia apaga la documentacion y la excepcion a la vez, en vez de dejar un path
+     * abierto apuntando a algo que ya no responde.
+     */
+    private static final List<String> OPENAPI_PATH_PREFIXES =
+        List.of("/v3/api-docs", "/swagger-ui", "/swagger-ui.html");
+    private static final Set<String> PENDING_ALLOWED_PATHS = Set.of("/api/auth/me", "/api/auth/settings");
+    private final TokenService tokenService;
+    private final AuthAccountStateService accountStateService;
+    private final boolean authEnabled;
+    private final boolean demoEnabled;
+    private final Environment environment;
+    private final ApiErrorWriter apiErrorWriter;
+    private final OperationalMetricsService metrics;
 
-  /** Technical, effective roles (post-revalidation) — same rationale as ACTOR_ID_ATTRIBUTE. */
-  public static final String ACTOR_ROLES_ATTRIBUTE = "pfi.auth.actorRoles";
-
-  private static final Set<String> KNOWN_ROLES =
-      Set.of("ADMIN", "DOCTOR", "REVIEWER", "PENDING_APPROVAL");
-  private static final String DEMO_DOCTOR_PATH = "/api/auth/demo-doctor";
-  private static final Set<String> PUBLIC_AUTH_PATHS =
-      Set.of(
-          "/api/auth/register",
-          "/api/auth/verify-registration",
-          "/api/auth/login",
-          "/api/auth/verify-login",
-          "/api/auth/refresh",
-          "/api/auth/logout");
-
-  /** Only a minimal, no-detail liveness endpoint is anonymously reachable — see P10-A.1 §7. */
-  private static final Set<String> PUBLIC_LIVENESS_PATHS = Set.of("/api/system/health");
-
-  /**
-   * OpenAPI documentation, when it is enabled at all. These are prefixes and not exact paths
-   * because springdoc serves a small tree under each one (the grouped documents under {@code
-   * /v3/api-docs/**}, and the UI's own assets under {@code /swagger-ui/**}).
-   *
-   * <p>What they expose is the shape of the API — paths, schemas, status codes — never data and
-   * never a way to call anything: every documented operation still goes through this same filter.
-   * They are gated behind {@code springdoc.api-docs.enabled} so a deployment that does not want to
-   * publish its API reference turns off the docs and the exception at the same time, instead of
-   * leaving a public path pointing at something that no longer answers.
-   */
-  private static final List<String> OPENAPI_PATH_PREFIXES =
-      List.of("/v3/api-docs", "/swagger-ui", "/swagger-ui.html");
-
-  private static final Set<String> PENDING_ALLOWED_PATHS =
-      Set.of("/api/auth/me", "/api/auth/settings");
-  private final TokenService tokenService;
-  private final AuthAccountStateService accountStateService;
-  private final boolean authEnabled;
-  private final boolean demoEnabled;
-  private final boolean openApiEnabled;
-  private final Environment environment;
-  private final ApiErrorWriter apiErrorWriter;
-  private final OperationalMetricsService metrics;
-
-  public AuthFilter(
-      TokenService tokenService,
-      AuthAccountStateService accountStateService,
-      boolean authEnabled,
-      boolean demoEnabled,
-      Environment environment) {
-    this(tokenService, accountStateService, authEnabled, demoEnabled, environment, null, null);
-  }
-
-  public AuthFilter(
-      TokenService tokenService,
-      AuthAccountStateService accountStateService,
-      boolean authEnabled,
-      boolean demoEnabled,
-      Environment environment,
-      @Nullable ApiErrorWriter apiErrorWriter,
-      @Nullable OperationalMetricsService metrics) {
-    this(
-        tokenService,
-        accountStateService,
-        authEnabled,
-        demoEnabled,
-        true,
-        environment,
-        apiErrorWriter,
-        metrics);
-  }
-
-  @Autowired
-  public AuthFilter(
-      TokenService tokenService,
-      AuthAccountStateService accountStateService,
-      @Value("${pfi.auth.enabled:true}") boolean authEnabled,
-      @Value("${pfi.auth.demo-enabled:false}") boolean demoEnabled,
-      @Value("${springdoc.api-docs.enabled:true}") boolean openApiEnabled,
-      Environment environment,
-      @Nullable ApiErrorWriter apiErrorWriter,
-      @Nullable OperationalMetricsService metrics) {
-    this.tokenService = tokenService;
-    this.accountStateService = accountStateService;
-    this.authEnabled = authEnabled;
-    this.demoEnabled = demoEnabled;
-    this.openApiEnabled = openApiEnabled;
-    this.environment = environment;
-    this.apiErrorWriter =
-        apiErrorWriter != null ? apiErrorWriter : new ApiErrorWriter(new ObjectMapper());
-    this.metrics = metrics;
-  }
-
-  @Override
-  protected void doFilterInternal(
-      HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
-      throws ServletException, IOException {
-    if (!authEnabled || isPublicRequest(request)) {
-      filterChain.doFilter(request, response);
-      return;
+    public AuthFilter(
+        TokenService tokenService,
+        AuthAccountStateService accountStateService,
+        boolean authEnabled,
+        boolean demoEnabled,
+        Environment environment
+    ) {
+        this(tokenService, accountStateService, authEnabled, demoEnabled, environment, null, null);
     }
-    String header = request.getHeader("Authorization");
-    if (header == null || !header.startsWith("Bearer ") || header.substring(7).trim().isEmpty()) {
-      incrementAuthenticationFailures();
-      writeError(
-          request,
-          response,
-          HttpServletResponse.SC_UNAUTHORIZED,
-          "AUTHENTICATION_REQUIRED",
-          "Autenticacion requerida.");
-      return;
+
+    @Autowired
+    public AuthFilter(
+        TokenService tokenService,
+        AuthAccountStateService accountStateService,
+        @Value("${pfi.auth.enabled:true}") boolean authEnabled,
+        @Value("${pfi.auth.demo-enabled:false}") boolean demoEnabled,
+        Environment environment,
+        @Nullable ApiErrorWriter apiErrorWriter,
+        @Nullable OperationalMetricsService metrics
+    ) {
+        this.tokenService = tokenService;
+        this.accountStateService = accountStateService;
+        this.authEnabled = authEnabled;
+        this.demoEnabled = demoEnabled;
+        this.environment = environment;
+        this.apiErrorWriter = apiErrorWriter != null ? apiErrorWriter : new ApiErrorWriter(new ObjectMapper());
+        this.metrics = metrics;
     }
-    TokenService.Claims tokenClaims = tokenService.verify(header.substring(7).trim());
-    if (tokenClaims == null) {
-      incrementAuthenticationFailures();
-      writeError(
-          request,
-          response,
-          HttpServletResponse.SC_UNAUTHORIZED,
-          "AUTHENTICATION_REQUIRED",
-          "Autenticacion requerida.");
-      return;
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+        throws ServletException, IOException {
+        if (!authEnabled || isPublicRequest(request)) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+        String header = request.getHeader("Authorization");
+        if (header == null || !header.startsWith("Bearer ") || header.substring(7).trim().isEmpty()) {
+            incrementAuthenticationFailures();
+            writeError(request, response, HttpServletResponse.SC_UNAUTHORIZED, "AUTHENTICATION_REQUIRED", "Autenticacion requerida.");
+            return;
+        }
+        TokenService.Claims tokenClaims = tokenService.verify(header.substring(7).trim());
+        if (tokenClaims == null) {
+            incrementAuthenticationFailures();
+            writeError(request, response, HttpServletResponse.SC_UNAUTHORIZED, "AUTHENTICATION_REQUIRED", "Autenticacion requerida.");
+            return;
+        }
+        AuthAccountStateService.Resolution resolution = accountStateService.resolve(tokenClaims);
+        if (resolution.status() == AuthAccountStateService.Status.STATE_UNAVAILABLE) {
+            if (metrics != null) metrics.incrementAuthStateUnavailable();
+            writeError(request, response, HttpServletResponse.SC_SERVICE_UNAVAILABLE, "AUTH_STATE_UNAVAILABLE",
+                "No fue posible validar el estado actual de la sesion.");
+            return;
+        }
+        if (resolution.status() != AuthAccountStateService.Status.OK) {
+            incrementAuthenticationFailures();
+            writeError(request, response, HttpServletResponse.SC_UNAUTHORIZED, "AUTHENTICATION_REQUIRED", "Autenticacion requerida.");
+            return;
+        }
+        TokenService.Claims claims = resolution.claims();
+        if (isRestrictedAccount(claims) && !PENDING_ALLOWED_PATHS.contains(request.getRequestURI())) {
+            if (metrics != null) metrics.incrementAuthorizationDenials();
+            writeError(request, response, HttpServletResponse.SC_FORBIDDEN, "ACCESS_DENIED", "No tiene permisos para realizar esta operacion.");
+            return;
+        }
+        request.setAttribute(AUTH_CLAIMS_ATTRIBUTE, claims);
+        request.setAttribute(ACTOR_ID_ATTRIBUTE, claims.subject());
+        request.setAttribute(ACTOR_ROLES_ATTRIBUTE, technicalRoles(claims.roles()));
+        filterChain.doFilter(request, response);
     }
-    AuthAccountStateService.Resolution resolution = accountStateService.resolve(tokenClaims);
-    if (resolution.status() == AuthAccountStateService.Status.STATE_UNAVAILABLE) {
-      if (metrics != null) metrics.incrementAuthStateUnavailable();
-      writeError(
-          request,
-          response,
-          HttpServletResponse.SC_SERVICE_UNAVAILABLE,
-          "AUTH_STATE_UNAVAILABLE",
-          "No fue posible validar el estado actual de la sesion.");
-      return;
+
+    private void incrementAuthenticationFailures() {
+        if (metrics != null) metrics.incrementAuthenticationFailures();
     }
-    if (resolution.status() != AuthAccountStateService.Status.OK) {
-      incrementAuthenticationFailures();
-      writeError(
-          request,
-          response,
-          HttpServletResponse.SC_UNAUTHORIZED,
-          "AUTHENTICATION_REQUIRED",
-          "Autenticacion requerida.");
-      return;
+
+    /** Only ever logs/exposes roles from the known, fixed set — never an arbitrary claim value. */
+    private String technicalRoles(List<String> roles) {
+        if (roles == null || roles.isEmpty()) return "";
+        return roles.stream().filter(KNOWN_ROLES::contains).sorted().reduce((a, b) -> a + "," + b).orElse("");
     }
-    TokenService.Claims claims = resolution.claims();
-    if (isRestrictedAccount(claims) && !PENDING_ALLOWED_PATHS.contains(request.getRequestURI())) {
-      if (metrics != null) metrics.incrementAuthorizationDenials();
-      writeError(
-          request,
-          response,
-          HttpServletResponse.SC_FORBIDDEN,
-          "ACCESS_DENIED",
-          "No tiene permisos para realizar esta operacion.");
-      return;
+
+    private static final Set<String> RECOGNIZED_ACTIVE_ROLES = Set.of("DOCTOR", "REVIEWER", "ADMIN");
+
+    /**
+     * A pending/inactive account: explicitly PENDING_APPROVAL, or carrying no
+     * recognized professional/admin role at all (covers accounts with an empty or
+     * unrecognized role set the same way PENDING_APPROVAL is covered).
+     */
+    private boolean isRestrictedAccount(TokenService.Claims claims) {
+        List<String> roles = claims.roles();
+        if (roles == null || roles.isEmpty()) return true;
+        if (roles.contains("PENDING_APPROVAL")) return true;
+        return roles.stream().noneMatch(RECOGNIZED_ACTIVE_ROLES::contains);
     }
-    request.setAttribute(AUTH_CLAIMS_ATTRIBUTE, claims);
-    request.setAttribute(ACTOR_ID_ATTRIBUTE, claims.subject());
-    request.setAttribute(ACTOR_ROLES_ATTRIBUTE, technicalRoles(claims.roles()));
-    filterChain.doFilter(request, response);
-  }
 
-  private void incrementAuthenticationFailures() {
-    if (metrics != null) metrics.incrementAuthenticationFailures();
-  }
-
-  /** Only ever logs/exposes roles from the known, fixed set — never an arbitrary claim value. */
-  private String technicalRoles(List<String> roles) {
-    if (roles == null || roles.isEmpty()) return "";
-    return roles.stream()
-        .filter(KNOWN_ROLES::contains)
-        .sorted()
-        .reduce((a, b) -> a + "," + b)
-        .orElse("");
-  }
-
-  private static final Set<String> RECOGNIZED_ACTIVE_ROLES = Set.of("DOCTOR", "REVIEWER", "ADMIN");
-
-  /**
-   * A pending/inactive account: explicitly PENDING_APPROVAL, or carrying no recognized
-   * professional/admin role at all (covers accounts with an empty or unrecognized role set the same
-   * way PENDING_APPROVAL is covered).
-   */
-  private boolean isRestrictedAccount(TokenService.Claims claims) {
-    List<String> roles = claims.roles();
-    if (roles == null || roles.isEmpty()) return true;
-    if (roles.contains("PENDING_APPROVAL")) return true;
-    return roles.stream().noneMatch(RECOGNIZED_ACTIVE_ROLES::contains);
-  }
-
-  private boolean isPublicRequest(HttpServletRequest request) {
-    String method = request.getMethod();
-    String path = request.getRequestURI();
-    if ("OPTIONS".equalsIgnoreCase(method)) return true;
-    if (PUBLIC_AUTH_PATHS.contains(path)) return true;
-    if (PUBLIC_LIVENESS_PATHS.contains(path)) return true;
-    if (DEMO_DOCTOR_PATH.equals(path)) return isDemoEffectivelyEnabled();
-    if (openApiEnabled && isOpenApiPath(path)) return true;
-    return false;
-  }
-
-  /**
-   * Prefix match, but only on a path boundary: {@code /v3/api-docs} and {@code /v3/api-docs/x} are
-   * documentation, {@code /v3/api-docsomething} is not. A bare {@code startsWith} would turn any
-   * future endpoint whose path happens to begin with one of these strings into a public one.
-   */
-  private boolean isOpenApiPath(String path) {
-    for (String prefix : OPENAPI_PATH_PREFIXES) {
-      if (path.equals(prefix) || path.startsWith(prefix + "/")) return true;
+    private boolean isPublicRequest(HttpServletRequest request) {
+        String method = request.getMethod();
+        String path = request.getRequestURI();
+        if ("OPTIONS".equalsIgnoreCase(method)) return true;
+        if (PUBLIC_AUTH_PATHS.contains(path)) return true;
+        if (PUBLIC_LIVENESS_PATHS.contains(path)) return true;
+        if (DEMO_DOCTOR_PATH.equals(path)) return isDemoEffectivelyEnabled();
+        if (isOpenApiEnabled() && isOpenApiPath(path)) return true;
+        return false;
     }
-    return false;
-  }
 
-  /** Demo seeding is only ever public when explicitly opted into locally AND not in production. */
-  private boolean isDemoEffectivelyEnabled() {
-    return demoEnabled && !isProductionProfile();
-  }
-
-  private boolean isProductionProfile() {
-    if (environment == null) return false;
-    for (String profile : environment.getActiveProfiles()) {
-      String normalized = profile.toLowerCase(Locale.ROOT);
-      if (normalized.equals("production") || normalized.equals("prod")) return true;
+    /**
+     * Se lee del {@link Environment} ya inyectado en vez de agregar un parametro al constructor,
+     * para no romper a los llamadores del constructor sin Spring. Sin Environment se asume
+     * apagada: el filtro es fail-closed y la documentacion no se vuelve publica por defecto.
+     */
+    private boolean isOpenApiEnabled() {
+        if (environment == null) return false;
+        return Boolean.TRUE.equals(environment.getProperty("springdoc.api-docs.enabled", Boolean.class, Boolean.TRUE));
     }
-    return false;
-  }
 
-  private void writeError(
-      HttpServletRequest request,
-      HttpServletResponse response,
-      int status,
-      String code,
-      String message) {
-    apiErrorWriter.writeError(request, response, status, code, message);
-  }
+    /**
+     * Match por prefijo pero solo en un limite de path: {@code /v3/api-docs} y
+     * {@code /v3/api-docs/x} son documentacion, {@code /v3/api-docsomething} no. Un
+     * {@code startsWith} pelado volveria publico cualquier endpoint futuro cuyo path empiece
+     * con una de estas cadenas.
+     */
+    private boolean isOpenApiPath(String path) {
+        for (String prefix : OPENAPI_PATH_PREFIXES) {
+            if (path.equals(prefix) || path.startsWith(prefix + "/")) return true;
+        }
+        return false;
+    }
+
+    /** Demo seeding is only ever public when explicitly opted into locally AND not in production. */
+    private boolean isDemoEffectivelyEnabled() {
+        return demoEnabled && !isProductionProfile();
+    }
+
+    private boolean isProductionProfile() {
+        if (environment == null) return false;
+        for (String profile : environment.getActiveProfiles()) {
+            String normalized = profile.toLowerCase(Locale.ROOT);
+            if (normalized.equals("production") || normalized.equals("prod")) return true;
+        }
+        return false;
+    }
+
+    private void writeError(HttpServletRequest request, HttpServletResponse response, int status, String code, String message) {
+        apiErrorWriter.writeError(request, response, status, code, message);
+    }
 }

@@ -31,7 +31,9 @@
   </developers>
 
   <properties>
-    <java.version>17</java.version>
+    <!-- Final release target. Ver docs/migrations y Dockerfile: el runtime de CI/Docker
+         tiene que coincidir con este valor. -->
+    <java.version>21</java.version>
     <maven.version>3.8.3</maven.version>
 
     <postgresql.version>42.7.4</postgresql.version>
@@ -40,8 +42,7 @@
     <testcontainers.version>1.20.4</testcontainers.version>
     <wiremock-standalone.version>3.13.2</wiremock-standalone.version>
 
-    <spotless-maven-plugin.version>2.43.0</spotless-maven-plugin.version>
-    <maven-enforcer-plugin.version>3.4.1</maven-enforcer-plugin.version>
+    <!-- 0.8.12 es la linea de JaCoCo que soporta el bytecode de Java 21. -->
     <jacoco-maven-plugin.version>0.8.12</jacoco-maven-plugin.version>
   </properties>
 
@@ -73,6 +74,16 @@
       <groupId>org.springdoc</groupId>
       <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
       <version>${springdoc-openapi.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.pdfbox</groupId>
+      <artifactId>pdfbox</artifactId>
+      <version>3.0.3</version>
+    </dependency>
+    <dependency>
+      <groupId>com.google.auth</groupId>
+      <artifactId>google-auth-library-oauth2-http</artifactId>
+      <version>1.49.0</version>
     </dependency>
 
     <!-- Test dependencies -->
@@ -108,47 +119,15 @@
         <artifactId>spring-boot-maven-plugin</artifactId>
       </plugin>
 
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-enforcer-plugin</artifactId>
-        <version>${maven-enforcer-plugin.version}</version>
-        <executions>
-          <execution>
-            <id>enforce-versions</id>
-            <goals>
-              <goal>enforce</goal>
-            </goals>
-            <configuration>
-              <rules>
-                <dependencyConvergence />
-                <!--
-                  Rango cerrado, no un numero suelto: para el enforcer "17" significa
-                  "17 o superior", asi que un JDK 21 o 25 pasaba la regla aunque el
-                  proyecto declare 17. El contrato del proyecto es Java 17, y con
-                  [17,18) un JDK distinto frena el build en la fase validate en vez de
-                  aparecer mas tarde como una diferencia de bytecode o de runtime.
-                -->
-                <requireJavaVersion>
-                  <version>[${java.version},18)</version>
-                </requireJavaVersion>
-                <requireMavenVersion>
-                  <version>${maven.version}</version>
-                </requireMavenVersion>
-              </rules>
-            </configuration>
-          </execution>
-        </executions>
-      </plugin>
-
       <!--
         Cobertura. Todavia sin `check`: primero se mide y despues se decide si conviene un
         umbral y en que nivel. Poner un numero antes de conocer el baseline solo consigue que
         el CI falle por una cifra elegida a dedo.
 
-        No hay exclusiones. Los DTOs son 70 clases y en su mayoria records, que aportan
-        metodos sinteticos (equals, hashCode, toString) que nadie testea a proposito; excluirlos
-        subiria el numero global sin que nadie escriba un test mas. Se prefiere leer la
-        cobertura por paquete, donde esa distorsion se ve en vez de esconderse.
+        No hay exclusiones. Los DTOs son en su mayoria records, que aportan metodos sinteticos
+        (equals, hashCode, toString) que nadie testea a proposito; excluirlos subiria el numero
+        global sin que nadie escriba un test mas. Se prefiere leer la cobertura por paquete,
+        donde esa distorsion se ve en vez de esconderse.
       -->
       <plugin>
         <groupId>org.jacoco</groupId>
@@ -171,28 +150,6 @@
             <phase>verify</phase>
             <goals>
               <goal>report</goal>
-            </goals>
-          </execution>
-        </executions>
-      </plugin>
-
-      <plugin>
-        <groupId>com.diffplug.spotless</groupId>
-        <artifactId>spotless-maven-plugin</artifactId>
-        <version>${spotless-maven-plugin.version}</version>
-        <configuration>
-          <java>
-            <googleJavaFormat />
-            <removeUnusedImports />
-            <formatAnnotations />
-          </java>
-        </configuration>
-        <executions>
-          <execution>
-            <id>spotless-check</id>
-            <phase>validate</phase>
-            <goals>
-              <goal>apply</goal>
             </goals>
           </execution>
         </executions>

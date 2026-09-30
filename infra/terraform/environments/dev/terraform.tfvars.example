@@ -1,0 +1,17 @@
+# Copy to terraform.tfvars (gitignored) and fill in real image tags before
+# running `terraform plan`. Never commit terraform.tfvars.
+
+project_id  = "pfi-asplanatti-fabrello-v1"
+region      = "us-central1"
+environment = "dev"
+
+github_repository = "EnzoAA004/PFI_MVPTest_Enzo_Backend"
+
+# Placeholders — replace with real Artifact Registry image refs tagged by
+# git SHA once CLOUD-03 pushes real images. Never use :latest.
+backend_image  = "us-central1-docker.pkg.dev/pfi-asplanatti-fabrello-v1/pfi-containers/backend:REPLACE_WITH_GIT_SHA"
+frontend_image = "us-central1-docker.pkg.dev/pfi-asplanatti-fabrello-v1/pfi-containers/frontend:REPLACE_WITH_GIT_SHA"
+ai_image       = "us-central1-docker.pkg.dev/pfi-asplanatti-fabrello-v1/pfi-containers/ai-service:REPLACE_WITH_GIT_SHA"
+
+enable_cloud_sql  = false
+enable_monitoring = false

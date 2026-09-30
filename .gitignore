@@ -6,3 +6,13 @@ target/
 .DS_Store
 docker-compose.override.yml
 results/
+
+# Terraform (infra/terraform/**) — .terraform.lock.hcl IS committed on purpose
+# (pins the exact provider version selection), everything else here is not.
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+**/terraform.tfvars
+crash.log
+crash.*.log

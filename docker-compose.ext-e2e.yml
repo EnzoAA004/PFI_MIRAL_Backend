@@ -1,0 +1,70 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: pfi-ext04-postgres
+    environment:
+      POSTGRES_DB: pfi_ext04
+      POSTGRES_USER: pfi_ext04
+      POSTGRES_PASSWORD: pfi_ext04_local_only
+    ports:
+      - "55404:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pfi_ext04 -d pfi_ext04"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    volumes:
+      - pfi-ext04-postgres-data:/var/lib/postgresql/data
+    networks:
+      - pfi-ext04-e2e
+
+  backend:
+    build:
+      context: .
+    container_name: pfi-ext04-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PORT: 8080
+      PFI_PERSISTENCE_MODE: postgres
+      DATABASE_URL: jdbc:postgresql://postgres:5432/pfi_ext04?sslmode=disable&user=pfi_ext04&password=pfi_ext04_local_only
+      PFI_AUTH_DEMO_ENABLED: "true"
+      PFI_AUTH_JWT_SECRET: pfi-ext04-local-jwt-secret-only
+      PFI_CORS_ALLOWED_ORIGINS: http://localhost:8288,http://127.0.0.1:8288
+      PFI_LLM_ENABLED: "false"
+      PFI_AI_SERVICE_URL: http://pfi-ext04-mock-ai:8000
+      PFI_AI_TIMEOUT_SECONDS: 5
+    ports:
+      - "8280:8080"
+    networks:
+      - pfi-ext04-e2e
+
+  frontend:
+    build:
+      context: ../PFI_MVPTest_Enzo_Frontend
+      args:
+        VITE_API_BASE_URL: http://localhost:8280
+    container_name: pfi-ext04-frontend
+    depends_on:
+      - backend
+    environment:
+      BACKEND_URL: http://localhost:8280
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        printf '%s\n' 'window.__PFI_CONFIG__ = {"API_BASE_URL":"http://localhost:8280"};' > /usr/share/nginx/html/env.js
+        exec nginx -g 'daemon off;'
+    ports:
+      - "8288:80"
+    networks:
+      - pfi-ext04-e2e
+
+networks:
+  pfi-ext04-e2e:
+    name: pfi-ext04-e2e
+
+volumes:
+  pfi-ext04-postgres-data:
+    name: pfi-ext04-postgres-data

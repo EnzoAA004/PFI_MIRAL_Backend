@@ -1,0 +1,132 @@
+name: CLOUD-06 Promote to DEMO (plan-only)
+
+# CLOUD-06 (experimental / plan-only stage): consumes a release manifest
+# already validated by cloud-06-validate-dev.yml, re-verifies its digests,
+# runs `terraform plan` for infra/terraform/environments/demo using the
+# EXACT DEV-validated image tags, and STOPS. No `terraform apply` step
+# exists in this workflow at all — not disabled, not gated, simply absent —
+# so there is no way for this workflow, as written, to create anything in
+# GCP. Adding an apply step is a separate, explicitly authorized change to
+# this file, not a flag flip.
+#
+# NOTE (CLOUD-06, plan-only): references vars.GCP_CI_READER_SERVICE_ACCOUNT
+# (proposed, not yet created — see CLOUD_06_SECURITY_REVIEW.md) for the
+# read-only digest/Cloud-Run-state checks, and a separate, ALSO not-yet-
+# created Terraform-plan identity for the `terraform plan` step (read-only
+# viewer roles on the resource types environments/demo declares — never
+# Editor/Owner). Until both exist, this workflow fails at its auth steps if
+# actually run — expected for a plan-only stage.
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_manifest_run_id:
+        description: "Run ID of the cloud-06-validate-dev.yml run whose release-manifest.json artifact to promote."
+        required: true
+        type: string
+
+concurrency:
+  group: cloud-06-promote-demo
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+  actions: read
+
+jobs:
+  plan-demo:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Step 1 — download and parse the DEV-validated release manifest.
+      - name: Download release manifest from the DEV validation run
+        uses: actions/download-artifact@v4
+        with:
+          name: pfi-cloud-release-manifest
+          run-id: ${{ inputs.release_manifest_run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Step 1 — Require validatedInDev=true
+        id: manifest
+        run: |
+          set -euo pipefail
+          VALIDATED="$(jq -r '.validatedInDev' release-manifest.json)"
+          if [[ "${VALIDATED}" != "true" ]]; then
+            echo "::error::Release manifest is not marked validatedInDev=true — refusing to promote."
+            exit 1
+          fi
+          echo "backend_tag=$(jq -r '.backend.tag' release-manifest.json)" >> "$GITHUB_OUTPUT"
+          echo "backend_digest=$(jq -r '.backend.digest' release-manifest.json)" >> "$GITHUB_OUTPUT"
+          echo "frontend_tag=$(jq -r '.frontend.tag' release-manifest.json)" >> "$GITHUB_OUTPUT"
+          echo "frontend_digest=$(jq -r '.frontend.digest' release-manifest.json)" >> "$GITHUB_OUTPUT"
+
+      # READ-ONLY: same reader identity as cloud-06-validate-dev.yml.
+      - name: Authenticate to Google Cloud (read-only)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_CI_READER_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      # Step 2-3, Phase 7 — image immutability check: the manifest's claimed
+      # digest must match Artifact Registry's real, current digest for that
+      # tag. Never trust the manifest's digest field on its own.
+      - name: Verify backend image digest (immutability check)
+        run: |
+          bash scripts/cloud/verify-image-digest.sh \
+            "${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_ARTIFACT_REPOSITORY }}/backend" \
+            "${{ steps.manifest.outputs.backend_tag }}" \
+            "${{ steps.manifest.outputs.backend_digest }}"
+
+      - name: Verify frontend image digest (immutability check)
+        run: |
+          bash scripts/cloud/verify-image-digest.sh \
+            "${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_ARTIFACT_REPOSITORY }}/frontend" \
+            "${{ steps.manifest.outputs.frontend_tag }}" \
+            "${{ steps.manifest.outputs.frontend_digest }}"
+
+      # NOTE: this step also re-confirms Cloud Run DEV still runs this exact
+      # digest at promotion time, not just at validation time — a second
+      # validate-dev run could have replaced it in between.
+      - name: Re-confirm DEV still runs this exact release
+        run: |
+          set -euo pipefail
+          RUNNING_BACKEND_IMAGE="$(gcloud run services describe pfi-backend-dev \
+            --region="${{ vars.GCP_REGION }}" --format='value(spec.template.spec.containers[0].image)')"
+          EXPECTED="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_ARTIFACT_REPOSITORY }}/backend:${{ steps.manifest.outputs.backend_tag }}"
+          if [[ "${RUNNING_BACKEND_IMAGE}" != "${EXPECTED}" ]]; then
+            echo "::error::DEV no longer runs the release being promoted (now: ${RUNNING_BACKEND_IMAGE}). Re-run cloud-06-validate-dev.yml first."
+            exit 1
+          fi
+
+      # Step 4-5 — Terraform plan for DEMO, same tags, no apply.
+      # PROPOSED, NOT YET AUTHORIZED: a dedicated Terraform-plan identity
+      # (viewer-only roles matching what environments/demo declares) —
+      # see CLOUD_06_SECURITY_REVIEW.md. Using GOOGLE_OAUTH_ACCESS_TOKEN via
+      # the same auth step above for design purposes.
+      - name: Terraform init (DEMO)
+        working-directory: infra/terraform/environments/demo
+        run: terraform init -input=false
+
+      - name: Terraform plan (DEMO) — same digests as DEV, no apply
+        working-directory: infra/terraform/environments/demo
+        run: |
+          terraform plan -input=false -no-color \
+            -var="backend_image=${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_ARTIFACT_REPOSITORY }}/backend:${{ steps.manifest.outputs.backend_tag }}" \
+            -var="frontend_image=${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_ARTIFACT_REPOSITORY }}/frontend:${{ steps.manifest.outputs.frontend_tag }}" \
+            -var="ai_image=${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_ARTIFACT_REPOSITORY }}/ai-service:not-published-yet" \
+            -out=demo.tfplan
+
+      # Step 6 (design) — a real post-apply smoke would run here once DEMO
+      # exists; CLOUD-06 stops before any apply, so there is nothing to
+      # smoke-test yet. Left as an explicit, visible gap rather than a step
+      # that silently does nothing.
+      - name: STOP — no apply in this workflow
+        run: |
+          echo "Plan generated (demo.tfplan). This workflow intentionally has no 'terraform apply' step."
+          echo "Promotion to a real DEMO deploy requires a separate, explicitly authorized change to this file."
