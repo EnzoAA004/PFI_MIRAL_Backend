@@ -397,8 +397,11 @@ class StudyWorklistServicePostgresTest {
 
     assertFalse(
         publishedClassification.containsKey("probabilities"),
-        "persisted GET must not republish probabilities");
+        "persisted GET must not republish the full distribution");
     assertEquals("present", publishedClassification.get("label"));
+    // Lo que sí se publica es la confianza de la etiqueta reportada: es la vía por la
+    // que la sala de lectura la muestra, y sale de la misma proyección que la del POST.
+    assertEquals(0.8d, (Double) publishedClassification.get("confidence"), 1e-9);
     Map<String, Object> publishedReview = (Map<String, Object>) publishedFinding.get("review");
     assertEquals(true, publishedReview.get("required"));
     assertEquals("pending", publishedReview.get("status"));

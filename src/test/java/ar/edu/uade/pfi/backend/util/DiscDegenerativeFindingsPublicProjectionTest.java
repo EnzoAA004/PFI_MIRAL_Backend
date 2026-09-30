@@ -14,7 +14,8 @@ class DiscDegenerativeFindingsPublicProjectionTest {
   private final ObjectMapper mapper = new ObjectMapper();
 
   @Test
-  void removesProbabilitiesFromEveryFindingWithoutMutatingTheSource() throws Exception {
+  void replacesProbabilitiesWithTheReportedLabelConfidenceWithoutMutatingTheSource()
+      throws Exception {
     Map<String, Object> source = envelope();
     Map<String, Object> sanitized = DiscDegenerativeFindingsPublicProjection.sanitize(source);
 
@@ -26,7 +27,10 @@ class DiscDegenerativeFindingsPublicProjectionTest {
       Map<String, Object> classification = (Map<String, Object>) finding.get("classification");
       assertFalse(
           classification.containsKey("probabilities"),
-          "sanitized output must not contain probabilities");
+          "sanitized output must not contain the full distribution");
+      // Only the reported label's own probability travels: 'present' was predicted, so
+      // 0.8 is published and the 0.2 of 'absent' is not.
+      assertEquals(0.8d, (Double) classification.get("confidence"), 1e-9);
     }
 
     // The object passed in is untouched: this is a projection, not a redaction of the
@@ -80,6 +84,52 @@ class DiscDegenerativeFindingsPublicProjectionTest {
     assertEquals("pending", review.get("status"));
   }
 
+  @Test
+  void omitsConfidenceWhenThePredictionDoesNotCarryOneForTheReportedLabel() throws Exception {
+    // A finding whose distribution does not include its own label is not a finding with
+    // zero confidence: it is one whose confidence is unknown. Publishing a 0.0 there
+    // would read as "the model was sure it was wrong".
+    Map<String, Object> source = envelope();
+    @SuppressWarnings("unchecked")
+    Map<String, Object> classification =
+        (Map<String, Object>)
+            ((List<Map<String, Object>>) source.get("findings")).get(0).get("classification");
+    classification.put("probabilities", Map.of("absent", 1.0));
+
+    Map<String, Object> sanitized = DiscDegenerativeFindingsPublicProjection.sanitize(source);
+    @SuppressWarnings("unchecked")
+    Map<String, Object> publishedClassification =
+        (Map<String, Object>)
+            ((List<Map<String, Object>>) sanitized.get("findings")).get(0).get("classification");
+
+    assertFalse(publishedClassification.containsKey("probabilities"));
+    assertFalse(publishedClassification.containsKey("confidence"));
+    assertEquals("present", publishedClassification.get("label"));
+  }
+
+  @Test
+  void keepsTheEvaluatedRegionSoTheViewerCanMarkTheSlice() throws Exception {
+    // The projection reduces probabilities to the reported label's confidence, and
+    // changes nothing else. The per-series region --
+    // which series, which slice, which point -- is what lets the reader jump to where
+    // a level was evaluated; dropping it here would leave the Frontend with a level
+    // name and no way to show it on an image.
+    Map<String, Object> sanitized = DiscDegenerativeFindingsPublicProjection.sanitize(envelope());
+
+    @SuppressWarnings("unchecked")
+    Map<String, Object> finding = ((List<Map<String, Object>>) sanitized.get("findings")).get(0);
+    @SuppressWarnings("unchecked")
+    Map<String, Object> series = ((List<Map<String, Object>>) finding.get("sourceSeries")).get(0);
+
+    assertEquals("inp-t2", series.get("inputId"));
+    assertEquals(4, series.get("sliceIndex"));
+    assertEquals(List.of(3, 4, 5), series.get("positions"));
+    assertEquals(List.of(120.0, 96.0), series.get("pointYx"));
+    assertEquals(List.of(108, 132, 84, 108), series.get("bboxYx"));
+    assertEquals(256, series.get("coordinateSpaceHeight"));
+    assertEquals(200, series.get("coordinateSpaceWidth"));
+  }
+
   private Map<String, Object> envelope() throws Exception {
     String json =
         """
@@ -100,7 +150,17 @@ class DiscDegenerativeFindingsPublicProjectionTest {
                   "externalValidationAvailable": false
                 },
                 "evaluation": {"status": "evaluated"},
-                "sourceSeries": [{"role": "sagittal_t2", "available": true, "positions": [3,4,5]}],
+                "sourceSeries": [{
+                  "role": "sagittal_t2",
+                  "available": true,
+                  "positions": [3,4,5],
+                  "inputId": "inp-t2",
+                  "sliceIndex": 4,
+                  "pointYx": [120.0, 96.0],
+                  "bboxYx": [108, 132, 84, 108],
+                  "coordinateSpaceHeight": 256,
+                  "coordinateSpaceWidth": 200
+                }],
                 "localization": {
                   "source": "segmentation_derived_disc_level",
                   "researchOnly": true,
