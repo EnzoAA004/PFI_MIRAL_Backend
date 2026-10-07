@@ -274,6 +274,9 @@ class StudyWorklistServicePostgresTest {
 
         assertFalse(publishedClassification.containsKey("probabilities"), "persisted GET must not republish probabilities");
         assertEquals("present", publishedClassification.get("label"));
+        // La confianza publicada corresponde a la etiqueta informada, sin exponer
+        // la distribucion completa de probabilidades almacenada internamente.
+        assertEquals(0.8d, (Double) publishedClassification.get("confidence"), 1e-9);
         Map<String, Object> publishedReview = (Map<String, Object>) publishedFinding.get("review");
         assertEquals(true, publishedReview.get("required"));
         assertEquals("pending", publishedReview.get("status"));
