@@ -17,6 +17,9 @@ import ar.edu.uade.pfi.backend.service.exception.PatientDomainException;
 import ar.edu.uade.pfi.backend.service.exception.StudyNotFoundException;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -29,6 +32,10 @@ import org.springframework.stereotype.Service;
 @Service
 public class PatientService {
   private static final Pattern PATIENT_REFERENCE = Pattern.compile("^[A-Za-z0-9._-]{1,64}$");
+  /** Busqueda: codigo o nombre. Letras (con tildes), numeros, espacio, punto, guion y guion bajo. */
+  private static final Pattern SEARCH_QUERY = Pattern.compile("^[\\p{L}\\p{N} ._'-]{1,64}$");
+  private static final Pattern PERSON_NAME = Pattern.compile("^\\p{L}[\\p{L} .'-]{0,79}$");
+  private static final LocalDate EARLIEST_BIRTH_DATE = LocalDate.of(1900, 1, 1);
   private static final Pattern UUID_FORMAT =
       Pattern.compile(
           "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
@@ -61,18 +68,32 @@ public class PatientService {
 
   public PatientDetailDto create(CreatePatientRequestDto request, String actor, String traceId) {
     String reference = validateReference(request == null ? null : request.patientReference());
+    String firstName = validateName(request == null ? null : request.firstName(), "firstName");
+    String lastName = validateName(request == null ? null : request.lastName(), "lastName");
+    LocalDate dateOfBirth = validateBirthDate(request == null ? null : request.dateOfBirth());
     Instant now = clock.instant();
     Patient patient =
         databaseCall(
             () ->
                 patientRepository.save(
-                    new Patient(UUID.randomUUID().toString(), reference, now, now)));
+                    new Patient(
+                        UUID.randomUUID().toString(),
+                        reference,
+                        firstName,
+                        lastName,
+                        dateOfBirth,
+                        now,
+                        now)));
     auditService.record(
         actor,
         "PATIENT_CREATED",
         patient.id(),
         traceId,
-        Map.of("patientId", patient.id(), "changedFieldNames", List.of("patientReference")));
+        Map.of(
+            "patientId",
+            patient.id(),
+            "changedFieldNames",
+            changedFieldNames(reference, firstName, lastName, dateOfBirth)));
     return detail(patient);
   }
 
@@ -81,7 +102,7 @@ public class PatientService {
     if (normalizedQuery.length() > 64) {
       throw invalidReference("query supera el largo maximo permitido.");
     }
-    if (!normalizedQuery.isEmpty() && !PATIENT_REFERENCE.matcher(normalizedQuery).matches()) {
+    if (!normalizedQuery.isEmpty() && !SEARCH_QUERY.matcher(normalizedQuery).matches()) {
       throw invalidReference("query tiene un formato invalido.");
     }
     int limit = requestedLimit == null ? DEFAULT_LIMIT : requestedLimit;
@@ -91,7 +112,7 @@ public class PatientService {
           "INVALID_PATIENT_LIMIT",
           "limit debe estar entre 1 y " + MAX_LIMIT + ".");
     }
-    return databaseCall(() -> patientRepository.searchByReferencePrefix(normalizedQuery, limit))
+    return databaseCall(() -> patientRepository.search(normalizedQuery, limit))
         .stream()
         .map(this::summary)
         .toList();
@@ -106,16 +127,48 @@ public class PatientService {
   public PatientDetailDto update(
       String patientId, UpdatePatientRequestDto request, String actor, String traceId) {
     String validId = validateUuid(patientId, "patientId");
-    String reference = validateReference(request == null ? null : request.patientReference());
+    if (request == null) {
+      throw invalidReference("El cuerpo de la solicitud es obligatorio.");
+    }
+    Patient current =
+        databaseCall(() -> patientRepository.findById(validId)).orElseThrow(this::patientNotFound);
+    // Campo ausente (null) = no se toca; en nombre/apellido, cadena vacia = borrar.
+    String reference =
+        request.patientReference() == null
+            ? current.patientReference()
+            : validateReference(request.patientReference());
+    String firstName =
+        request.firstName() == null
+            ? current.firstName()
+            : validateName(request.firstName(), "firstName");
+    String lastName =
+        request.lastName() == null
+            ? current.lastName()
+            : validateName(request.lastName(), "lastName");
+    LocalDate dateOfBirth =
+        request.dateOfBirth() == null
+            ? current.dateOfBirth()
+            : validateBirthDate(request.dateOfBirth());
     Patient updated =
-        databaseCall(() -> patientRepository.updateReference(validId, reference, clock.instant()))
+        databaseCall(
+                () ->
+                    patientRepository.updateProfile(
+                        validId, reference, firstName, lastName, dateOfBirth, clock.instant()))
             .orElseThrow(this::patientNotFound);
     auditService.record(
         actor,
         "PATIENT_UPDATED",
         updated.id(),
         traceId,
-        Map.of("patientId", updated.id(), "changedFieldNames", List.of("patientReference")));
+        Map.of(
+            "patientId",
+            updated.id(),
+            "changedFieldNames",
+            changedFieldNames(
+                request.patientReference(),
+                request.firstName(),
+                request.lastName(),
+                request.dateOfBirth())));
     return detail(updated);
   }
 
@@ -203,12 +256,24 @@ public class PatientService {
 
   private PatientSummaryDto summary(Patient patient) {
     return new PatientSummaryDto(
-        patient.id(), patient.patientReference(), patient.createdAt(), patient.updatedAt());
+        patient.id(),
+        patient.patientReference(),
+        patient.firstName(),
+        patient.lastName(),
+        patient.dateOfBirth(),
+        patient.createdAt(),
+        patient.updatedAt());
   }
 
   private PatientDetailDto detail(Patient patient) {
     return new PatientDetailDto(
-        patient.id(), patient.patientReference(), patient.createdAt(), patient.updatedAt());
+        patient.id(),
+        patient.patientReference(),
+        patient.firstName(),
+        patient.lastName(),
+        patient.dateOfBirth(),
+        patient.createdAt(),
+        patient.updatedAt());
   }
 
   private PatientStudySummaryDto studySummary(Study study) {
@@ -229,6 +294,40 @@ public class PatientService {
           "patientReference debe tener entre 1 y 64 caracteres alfanumericos, punto, guion o guion bajo.");
     }
     return reference;
+  }
+
+  /** Nombre o apellido opcional: vacio = sin dato; si hay texto, solo letras y separadores. */
+  private String validateName(String value, String field) {
+    if (value == null || value.isBlank()) return null;
+    String name = value.trim();
+    if (!PERSON_NAME.matcher(name).matches()) {
+      throw new PatientDomainException(
+          HttpStatus.BAD_REQUEST,
+          "INVALID_PATIENT_NAME",
+          field + " debe tener hasta 80 letras, espacios, punto, apostrofe o guion.");
+    }
+    return name;
+  }
+
+  private LocalDate validateBirthDate(LocalDate value) {
+    if (value == null) return null;
+    if (value.isBefore(EARLIEST_BIRTH_DATE) || value.isAfter(LocalDate.now(clock.withZone(ZoneOffset.UTC)))) {
+      throw new PatientDomainException(
+          HttpStatus.BAD_REQUEST,
+          "INVALID_PATIENT_BIRTH_DATE",
+          "dateOfBirth debe estar entre 1900-01-01 y hoy.");
+    }
+    return value;
+  }
+
+  private List<String> changedFieldNames(
+      Object reference, Object firstName, Object lastName, Object dateOfBirth) {
+    List<String> names = new ArrayList<>();
+    if (reference != null) names.add("patientReference");
+    if (firstName != null) names.add("firstName");
+    if (lastName != null) names.add("lastName");
+    if (dateOfBirth != null) names.add("dateOfBirth");
+    return names;
   }
 
   private String validateUuid(String value, String field) {

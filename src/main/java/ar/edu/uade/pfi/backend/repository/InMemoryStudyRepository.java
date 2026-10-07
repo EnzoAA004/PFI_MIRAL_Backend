@@ -130,6 +130,13 @@ public class InMemoryStudyRepository implements StudyRepository {
             current.modality(),
             current.description(),
             current.reviewPriority(),
+            current.ageAtStudy(),
+            current.ageProvenance(),
+            current.clinicalReason(),
+            current.symptoms(),
+            current.symptomDuration(),
+            current.relevantHistory(),
+            current.contextVersion(),
             current.createdAt(),
             current.updatedAt()
         );
