@@ -1,0 +1,111 @@
+apiVersion: run.googleapis.com/v1
+kind: Job
+metadata:
+  name: pfi-qwen-model-loader
+  namespace: "810538429027"
+spec:
+  template:
+    spec:
+      parallelism: 1
+      taskCount: 1
+      template:
+        spec:
+          serviceAccountName: pfi-qwen-model-uploader@pfi-asplanatti-fabrello-v1.iam.gserviceaccount.com
+          maxRetries: 0
+          timeoutSeconds: 7200
+          containers:
+            - image: python:3.11-slim
+              command: ["sh", "-c"]
+              args:
+                - |-
+                  pip install --no-cache-dir requests==2.32.4 google-cloud-storage==2.19.0
+                  python - <<'PY'
+                  import hashlib
+                  import json
+                  import os
+                  import tempfile
+                  import requests
+                  from google.cloud import storage
+                  from requests.adapters import HTTPAdapter
+                  from urllib3.util.retry import Retry
+
+                  model = "Qwen/Qwen2.5-7B-Instruct"
+                  revision = "a09a35458c702b33eeacc393d103063234e8bc28"
+                  bucket_name = "pfi-qwen-models-810538429027"
+                  prefix = f"conversational/qwen2.5-7b-instruct/{revision}/"
+                  files = [
+                      ".gitattributes", "LICENSE", "README.md", "config.json",
+                      "generation_config.json", "merges.txt",
+                      "model-00001-of-00004.safetensors",
+                      "model-00002-of-00004.safetensors",
+                      "model-00003-of-00004.safetensors",
+                      "model-00004-of-00004.safetensors",
+                      "model.safetensors.index.json", "tokenizer.json",
+                      "tokenizer_config.json", "vocab.json",
+                  ]
+                  client = storage.Client()
+                  bucket = client.bucket(bucket_name)
+                  session = requests.Session()
+                  retry = Retry(
+                      total=8,
+                      connect=8,
+                      read=8,
+                      status=8,
+                      backoff_factor=2,
+                      status_forcelist=[429, 500, 502, 503, 504],
+                      allowed_methods=["GET"],
+                      respect_retry_after_header=True,
+                  )
+                  session.mount("https://", HTTPAdapter(max_retries=retry))
+                  manifest_files = []
+                  total_bytes = 0
+                  for filename in files:
+                      url = f"https://huggingface.co/{model}/resolve/{revision}/{filename}"
+                      response = session.get(url, stream=True, timeout=(30, 300))
+                      response.raise_for_status()
+                      digest = hashlib.sha256()
+                      size = 0
+                      with tempfile.NamedTemporaryFile(prefix="qwen-", delete=False) as temp:
+                          temp_path = temp.name
+                          for chunk in response.iter_content(chunk_size=8 * 1024 * 1024):
+                              if chunk:
+                                  temp.write(chunk)
+                                  digest.update(chunk)
+                                  size += len(chunk)
+                      response.close()
+                      blob = bucket.blob(prefix + filename)
+                      blob.chunk_size = 16 * 1024 * 1024
+                      blob.metadata = {"sha256": digest.hexdigest()}
+                      existing = bucket.get_blob(prefix + filename)
+                      if existing:
+                          if existing.metadata and existing.metadata.get("sha256") == digest.hexdigest() and int(existing.size or 0) == size:
+                              print(json.dumps({"verified_existing": filename, "bytes": size}))
+                          else:
+                              os.unlink(temp_path)
+                              raise RuntimeError(f"Existing object failed integrity check: {filename}")
+                      else:
+                          blob.upload_from_filename(temp_path, if_generation_match=0, timeout=3600)
+                      os.unlink(temp_path)
+                      manifest_files.append({"path": filename, "bytes": size, "sha256": digest.hexdigest()})
+                      total_bytes += size
+                      print(json.dumps({"uploaded": filename, "bytes": size}))
+                  manifest = {
+                      "model": model,
+                      "revision": revision,
+                      "license": "apache-2.0",
+                      "totalBytes": total_bytes,
+                      "files": manifest_files,
+                  }
+                  bucket.blob(prefix + "MANIFEST.sha256.json").upload_from_string(
+                      json.dumps(manifest, indent=2) + "\n",
+                      content_type="application/json",
+                      if_generation_match=0,
+                      timeout=300,
+                  )
+                  print(json.dumps({"status": "uploaded", "model": model, "revision": revision,
+                                    "fileCount": len(manifest_files), "totalBytes": total_bytes}))
+                  PY
+              resources:
+                limits:
+                  cpu: "8"
+                  memory: 32Gi
