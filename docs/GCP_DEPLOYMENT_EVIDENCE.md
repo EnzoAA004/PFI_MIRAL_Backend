@@ -1,7 +1,7 @@
 # Evidencia de despliegue GCP — PFI RM lumbar
 
 **Fecha:** 2026-10-07  
-**Estado:** despliegue parcial; smoke end-to-end y persistencia tras reinicio pendientes.  
+**Estado:** despliegue técnico y E2E parcial completados en staging; reinicio backend E2E y repetición AI posterior al reinicio fallan. Activación institucional pendiente.
 **Proyecto/región:** `pfi-asplanatti-fabrello-v1` / `us-central1`
 
 Este documento se agregó después de construir las imágenes. Su commit documental es `e5ea1bf`; no forma parte de la imagen backend, cuyo código es `7074b123...`. No se hizo push.
@@ -51,15 +51,100 @@ Registry: `us-central1-docker.pkg.dev/pfi-asplanatti-fabrello-v1/pfi-containers`
 - AI: CPU forzado; el bucket de checkpoints existente contiene el artefacto ya referido por el servicio. No se descargaron ni inventaron checkpoints.
 - No se creó proyecto, Artifact Registry, SQL, bucket, secreto, VM, GPU, VPC, ni nuevo servicio Cloud Run.
 
-## Verificaciones en GCP
+## Verificaciones iniciales en GCP
 
 - Frontend `/env.js`: HTTP 200 y API base URL apunta a `pfi-backend-v2-dev`.
 - Backend `/api/system/health`: `{"status":"ok"}`.
 - CORS preflight desde el origin frontend: HTTP 204 y `Access-Control-Allow-Origin` coincide con ese origin.
 - `/api/auth/demo-doctor`: HTTP 401 en la revisión activa, como se requiere con demo auth desactivado.
 - AI revision `Ready=True` y startup probe de Cloud Run correcta. No se invocaron directamente `/health` ni `/readiness`: el AI es privado y la sesión local no tiene permiso de impersonación de `pfi-backend-runtime` (`iam.serviceAccounts.getAccessToken` denegado). No se amplió IAM para la prueba.
-- **No ejecutado:** login profesional, upload/estudio de prueba, inferencia real, revisión, lectura tras cerrar/abrir y prueba de persistencia tras nueva revisión. La ventana temporal autorizada de demo no se pudo completar: la revisión backend `00005` no superó startup probe y no se llegó a crear cuenta demo ni subir un estudio. Cloud Run informó 15 fallos consecutivos de `STARTUP HTTP probe` en `/api/system/health` con `ERROR_CONNECTION_FAILED`; el log de aplicación llegó a `HikariDataSource Start completed` y no registró el final de arranque. El tráfico se fijó explícitamente al backend healthy `00004`, que tiene demo auth apagado. La revisión `00006` con demo apagado también seguía esperando readiness al documentar.
-- Una cuenta ADMIN activa preexistente no pudo confirmarse por un endpoint de lectura no privilegiado. El repositorio requiere un ADMIN activo para el perfil `production`; su bootstrap exige email, nombre, número de matrícula, institución y una contraseña fuerte, sin valores ficticios.
+- La lectura inicial de los mensajes de probe fue ambigua; la consulta de logs por revisión documentada en la actualización abajo confirma que `00005` y `00006` sí completaron el arranque, y fueron retiradas al quedar `00004` fijada con 100% de tráfico.
+- Se verificó directamente en PostgreSQL, con consulta read-only, el conteo de cuentas ADMIN no demo activas. No se modificó ninguna cuenta.
+
+## Actualización de diagnóstico y E2E — 2026-10-07
+
+### Revisiones backend originales
+
+Cloud Logging por `resource.labels.revision_name` mostró los siguientes resultados:
+
+- `pfi-backend-v2-dev-00005`: Spring registró `Started AiBackendApplication in 123.146 seconds`; el startup probe HTTP a `/api/system/health` terminó exitosamente tras 14 intentos. No se encontró excepción de ApplicationContext, migración, secreto, Cloud SQL, AI auth ni puerto. El único cambio funcional frente a `00004` fue `PFI_AUTH_DEMO_ENABLED=true`.
+- `pfi-backend-v2-dev-00006`: Spring registró `Started AiBackendApplication in 63.266 seconds`; el startup probe HTTP terminó exitosamente tras 8 intentos. No hubo error fatal de aplicación. El demo flag volvió a `false`.
+- Ambos candidatos quedaron retirados porque el servicio mantenía el tráfico explícitamente fijado a `00004`; no se consideran fallidos por bootstrap ADMIN. Los perfiles quedaron en `default` (sin `SPRING_PROFILES_ACTIVE`) y el bootstrap estaba ausente/default `false`, por lo que la validación de bootstrap del perfil `production` no se ejecutó.
+
+| Configuración | `00004-d8r` | `00005` | `00006` |
+| --- | --- | --- | --- |
+| `SPRING_PROFILES_ACTIVE` | ausente (`default`) | ausente (`default`) | ausente (`default`) |
+| `PFI_PERSISTENCE_MODE` | `postgres` | `postgres` | `postgres` |
+| `PFI_AUTH_DEMO_ENABLED` | `false` | `true` | `false` |
+| `PFI_AUTH_BOOTSTRAP_ADMIN_ENABLED` | ausente (`false`) | ausente (`false`) | ausente (`false`) |
+| `DATABASE_URL` configurada | sí, Secret Manager | sí, Secret Manager | sí, Secret Manager |
+| Cloud SQL attachment | ninguno; JDBC Cloud SQL Connector | ninguno; JDBC Cloud SQL Connector | ninguno; JDBC Cloud SQL Connector |
+| AI URL | URL canónica `pfi-ai-module` | igual | igual |
+| AI auth mode | `google-id-token` | igual | igual |
+| AI audience | URL canónica `pfi-ai-module` | igual | igual |
+| CORS | origin exacto de frontend dev | igual | igual |
+
+`activeNonDemoAdminCount=0` (cuenta debe estar activa/verified/approved, tener rol exacto `ADMIN`, excluyendo demo). No se insertó ni alteró cuenta alguna. Resultado: el servicio original queda **TECHNICALLY DEPLOYED / INSTITUTIONAL ACTIVATION PENDING**; no se solicitaron datos profesionales ni se habilitó bootstrap.
+
+### Entorno STAGING / TECHNICAL E2E
+
+Como el conteo ADMIN fue cero, se crearon servicios aislados, sin cambiar el backend productivo `00004`:
+
+| Recurso | Valor / estado |
+| --- | --- |
+| Frontend | `pfi-frontend-e2e`, revisión activa `pfi-frontend-e2e-00002-vbw`, `https://pfi-frontend-e2e-810538429027.us-central1.run.app`, min 0 / max 1 |
+| Backend | `pfi-backend-e2e`, `pfi-backend-e2e-00001-s6n` Ready; `pfi-backend-e2e-00002-6wt` no llegó a Ready y no recibió tráfico; URL `https://pfi-backend-e2e-810538429027.us-central1.run.app` |
+| AI privado | `pfi-ai-module-e2e`, `pfi-ai-module-e2e-00001-fx4` y después `pfi-ai-module-e2e-00002-247` Ready; privada, CPU 4 / 2 GiB, concurrency 1, min 0 / max 1 |
+| PostgreSQL | DB separada `pfi_e2e` en la instancia existente `pfi-postgres-dev`; no se creó instancia SQL nueva |
+| AI runtime bucket | `gs://pfi-ai-runtime-e2e-810538429027`, regional `us-central1`, UBLA y public access prevention |
+| Backend assets bucket | `gs://pfi-backend-e2e-assets-810538429027`, regional `us-central1`, UBLA y public access prevention |
+| AI paths | `/mnt/pfi-runtime/ai-inputs` y `/mnt/pfi-runtime/ai-outputs`, env `PFI_UPLOAD_DIR` / `PFI_OUTPUT_DIR` apuntan allí |
+| AI volumes | modelo de solo lectura en `/mnt/pfi-artifacts`; runtime bucket read/write en `/mnt/pfi-runtime` |
+| Backend auth | `PFI_PERSISTENCE_MODE=postgres`, `PFI_AUTH_DEMO_ENABLED=true`, `PFI_AUTH_EXPOSE_DEV_CODES=false`, bootstrap admin `false` |
+| E2E IAM | bindings de secretos y buckets scoped a nivel de secreto/bucket; backend E2E `roles/run.invoker` solo sobre AI E2E; no se amplió invocación de producción |
+
+El frontend tuvo una variable mal formada (`BACKEND_URL` incluía el texto `VITE_USE_MOCK=false`); se corrigió en la revisión `00002-vbw`. El inicio de sesión en el navegador y carga de `/api/studies` funcionaron desde el origin E2E después del arreglo.
+
+### E2E funcional y persistencia observada
+
+ZIP usado: `PFI_RM_Lumbar_Profesores/test-data/1008446160-20260815T180412Z-1-001.zip`, documentado en el repositorio como datos desidentificados de uso académico/demo. No se modificó el archivo.
+
+- Login demo por Frontend E2E: **PASS**. Logout y nuevo login: **PASS**.
+- Upload/clasificación por `POST /api/ai/studies`: **PASS**; caso `E2E-1008446160`, `studyId=0120097cbd244b51bbd28b375c9c7f62`, 3 series analyzable (dos sagittal de 12 cortes y una axial de 24). Los IDs opacos están en logs de sesión, no se guardan aquí.
+- PostgreSQL E2E: `databaseConnectivity=PASS`, `schemaMigrations=PASS` (20/20 archivos de migration presentes en `schema_migrations`), `persistenceMode=postgres`.
+- Una corrida estricta completa desde el backend a la IA privada terminó **PASS**: `status=completed`, `effectiveInferenceMode=real_baseline`, `degradedMode=false`, `humanReviewRequired=true`, `notClinicalDiagnosis=true`. Backend registró `200`; el AI privado recibió `POST /v2/multiplanar/run` y respondió `200`. El token Google ID fue usado por el backend runtime E2E; no se otorgó acceso a usuario personal.
+- La corrida y los assets se mostraron en la UI del frontend E2E; el visor abrió la serie sagital, la segmentación/estructuras y el plano axial.
+- Se guardó un borrador de revisión con nota técnica de prueba y se recuperó después de logout/login. No se confirmó una corrección, que no era necesaria para guardar el borrador.
+- Después de reiniciar AI creando revisión `pfi-ai-module-e2e-00002-247`, el mismo `inputId` resolvió `GET /inputs/{id}/slices/5` con `200`; el overlay de la corrida anterior volvió a estar disponible desde Backend (`200`, origen persistente Backend/GCS). Esto demuestra recuperación del input y del asset visible, pero la segunda petición de inferencia estricta recibió `502 AI_REAL_INFERENCE_FAILED` desde el endpoint privado AI (`500`). Por ello `AI_RESTART_PERSISTENCE=FAIL` para el criterio completo que exige volver a ejecutar inferencia.
+- Logs del mount registraron errores `429 rateLimitExceeded` en operaciones rename de `ai-outputs/asset_registry/*.json`. `gcloud storage ls --recursive` como usuario de esta sesión no mostró objetos en el bucket AI runtime; no se afirma que el registro/output de AI se haya verificado directamente en ese bucket. El ZIP y los outputs visibles del producto sí están en el bucket de assets E2E del Backend. Se requiere resolver las mutaciones GCS del AI runtime antes de declarar persistencia de `PFI_OUTPUT_DIR` validada.
+- Reinicio Backend E2E: se creó `pfi-backend-e2e-00002-6wt`, pero su app no llegó a registrar `Started AiBackendApplication` ni `Tomcat started on port 8080`; el log quedó después de `HikariDataSource Start completed`. Cloud Run agotó el startup probe TCP de 4 minutos (`DEADLINE_EXCEEDED`) y comenzó intentos nuevos. La revisión `00001-s6n` sigue Ready y el tráfico del servicio continúa en ella. Por tanto, `BACKEND_RESTART_PERSISTENCE=FAIL` (la recuperación de DB fue validada tras logout/login, pero no tras un reinicio exitoso de Backend).
+- La revisión AI `00002-247` permanece Ready y recibe el 100% del tráfico de AI E2E. No se modificó `pfi-ai-module` productivo.
+
+### Matriz de cierre
+
+| Área | Estado |
+| --- | --- |
+| Infraestructura frontend/backend/AI/Cloud SQL | PASS para servicios E2E activos (`00001` backend, `00002` frontend y AI); candidato de reinicio backend FAIL |
+| Seguridad AI privada y Backend→AI Google ID Token | PASS |
+| Secret Manager | PASS; valores no incluidos en evidencia |
+| Demo auth productivo | DISABLED |
+| Demo auth E2E | ENABLED, solo en entorno separado |
+| Login/upload/inferencia real/resultado/revisión | PASS en la primera corrida E2E; UI muestra los assets |
+| Backend restart persistence | FAIL: candidata no completó startup en 4 min; tráfico E2E quedó en la revisión Ready anterior |
+| AI input recovery | PASS (mismo inputId/slice 200 después de revisión nueva) |
+| AI output asset recovery | PASS desde almacenamiento persistente del Backend |
+| AI restart persistence end-to-end | FAIL: re-inferencia posterior respondió 502; errores GCSFuse 429 al actualizar asset registry AI |
+| ADMIN institucional activo | NO (`activeNonDemoAdminCount=0`) |
+| Producción institucional | NO; `TECHNICALLY DEPLOYED / INSTITUTIONAL ACTIVATION PENDING` |
+
+## Pendientes de cierre
+
+1. Diagnosticar la revisión backend E2E `00002-6wt`: la app queda después de `HikariDataSource Start completed`, no registra evento de Spring `Started`, y Cloud Run declara timeout de startup probe a los cuatro minutos. No se le asignó tráfico.
+2. Resolver la escritura/renombrado concurrente o rate-limited de `ai-outputs/asset_registry` en el mount GCSFuse; verificar objetos del bucket AI runtime y completar una nueva inferencia estricta luego del reinicio.
+3. Repetir persistencia backend tras una revisión Ready y confirmar estudio, corrida, revisión y assets desde esa revisión.
+4. Alta institucional queda pendiente de un ADMIN legítimo por el mecanismo de bootstrap de la app; ningún dato profesional ficticio fue utilizado.
+
+Las revisiones E2E no convierten el sistema en producción institucional. No se hizo push.
 
 ## Costos y pendientes
 
