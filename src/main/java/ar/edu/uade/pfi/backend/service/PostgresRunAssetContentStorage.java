@@ -23,11 +23,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 @ConditionalOnProperty(name = "pfi.persistence.mode", havingValue = "postgres")
 public class PostgresRunAssetContentStorage implements RunAssetContentStorage {
   static final String STORAGE_KIND = "postgres_bytea";
+  private static final Logger log = LoggerFactory.getLogger(PostgresRunAssetContentStorage.class);
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
   private final DataSource dataSource;
@@ -42,16 +45,28 @@ public class PostgresRunAssetContentStorage implements RunAssetContentStorage {
 
   public PostgresRunAssetContentStorage(
       DataSource dataSource, long maxBytes, boolean applyMigrations) {
+    long started = System.nanoTime();
+    log.info("startup.assetStorage.begin");
     this.dataSource = dataSource;
     this.maxBytes = maxBytes;
     if (applyMigrations) {
+      log.info("startup.assetStorage.connection.open.begin");
       try (Connection connection = connection()) {
+        log.info("startup.assetStorage.connection.open.ok");
+        long migrationStarted = System.nanoTime();
+        log.info("startup.assetStorage.migrations.begin");
         new SqlMigrationRunner(SqlMigrationRunner.DEFAULT_MIGRATIONS_DIRECTORY).apply(connection);
+        log.info("startup.assetStorage.migrations.ok durationMs={}", elapsedMillis(migrationStarted));
       } catch (Exception ex) {
         throw new IllegalStateException(
             "Could not initialize PostgreSQL run asset content storage", ex);
       }
     }
+    log.info("startup.assetStorage.ready durationMs={}", elapsedMillis(started));
+  }
+
+  private long elapsedMillis(long startedNanos) {
+    return (System.nanoTime() - startedNanos) / 1_000_000L;
   }
 
   public PostgresRunAssetContentStorage(

@@ -18,10 +18,13 @@ import javax.sql.DataSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Repository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Repository
 @ConditionalOnProperty(name = "pfi.persistence.mode", havingValue = "postgres")
 public class PostgresDurableObjectAssetRepository implements DurableObjectAssetRepository {
+    private static final Logger log = LoggerFactory.getLogger(PostgresDurableObjectAssetRepository.class);
 
     private final DataSource dataSource;
 
@@ -31,14 +34,26 @@ public class PostgresDurableObjectAssetRepository implements DurableObjectAssetR
     }
 
     public PostgresDurableObjectAssetRepository(DataSource dataSource, boolean applyMigrations) {
+        long started = System.nanoTime();
+        log.info("startup.durableObjectAssetRepository.begin");
         this.dataSource = dataSource;
         if (applyMigrations) {
+            log.info("startup.durableObjectAssetRepository.connection.open.begin");
             try (Connection connection = connection()) {
+                log.info("startup.durableObjectAssetRepository.connection.open.ok");
+                long migrationStarted = System.nanoTime();
+                log.info("startup.durableObjectAssetRepository.migrations.begin");
                 new SqlMigrationRunner(SqlMigrationRunner.DEFAULT_MIGRATIONS_DIRECTORY).apply(connection);
+                log.info("startup.durableObjectAssetRepository.migrations.ok durationMs={}", elapsedMillis(migrationStarted));
             } catch (Exception ex) {
                 throw new IllegalStateException("Could not initialize durable object asset repository", ex);
             }
         }
+        log.info("startup.durableObjectAssetRepository.ready durationMs={}", elapsedMillis(started));
+    }
+
+    private long elapsedMillis(long startedNanos) {
+        return (System.nanoTime() - startedNanos) / 1_000_000L;
     }
 
     public PostgresDurableObjectAssetRepository(String databaseUrl, boolean applyMigrations) {

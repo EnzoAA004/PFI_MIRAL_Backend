@@ -76,6 +76,7 @@ public class AdminBootstrapService {
   void bootstrap() {
     if (!isProductionProfile()) {
       // Outside production, never auto-create an admin and never block startup for its absence.
+      log.info("startup.adminBootstrap.skipped reason=non_production");
       return;
     }
     if (postgresAuthStore.hasNonDemoAdmin(AuthService.DEMO_ACCOUNT_EMAIL)) {

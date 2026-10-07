@@ -19,9 +19,12 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 public class PostgresAuthStoreService {
+  private static final Logger log = LoggerFactory.getLogger(PostgresAuthStoreService.class);
   private final DataSource dataSource;
   private final boolean enabled;
 
@@ -38,9 +41,21 @@ public class PostgresAuthStoreService {
   }
 
   public PostgresAuthStoreService(String persistenceMode, DataSource dataSource) {
+    long started = System.nanoTime();
+    log.info("startup.authStore.begin");
     this.dataSource = dataSource;
     this.enabled = "postgres".equalsIgnoreCase(persistenceMode) && this.dataSource != null;
-    if (enabled) migrate();
+    if (enabled) {
+      long migrationStarted = System.nanoTime();
+      log.info("startup.authStore.migrate.begin");
+      migrate();
+      log.info("startup.authStore.migrate.ok durationMs={}", elapsedMillis(migrationStarted));
+    }
+    log.info("startup.authStore.ready durationMs={}", elapsedMillis(started));
+  }
+
+  private long elapsedMillis(long startedNanos) {
+    return (System.nanoTime() - startedNanos) / 1_000_000L;
   }
 
   /** Test convenience: builds its own small pool from a raw JDBC/connection URL. */

@@ -41,10 +41,13 @@ import javax.sql.DataSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Repository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Repository
 @ConditionalOnProperty(name = "pfi.persistence.mode", havingValue = "postgres")
 public class PostgresStudyRepository implements StudyRepository {
+    private static final Logger log = LoggerFactory.getLogger(PostgresStudyRepository.class);
     private static final TypeReference<Map<String, Object>> JSON_MAP = new TypeReference<>() {};
     private static final TypeReference<List<Map<String, Object>>> JSON_MAP_LIST = new TypeReference<>() {};
     private static final TypeReference<List<String>> JSON_STRING_LIST = new TypeReference<>() {};
@@ -58,15 +61,27 @@ public class PostgresStudyRepository implements StudyRepository {
     }
 
     public PostgresStudyRepository(ObjectMapper objectMapper, DataSource dataSource, boolean applyMigrations) {
+        long started = System.nanoTime();
+        log.info("startup.postgresStudyRepository.begin");
         this.objectMapper = objectMapper;
         this.dataSource = dataSource;
         if (applyMigrations) {
+            log.info("startup.postgresStudyRepository.connection.open.begin");
             try (Connection connection = connection()) {
+                log.info("startup.postgresStudyRepository.connection.open.ok");
+                long migrationStarted = System.nanoTime();
+                log.info("startup.postgresStudyRepository.migrations.begin");
                 new SqlMigrationRunner(SqlMigrationRunner.DEFAULT_MIGRATIONS_DIRECTORY).apply(connection);
+                log.info("startup.postgresStudyRepository.migrations.ok durationMs={}", elapsedMillis(migrationStarted));
             } catch (Exception ex) {
                 throw new IllegalStateException("Could not initialize PostgreSQL study repository", ex);
             }
         }
+        log.info("startup.postgresStudyRepository.ready durationMs={}", elapsedMillis(started));
+    }
+
+    private long elapsedMillis(long startedNanos) {
+        return (System.nanoTime() - startedNanos) / 1_000_000L;
     }
 
     public PostgresStudyRepository(ObjectMapper objectMapper, String databaseUrl, boolean applyMigrations) {

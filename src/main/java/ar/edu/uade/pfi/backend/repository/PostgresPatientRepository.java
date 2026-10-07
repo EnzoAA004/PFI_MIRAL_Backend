@@ -18,10 +18,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Repository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Repository
 @ConditionalOnProperty(name = "pfi.persistence.mode", havingValue = "postgres")
 public class PostgresPatientRepository implements PatientRepository {
+  private static final Logger log = LoggerFactory.getLogger(PostgresPatientRepository.class);
   private final DataSource dataSource;
 
   @Autowired
@@ -30,14 +33,26 @@ public class PostgresPatientRepository implements PatientRepository {
   }
 
   public PostgresPatientRepository(DataSource dataSource, boolean applyMigrations) {
+    long started = System.nanoTime();
+    log.info("startup.patientRepository.begin");
     this.dataSource = dataSource;
     if (applyMigrations) {
+      log.info("startup.patientRepository.connection.open.begin");
       try (Connection connection = connection()) {
+        log.info("startup.patientRepository.connection.open.ok");
+        long migrationStarted = System.nanoTime();
+        log.info("startup.patientRepository.migrations.begin");
         new SqlMigrationRunner(SqlMigrationRunner.DEFAULT_MIGRATIONS_DIRECTORY).apply(connection);
+        log.info("startup.patientRepository.migrations.ok durationMs={}", elapsedMillis(migrationStarted));
       } catch (Exception ex) {
         throw new IllegalStateException("Could not initialize PostgreSQL patient repository", ex);
       }
     }
+    log.info("startup.patientRepository.ready durationMs={}", elapsedMillis(started));
+  }
+
+  private long elapsedMillis(long startedNanos) {
+    return (System.nanoTime() - startedNanos) / 1_000_000L;
   }
 
   public PostgresPatientRepository(String databaseUrl, boolean applyMigrations) {
