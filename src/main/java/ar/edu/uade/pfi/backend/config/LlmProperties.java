@@ -20,8 +20,17 @@ public record LlmProperties(
     Integer timeoutSeconds,
     Double temperature,
     Integer maxOutputTokens,
-    Integer historyWindowTurns
+    Integer historyWindowTurns,
+    String authMode,
+    String audience,
+    Boolean privateRequired
 ) {
+    public LlmProperties(Boolean enabled, String provider, String baseUrl, String model,
+            Integer timeoutSeconds, Double temperature, Integer maxOutputTokens, Integer historyWindowTurns) {
+        this(enabled, provider, baseUrl, model, timeoutSeconds, temperature, maxOutputTokens,
+            historyWindowTurns, null, null, false);
+    }
+
     public boolean resolvedEnabled() {
         return Boolean.TRUE.equals(enabled);
     }
@@ -36,6 +45,19 @@ public record LlmProperties(
 
     public String resolvedModel() {
         return model == null || model.isBlank() ? "Qwen2.5-7B-Instruct" : model;
+    }
+
+    public AiServiceAuthMode resolvedAuthMode() {
+        return AiServiceAuthMode.fromConfigValue(authMode);
+    }
+
+    public boolean resolvedPrivateRequired() {
+        return Boolean.TRUE.equals(privateRequired);
+    }
+
+    public String resolvedAudience() {
+        return new AiServiceProperties(null, null, null, null, "google-id-token", audience)
+            .resolvedAudience();
     }
 
     /** Floor of 10s — a self-hosted model can be slower than a conventional API but must never be unbounded (80-Q). */

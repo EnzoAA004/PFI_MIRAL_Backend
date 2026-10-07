@@ -9,10 +9,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import ar.edu.uade.pfi.backend.config.LlmProperties;
+import ar.edu.uade.pfi.backend.config.AiServiceAuthorizationProvider;
+import ar.edu.uade.pfi.backend.config.WebClientConfig;
 import ar.edu.uade.pfi.backend.service.exception.RunReviewException;
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
 import java.time.Duration;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.springframework.http.HttpStatus;
@@ -30,8 +33,9 @@ class SelfHostedLlmProviderTest {
     static WireMockExtension wireMock = WireMockExtension.newInstance().build();
 
     private SelfHostedLlmProvider buildProvider(int timeoutSeconds) {
-        WebClient webClient = WebClient.builder().baseUrl(wireMock.baseUrl()).build();
-        return buildProvider(webClient, timeoutSeconds);
+        LlmProperties properties = new LlmProperties(true, "self-hosted", wireMock.baseUrl(), "Qwen2.5-7B-Instruct", timeoutSeconds, 0.1, 512, 8);
+        WebClient webClient = new WebClientConfig().llmWebClient(properties, new ar.edu.uade.pfi.backend.config.NoopAiServiceAuthorizationProvider());
+        return new SelfHostedLlmProvider(webClient, properties);
     }
 
     private SelfHostedLlmProvider buildProvider(WebClient webClient, int timeoutSeconds) {
@@ -174,5 +178,42 @@ class SelfHostedLlmProviderTest {
             .willReturn(aResponse().withStatus(200).withFixedDelay(4000)));
 
         assertEquals(false, buildProvider(3).checkAvailability());
+    }
+
+    @Test
+    void noneModeSendsNoAuthorizationForModelsAndChat() {
+        wireMock.stubFor(com.github.tomakehurst.wiremock.client.WireMock.get(urlEqualTo("/v1/models"))
+            .willReturn(aResponse().withStatus(200).withBody("{\"data\": []}")));
+        wireMock.stubFor(post(urlEqualTo("/v1/chat/completions"))
+            .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json").withBody(successBody("ok"))));
+
+        SelfHostedLlmProvider provider = buildProvider(30);
+        provider.checkAvailability();
+        provider.complete(sampleRequest());
+
+        wireMock.verify(com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor(urlEqualTo("/v1/models"))
+            .withoutHeader("Authorization"));
+        wireMock.verify(postRequestedFor(urlEqualTo("/v1/chat/completions")).withoutHeader("Authorization"));
+    }
+
+    @Test
+    void googleIdTokenModeSendsAuthorizationForModelsAndChat() {
+        wireMock.stubFor(com.github.tomakehurst.wiremock.client.WireMock.get(urlEqualTo("/v1/models"))
+            .willReturn(aResponse().withStatus(200).withBody("{\"data\": []}")));
+        wireMock.stubFor(post(urlEqualTo("/v1/chat/completions"))
+            .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json").withBody(successBody("ok"))));
+        LlmProperties properties = new LlmProperties(true, "self-hosted", wireMock.baseUrl(), "Qwen2.5-7B-Instruct",
+            30, 0.1, 512, 8, "google-id-token", wireMock.baseUrl(), true);
+        AiServiceAuthorizationProvider tokenProvider = () -> Optional.of("Bearer test-id-token");
+        SelfHostedLlmProvider provider = new SelfHostedLlmProvider(
+            new WebClientConfig().llmWebClient(properties, tokenProvider), properties);
+
+        provider.checkAvailability();
+        provider.complete(sampleRequest());
+
+        wireMock.verify(com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor(urlEqualTo("/v1/models"))
+            .withHeader("Authorization", com.github.tomakehurst.wiremock.client.WireMock.equalTo("Bearer test-id-token")));
+        wireMock.verify(postRequestedFor(urlEqualTo("/v1/chat/completions"))
+            .withHeader("Authorization", com.github.tomakehurst.wiremock.client.WireMock.equalTo("Bearer test-id-token")));
     }
 }

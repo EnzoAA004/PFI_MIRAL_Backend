@@ -6,6 +6,7 @@ import java.time.Duration;
 import org.slf4j.MDC;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.web.reactive.function.client.ClientRequest;
@@ -56,7 +57,7 @@ public class WebClientConfig {
             .baseUrl(properties.resolvedBaseUrl())
             .clientConnector(new ReactorClientHttpConnector(httpClient))
             .filter(traceIdPropagationFilter())
-            .filter(aiServiceAuthorizationFilter(authorizationProvider))
+            .filter(authorizationFilter(authorizationProvider))
             .build();
     }
 
@@ -68,7 +69,17 @@ public class WebClientConfig {
      * otro upstream y no se le manda el ID token dirigido a la audience de Cloud Run.
      */
     @Bean
-    public WebClient llmWebClient(LlmProperties properties) {
+    public AiServiceAuthorizationProvider llmServiceAuthorizationProvider(LlmProperties properties) {
+        if (properties.resolvedAuthMode() == AiServiceAuthMode.NONE) {
+            return new NoopAiServiceAuthorizationProvider();
+        }
+        return new GoogleIdTokenAiServiceAuthorizationProvider(properties.resolvedAudience());
+    }
+
+    @Bean
+    public WebClient llmWebClient(
+            LlmProperties properties,
+            @Qualifier("llmServiceAuthorizationProvider") AiServiceAuthorizationProvider authorizationProvider) {
         int timeoutSeconds = properties.resolvedTimeoutSeconds();
         HttpClient httpClient = HttpClient.create()
             .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, (int) CONNECT_TIMEOUT.toMillis())
@@ -78,6 +89,7 @@ public class WebClientConfig {
             .baseUrl(properties.resolvedBaseUrl())
             .clientConnector(new ReactorClientHttpConnector(httpClient))
             .filter(traceIdPropagationFilter())
+            .filter(authorizationFilter(authorizationProvider))
             .build();
     }
 
@@ -86,7 +98,7 @@ public class WebClientConfig {
      * entrega header (modo NONE), la cabecera se remueve explicitamente en vez de dejarse pasar:
      * asi una credencial del request entrante nunca se reenvia al upstream por accidente.
      */
-    private ExchangeFilterFunction aiServiceAuthorizationFilter(AiServiceAuthorizationProvider authorizationProvider) {
+    private ExchangeFilterFunction authorizationFilter(AiServiceAuthorizationProvider authorizationProvider) {
         return ExchangeFilterFunction.ofRequestProcessor(request -> authorizationProvider.authorizationHeader()
             .map(header -> ClientRequest.from(request)
                 .headers(headers -> {
