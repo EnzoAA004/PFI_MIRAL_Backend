@@ -4,6 +4,8 @@
 **Estado:** despliegue parcial; smoke end-to-end y persistencia tras reinicio pendientes.  
 **Proyecto/región:** `pfi-asplanatti-fabrello-v1` / `us-central1`
 
+Este documento se agregó después de construir las imágenes. Su commit documental es `e5ea1bf`; no forma parte de la imagen backend, cuyo código es `7074b123...`. No se hizo push.
+
 ## Baseline sincronizado
 
 Los repositorios originales estaban limpios antes de sincronizar. Backend y AI tenían ramas de trabajo divergentes de `origin/main`; se conservaron y se integró `origin/main` en ramas locales candidatas nuevas, sin sobrescribir las ramas existentes. Frontend se avanzó por fast-forward. Ninguna rama se publicó a GitHub.
@@ -56,7 +58,7 @@ Registry: `us-central1-docker.pkg.dev/pfi-asplanatti-fabrello-v1/pfi-containers`
 - CORS preflight desde el origin frontend: HTTP 204 y `Access-Control-Allow-Origin` coincide con ese origin.
 - `/api/auth/demo-doctor`: HTTP 401 en la revisión activa, como se requiere con demo auth desactivado.
 - AI revision `Ready=True` y startup probe de Cloud Run correcta. No se invocaron directamente `/health` ni `/readiness`: el AI es privado y la sesión local no tiene permiso de impersonación de `pfi-backend-runtime` (`iam.serviceAccounts.getAccessToken` denegado). No se amplió IAM para la prueba.
-- **No ejecutado:** login profesional, upload/estudio de prueba, inferencia real, revisión, lectura tras cerrar/abrir y prueba de persistencia tras nueva revisión. La ventana temporal autorizada de demo no se pudo completar: la revisión backend `00005` no superó startup probe y no se llegó a crear cuenta demo ni subir un estudio. El tráfico se fijó explícitamente al backend healthy `00004`, que tiene demo auth apagado. La revisión `00006` que restaura demo auth también seguía esperando readiness al documentar.
+- **No ejecutado:** login profesional, upload/estudio de prueba, inferencia real, revisión, lectura tras cerrar/abrir y prueba de persistencia tras nueva revisión. La ventana temporal autorizada de demo no se pudo completar: la revisión backend `00005` no superó startup probe y no se llegó a crear cuenta demo ni subir un estudio. Cloud Run informó 15 fallos consecutivos de `STARTUP HTTP probe` en `/api/system/health` con `ERROR_CONNECTION_FAILED`; el log de aplicación llegó a `HikariDataSource Start completed` y no registró el final de arranque. El tráfico se fijó explícitamente al backend healthy `00004`, que tiene demo auth apagado. La revisión `00006` con demo apagado también seguía esperando readiness al documentar.
 - Una cuenta ADMIN activa preexistente no pudo confirmarse por un endpoint de lectura no privilegiado. El repositorio requiere un ADMIN activo para el perfil `production`; su bootstrap exige email, nombre, número de matrícula, institución y una contraseña fuerte, sin valores ficticios.
 
 ## Costos y pendientes
