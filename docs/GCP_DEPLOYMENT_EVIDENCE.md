@@ -335,3 +335,23 @@ Caso completamente nuevo y desidentificado `FFZ-20261007-001`, subjectRef `FFZ-S
 Producción institucional no se modificó: `pfi-backend-v2-dev-00004-d8r` conserva 100% de tráfico y `PFI_AUTH_DEMO_ENABLED=false`; el conteo read-only previamente comprobado continúa en `activeNonDemoAdminCount=0`. Estado: **TECHNICALLY DEPLOYED / INSTITUTIONAL ACTIVATION PENDING**.
 
 `FULL FINAL FREEZE CLOUD E2E = PASS`, con las limitaciones esperadas y los dos límites de rutas auxiliares documentados arriba. No se implementó Qwen ni se trabajó sobre billing. Al cerrar esta adenda, el único cambio local pendiente en el candidato Backend era esta documentación (`docs/GCP_DEPLOYMENT_EVIDENCE.md`); todavía no se había hecho commit ni push para revisión.
+
+### Corrección CORS de login demo E2E (2026-10-07 local / 2026-10-08 UTC)
+
+Incidente detectado al probar MIRA·L desde `https://pfi-frontend-e2e-810538429027.us-central1.run.app`: `POST /api/auth/demo-doctor` fallaba en navegador con `Failed to fetch`. La configuración inicial de `pfi-backend-e2e` permitía solamente `https://pfi-frontend-e2e-7cxg46zwea-uc.a.run.app`, es decir, un hostname alternativo del frontend, no el Origin observado en el navegador. `CorsResponseFilter` hace comparación explícita de orígenes, omite `*` y responde 403 al OPTIONS de un Origin no permitido.
+
+Antes del cambio, con `Origin: https://pfi-frontend-e2e-810538429027.us-central1.run.app`, `Access-Control-Request-Method: POST` y `Access-Control-Request-Headers: content-type,x-trace-id`, `OPTIONS /api/auth/demo-doctor` respondió HTTP 403. La respuesta no incluyó `Access-Control-Allow-Origin`. Como control, el Origin anterior de la allowlist respondió 204 con los encabezados CORS esperados. El POST de login de demo con body vacío bien formado respondió HTTP 200 antes del cambio; esto, junto con las respuestas `server: Google Frontend` y health 200, descartó indisponibilidad de Cloud Run, bloqueo de invoker y fallo de disponibilidad/login como causa raíz.
+
+Se actualizó exclusivamente `PFI_CORS_ALLOWED_ORIGINS` en el servicio E2E, conservando ambos orígenes legítimos explícitamente y sin wildcard:
+
+```text
+https://pfi-frontend-e2e-7cxg46zwea-uc.a.run.app,https://pfi-frontend-e2e-810538429027.us-central1.run.app
+```
+
+La revisión `pfi-backend-e2e-00010-l96` quedó Ready y se promovió explícitamente a 100% del tráfico estable. Imagen/digest sin reconstrucción: `us-central1-docker.pkg.dev/pfi-asplanatti-fabrello-v1/pfi-containers/backend@sha256:98565af622ab68e73f09ea0379453f8c53289d206c78ee989393628c53f4c427` (igual al digest certificado). La revisión previa `pfi-backend-e2e-finalverify` sigue Ready con su tag `freeze-verify` para rollback; no se eliminó. Se observó durante la validación que crear la revisión no bastó porque tráfico estable seguía dirigido a la revisión anterior; tras el cambio explícito de tráfico el hostname estable reportó `X-PFI-Revision: pfi-backend-e2e-00010-l96`.
+
+Después de promover la revisión, el mismo OPTIONS respondió HTTP 204 con `Access-Control-Allow-Origin` igual al Origin exacto, `Vary: Origin`, credentials true, métodos `GET,POST,PUT,PATCH,DELETE,OPTIONS`, headers `Authorization,Content-Type,Accept,Origin,X-Requested-With,X-Trace-Id` y max-age 3600. `GET /api/system/health` respondió HTTP 200 (`{"status":"ok"}`). El login demo respondió HTTP 200 con access token presente (no registrado ni expuesto); el endpoint autenticado `GET /api/ai/health` respondió HTTP 200, `backendStatus=up`, `aiModuleAvailable=true` y `degradedMode=false`.
+
+Validación real en el navegador MIRA·L: al pulsar “Entrar con doctor demo” se accedió a la lista de estudios, sin bloqueo CORS (`DEMO_LOGIN_BROWSER=PASS`). La interfaz aún mostró su badge global `Modo degradado · v1.3.2`, discrepancia previamente documentada: la comprobación API autenticada en esta sesión informó `degradedMode=false`; el badge no se tomó como prueba del estado del servicio AI.
+
+Alcance: sólo configuración/tráfico del Backend E2E y esta evidencia documental. No se modificaron producción institucional, código del Final Freeze, Frontend, AI, Qwen ni billing.
