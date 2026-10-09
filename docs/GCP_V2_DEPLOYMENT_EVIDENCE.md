@@ -43,9 +43,9 @@ Cloud Billing Budget API responde desde V2, pero el listado en la billing accoun
 |---|---|---|---|
 | Artifact Registry | us-central1/pfi-containers | tres digests certificados preservados | creado; verificación PASS |
 | Cloud SQL | pfi-postgres-v2 / pfi_e2e | PostgreSQL15 / db-f1-micro / 10GB SSD / zonal | RUNNABLE; DB vacía; runtime mínimo `pfi_app` listo; datos fuente no copiados |
-| AI privado | pfi-ai-module-e2e | `pfi-ai-module-e2e-00001-4dw`; `https://pfi-ai-module-e2e-nuvqxkqhdq-uc.a.run.app` | Ready; IAM privada; default min0/max1; invoker sólo Backend SA V2 |
-| Backend | pfi-backend-e2e | — | pendiente SQL/secrets/CORS target |
-| Frontend | pfi-frontend-e2e | — | pendiente Backend V2 |
+| AI privado | pfi-ai-module-e2e | `pfi-ai-module-e2e-00002-v99`; `https://pfi-ai-module-e2e-nuvqxkqhdq-uc.a.run.app` | Ready; IAM privada; default min0/max1; invoker sólo Backend SA V2 |
+| Backend | pfi-backend-e2e | `pfi-backend-e2e-00003-qjz`; `https://pfi-backend-e2e-nuvqxkqhdq-uc.a.run.app` | Ready; digest certificado; SQL/migraciones PASS; AI privada PASS; CORS exacto |
+| Frontend | pfi-frontend-e2e | `pfi-frontend-e2e-00001-r4b`; `https://pfi-frontend-e2e-nuvqxkqhdq-uc.a.run.app` | Ready; digest certificado; HTTP 200 |
 | Buckets | mapping en plan | runtime/assets/artifacts/Qwen V2 | creados; sólo checkpoint AI transferido; Qwen vacío hasta E2E |
 | Secret Manager | pfi-e2e-database-url, pfi-e2e-jwt-secret | valores omitidos | DB URL runtime y JWT versionadas; secreto admin temporal borrado |
 
@@ -70,18 +70,18 @@ La base comienza vacía. No se importaron usuarios, estudios ni filas de V1. Par
 
 ## Tests y cierre
 
-Frontend HTTP 200: PENDING
-Backend health: PENDING (siguiente paso)
-Backend→AI ID token: PENDING
-PostgreSQL conectado: PENDING
-Browser E2E: PENDING
-Persistencia/restart: PENDING
-FULL V2 BASE CLOUD E2E: NOT RUN
+Frontend HTTP 200: PASS (`https://pfi-frontend-e2e-nuvqxkqhdq-uc.a.run.app`)
+Backend health: PASS (`/api/system/health` 200; revisión `pfi-backend-e2e-00003-qjz`)
+Backend→AI ID token: PASS (`/api/ai/health`, `/api/ai/readiness` y `/api/ai/models`; AI privada; `aiModuleAvailable=true`)
+PostgreSQL conectado: PASS (startup TCP; migraciones 20/20, pending 0; upload sintético HTTP 200)
+Browser E2E: PASS (Edge/Playwright desde Frontend V2; POST multipart browser-origin al Backend; caso `V2-BROWSER-FETCH-SYNTHETIC-20261009`; 5 series)
+Persistencia/restart: PASS (Backend `pfi-backend-e2e-00003-qjz`; AI `pfi-ai-module-e2e-00002-v99`; reprocess/reinference después de ambos restarts)
+FULL V2 BASE CLOUD E2E: PASS
 V1 MODIFIED: NO
 QWEN GPU DEPLOYED: NO
 CI/CD V2 ACTIVE: NO
 
-Checkpoint de AI copiado directamente GCS→GCS: 22,182,638 bytes; MD5 y CRC32C coincidentes. AI V2 Ready usa el digest exacto del Final Freeze, 4 CPU/2 GiB/concurrency 1, startup TCP :8000, min0/max1, checkpoint read-only bajo `/mnt/pfi-artifacts` y storage runtime separado. La health check y la invocación privada Backend→AI siguen pendientes del Backend V2.
+Checkpoint de AI copiado directamente GCS→GCS: 22,182,638 bytes; MD5 y CRC32C coincidentes. AI V2 Ready usa el digest exacto del Final Freeze, 4 CPU/2 GiB/concurrency 1, startup TCP :8000, min0/max1, checkpoint read-only bajo `/mnt/pfi-artifacts` y storage runtime separado. La health check y la invocación privada Backend→AI quedaron verificadas desde Backend V2 con Google ID Token; IAM conserva `roles/run.invoker` únicamente para `pfi-backend-e2e-runtime`.
 
 Buckets V2 creados con UBLA y Public Access Prevention: `pfi-ai-runtime-e2e-1076511912623`, `pfi-backend-e2e-assets-1076511912623`, `pfi-rm-lumbar-artifacts-2026-v2-1076511912623`, `pfi-qwen-models-1076511912623`. IAM de servicio se mantiene limitado por recurso. No se copiaron filas SQL ni objetos de estudio.
 
@@ -89,4 +89,13 @@ Budget alertas 50/75/85/95/100% sobre USD 300: BLOQUEADO por permisos `billing.b
 
 Cloud SQL `pfi-postgres-v2` quedó RUNNABLE el 2026-10-09: `POSTGRES_15`, `db-f1-micro`, Enterprise, us-central1, 10 GB SSD, sin auto-resize, ZONAL, backups off, IPv4 habilitado y sin authorized networks, deletion protection on. Base vacía `pfi_e2e` creada; no hay filas importadas. Estimación documentada para esta configuración: ~USD 9.37/mes.
 
-El bootstrap autorizado ya completó `pfi_runtime` (NOLOGIN) y `pfi_app` con permisos mínimos en schema dedicado `pfi_app`. Se comprobaron todos los flags administrativos en false, se borró el secreto administrativo temporal y se deshabilitó Data API. Backend/Frontend V2 todavía no se desplegaron; la siguiente etapa comienza desplegando Backend V2 con el digest certificado y la URL de DB runtime de Secret Manager.
+El bootstrap autorizado ya completó `pfi_runtime` (NOLOGIN) y `pfi_app` con permisos mínimos en schema dedicado `pfi_app`. Se comprobaron todos los flags administrativos en false, se borró el secreto administrativo temporal y se deshabilitó Data API. Backend/Frontend V2 quedaron desplegados y validados; el cierre base no incluye Qwen GPU, CI/CD V2 ni budget alerts, que permanecen fuera de esta fase.
+
+## Cierre de E2E base V2
+
+- Backend V2 desplegado con `sha256:98565af622ab68e73f09ea0379453f8c53289d206c78ee989393628c53f4c427`; startup TCP PASS; migraciones completas sobre `pfi_e2e` vacía (`pending count=0`); `/api/system/health` 200.
+- Frontend V2 desplegado con `sha256:f6eb2fc89d2c90c8c6a3d39c4f744818b1967ff908fa845a0c4cd096629ca589`; HTTP 200; `BACKEND_URL` apunta al Backend V2 y `VITE_USE_MOCK=false`.
+- CORS exacto aplicado en Backend V2: `https://pfi-frontend-e2e-nuvqxkqhdq-uc.a.run.app` y `https://pfi-frontend-e2e-1076511912623.us-central1.run.app`; preflight desde el Frontend canónico respondió 204 con `Access-Control-Allow-Origin` exacto.
+- Fixture sintética/de-identificada generada localmente (ZIP DICOM, 5 series, 30 cortes, sin tags de paciente) y cargada por Backend y desde contexto browser. Casos: `V2-SYNTHETIC-E2E-20261009` y `V2-BROWSER-FETCH-SYNTHETIC-20261009`; la respuesta browser fue HTTP 200 con 5 series.
+- Persistencia/restart: Backend reiniciado a `pfi-backend-e2e-00003-qjz`; el estudio durable se releyó y reprocesó sin re-upload. AI reiniciada a `pfi-ai-module-e2e-00002-v99`; reinference posterior respondió PASS y `/api/ai/health` quedó `status=ok`, `aiModuleAvailable=true`, `degradedMode=false`.
+- Browser UI smoke: Frontend V2 cargó mediante Edge/Playwright y emitió preflights/API reales al Backend V2. El flujo multipart desde contexto browser quedó probado con la fixture; el runner UI interactivo tuvo una limitación del seed IndexedDB local y no se usa como evidencia única del gate.

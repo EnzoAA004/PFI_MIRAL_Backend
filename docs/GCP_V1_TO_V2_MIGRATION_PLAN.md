@@ -99,9 +99,9 @@ Nombres funcionales: pfi-dev-database-url, pfi-dev-jwt-secret, pfi-e2e-database-
 | V1 resource | V1 identifier | V2 resource | Migration method | Needs data copy | Needs new IAM | Expected downtime | Estimated cost | Status |
 |---|---|---|---|---|---|---|---|---|
 | Artifact Registry | us-central1/pfi-containers | us-central1/pfi-containers | Docker repo + gcrane cp, sólo los tres digests certificados | sí, imagen | AR Reader V1 / Writer V2 | ninguno en V1 | depende de bytes; transferencia mismo region | CREADO; tres digests iguales, ver evidencia |
-| AI E2E | pfi-ai-module-e2e | pfi-ai-module-e2e | deploy por digest, privado, min0/max1, probe equivalente | checkpoint copiado íntegro | AI runtime V2; Backend V2 run.invoker | ninguno en V1 | Cloud Run por uso, min0 | Ready, revisión `pfi-ai-module-e2e-00001-4dw` |
-| Backend E2E | pfi-backend-e2e | pfi-backend-e2e | deploy por digest, DB/GCS/secrets V2, CORS con origin Frontend V2 real | no para fixture sintética/de-identificada; V2 inicia vacía | SQL Client, Secret Accessor, GCS mínimo, invoker AI | ninguno en V1 | Cloud Run por uso, cap V2 1 | pendiente deploy; runtime SQL mínimo aprobado |
-| Frontend E2E | pfi-frontend-e2e | pfi-frontend-e2e | deploy por digest; BACKEND_URL V2, mock=false | no | SA frontend sin permisos cloud; invoker público sólo si E2E | ninguno en V1 | Cloud Run por uso, cap V2 1 | espera URL Backend |
+| AI E2E | pfi-ai-module-e2e | pfi-ai-module-e2e | deploy por digest, privado, min0/max1, probe equivalente | checkpoint copiado íntegro | AI runtime V2; Backend V2 run.invoker | ninguno en V1 | Cloud Run por uso, min0 | Ready y restart verificado, revisión `pfi-ai-module-e2e-00002-v99` |
+| Backend E2E | pfi-backend-e2e | pfi-backend-e2e | deploy por digest, DB/GCS/secrets V2, CORS con origin Frontend V2 real | no para fixture sintética/de-identificada; V2 inicia vacía | SQL Client, Secret Accessor, GCS mínimo, invoker AI | ninguno en V1 | Cloud Run por uso, cap V2 1 | PASS; `pfi-backend-e2e-00003-qjz`; SQL/migraciones/AI/CORS/restart verificados |
+| Frontend E2E | pfi-frontend-e2e | pfi-frontend-e2e | deploy por digest; BACKEND_URL V2, mock=false | no | SA frontend sin permisos cloud; invoker público sólo si E2E | ninguno en V1 | Cloud Run por uso, cap V2 1 | PASS; `pfi-frontend-e2e-00001-r4b`; HTTP 200; browser E2E sintético |
 | Cloud SQL E2E | pfi-postgres-dev / pfi_e2e | pfi-postgres-v2 / pfi_e2e | instancia PG15/db-f1-micro/10GB; migraciones Backend sobre DB vacía con usuario mínimo | no; usar fixture sintética/de-identificada | bootstrap admin temporal ya limpiado; runtime SQL client | V1 ninguno; V2 durante import | ~USD 9.37/mes según revisión de costos del repo | instancia RUNNABLE; `POSTGRES_RUNTIME_BOOTSTRAP=PASS`; DB vacía, sin datos copiados |
 | DB dev | pfi | no incluir salvo necesidad | separar de E2E; evaluar sólo luego | posible | sí | ninguno | según volumen | deferido |
 | Secrets | pfi-e2e-* | nombres funcionales bajo V2 | transferencia directa API/CLI; DB URL nueva; nunca archivo/log | secreto | Secret Accessor sólo Backend | ninguno | uso pequeño | depende de SQL |
@@ -156,6 +156,6 @@ QWEN GPU V2=NO
 CI/CD V2=NO
 SQL/STUDY DATA CLASSIFICATION=NOT VERIFIED; source rows/assets NOT copied
 POSTGRES_RUNTIME_BOOTSTRAP=PASS
-BACKEND V2=READY FOR DEPLOY (certified digest; startup/migrations pending)
-FRONTEND V2=NOT DEPLOYED
-FULL V2 BASE CLOUD E2E=NOT RUN
+BACKEND V2=PASS (certified digest; startup/migrations/SQL/AI/CORS/restart verified)
+FRONTEND V2=PASS (certified digest; real URL; browser E2E verified)
+FULL V2 BASE CLOUD E2E=PASS
