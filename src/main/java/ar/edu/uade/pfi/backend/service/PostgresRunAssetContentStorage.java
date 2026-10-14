@@ -3,6 +3,7 @@ package ar.edu.uade.pfi.backend.service;
 import ar.edu.uade.pfi.backend.domain.RunArtifact;
 import ar.edu.uade.pfi.backend.domain.RunAssetContent;
 import ar.edu.uade.pfi.backend.domain.RunAssetStorageDiagnostics;
+import ar.edu.uade.pfi.backend.repository.PfiHikariDataSourceFactory;
 import ar.edu.uade.pfi.backend.repository.SqlMigrationRunner;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -10,7 +11,6 @@ import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Timestamp;
@@ -18,39 +18,60 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import javax.sql.DataSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 @ConditionalOnProperty(name = "pfi.persistence.mode", havingValue = "postgres")
 public class PostgresRunAssetContentStorage implements RunAssetContentStorage {
   static final String STORAGE_KIND = "postgres_bytea";
+  private static final Logger log = LoggerFactory.getLogger(PostgresRunAssetContentStorage.class);
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-  private final String jdbcUrl;
+  private final DataSource dataSource;
   private final long maxBytes;
 
   @Autowired
   public PostgresRunAssetContentStorage(
-      @Value("${pfi.database.url:${DATABASE_URL:}}") String databaseUrl,
+      DataSource dataSource,
       @Value("${pfi.asset-storage.max-bytes:5242880}") long maxBytes) {
-    this(databaseUrl, maxBytes, true);
+    this(dataSource, maxBytes, true);
   }
 
   public PostgresRunAssetContentStorage(
-      String databaseUrl, long maxBytes, boolean applyMigrations) {
-    this.jdbcUrl = toJdbcUrl(databaseUrl == null ? "" : databaseUrl.trim());
+      DataSource dataSource, long maxBytes, boolean applyMigrations) {
+    long started = System.nanoTime();
+    log.info("startup.assetStorage.begin");
+    this.dataSource = dataSource;
     this.maxBytes = maxBytes;
     if (applyMigrations) {
+      log.info("startup.assetStorage.connection.open.begin");
       try (Connection connection = connection()) {
+        log.info("startup.assetStorage.connection.open.ok");
+        long migrationStarted = System.nanoTime();
+        log.info("startup.assetStorage.migrations.begin");
         new SqlMigrationRunner(SqlMigrationRunner.DEFAULT_MIGRATIONS_DIRECTORY).apply(connection);
+        log.info("startup.assetStorage.migrations.ok durationMs={}", elapsedMillis(migrationStarted));
       } catch (Exception ex) {
         throw new IllegalStateException(
             "Could not initialize PostgreSQL run asset content storage", ex);
       }
     }
+    log.info("startup.assetStorage.ready durationMs={}", elapsedMillis(started));
+  }
+
+  private long elapsedMillis(long startedNanos) {
+    return (System.nanoTime() - startedNanos) / 1_000_000L;
+  }
+
+  public PostgresRunAssetContentStorage(
+      String databaseUrl, long maxBytes, boolean applyMigrations) {
+    this(PfiHikariDataSourceFactory.create(toJdbcUrl(databaseUrl == null ? "" : databaseUrl.trim())), maxBytes, applyMigrations);
   }
 
   @Override
@@ -239,10 +260,10 @@ public class PostgresRunAssetContentStorage implements RunAssetContentStorage {
   }
 
   private Connection connection() throws Exception {
-    return DriverManager.getConnection(jdbcUrl);
+    return dataSource.getConnection();
   }
 
-  private String toJdbcUrl(String databaseUrl) {
+  private static String toJdbcUrl(String databaseUrl) {
     if (databaseUrl.isBlank()) return "";
     if (databaseUrl.startsWith("jdbc:postgresql://")) return databaseUrl;
     if (!databaseUrl.startsWith("postgres://") && !databaseUrl.startsWith("postgresql://"))

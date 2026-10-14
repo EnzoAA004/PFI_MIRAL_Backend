@@ -14,6 +14,8 @@ ENV PORT=8080
 ENV PFI_AI_SERVICE_URL=http://host.docker.internal:8000
 ENV PFI_AI_TIMEOUT_SECONDS=180
 ENV PFI_PERSISTENCE_MODE=memory
+ENV PFI_STORAGE_PROVIDER=filesystem
+ENV PFI_STORAGE_LOCAL_ROOT=/app/storage/object_storage
 
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "app.jar"]

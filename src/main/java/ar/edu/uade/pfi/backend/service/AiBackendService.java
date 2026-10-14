@@ -33,6 +33,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.regex.Pattern;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -96,6 +97,8 @@ public class AiBackendService {
     private final RunAssetSnapshotService runAssetSnapshotService;
     private final RunReviewService runReviewService;
     private final long studyUploadMaxBytes;
+    private final ar.edu.uade.pfi.backend.storage.ObjectStorage objectStorage;
+    private final DurableObjectAssetRepository durableObjectAssetRepository;
 
     public AiBackendService(AiServiceOperations aiServiceClient, ReviewStoreService reviewStoreService) {
         this(aiServiceClient, reviewStoreService, null, null, null, null, null, null, (RunAssetContentStorage) null, null, null, DEFAULT_STUDY_UPLOAD_BYTES);
@@ -143,7 +146,9 @@ public class AiBackendService {
         ObjectProvider<RunAssetContentStorage> assetContentStorageProvider,
         ObjectProvider<RunAssetSnapshotService> runAssetSnapshotServiceProvider,
         ObjectProvider<RunReviewService> runReviewServiceProvider,
-        AiServiceProperties aiServiceProperties
+        AiServiceProperties aiServiceProperties,
+        ObjectProvider<ar.edu.uade.pfi.backend.storage.ObjectStorage> objectStorageProvider,
+        ObjectProvider<DurableObjectAssetRepository> durableObjectAssetRepositoryProvider
     ) {
         this(
             aiServiceClient,
@@ -157,7 +162,9 @@ public class AiBackendService {
             assetContentStorageProvider.getIfAvailable(),
             runAssetSnapshotServiceProvider.getIfAvailable(),
             runReviewServiceProvider.getIfAvailable(),
-            aiServiceProperties.resolvedStudyUploadMaxBytes()
+            aiServiceProperties.resolvedStudyUploadMaxBytes(),
+            objectStorageProvider.getIfAvailable(),
+            durableObjectAssetRepositoryProvider.getIfAvailable()
         );
     }
 
@@ -186,7 +193,9 @@ public class AiBackendService {
             assetContentStorage,
             runAssetSnapshotService,
             runReviewService,
-            DEFAULT_STUDY_UPLOAD_BYTES
+            DEFAULT_STUDY_UPLOAD_BYTES,
+            null,
+            null
         );
     }
 
@@ -204,6 +213,40 @@ public class AiBackendService {
         RunReviewService runReviewService,
         long studyUploadMaxBytes
     ) {
+        this(
+            aiServiceClient,
+            reviewStoreService,
+            auditService,
+            pipelineRunRequestNormalizer,
+            sagittalContractValidator,
+            pipelineResponsePresenter,
+            modelReadinessResolver,
+            studyRepository,
+            assetContentStorage,
+            runAssetSnapshotService,
+            runReviewService,
+            studyUploadMaxBytes,
+            null,
+            null
+        );
+    }
+
+    public AiBackendService(
+        AiServiceOperations aiServiceClient,
+        ReviewStoreService reviewStoreService,
+        AuditService auditService,
+        PipelineRunRequestNormalizer pipelineRunRequestNormalizer,
+        SagittalRealBaselineContractValidator sagittalContractValidator,
+        AiPipelineResponsePresenter pipelineResponsePresenter,
+        AiModelReadinessResolver modelReadinessResolver,
+        StudyRepository studyRepository,
+        RunAssetContentStorage assetContentStorage,
+        RunAssetSnapshotService runAssetSnapshotService,
+        RunReviewService runReviewService,
+        long studyUploadMaxBytes,
+        ar.edu.uade.pfi.backend.storage.ObjectStorage objectStorage,
+        DurableObjectAssetRepository durableObjectAssetRepository
+    ) {
         this.aiServiceClient = aiServiceClient;
         this.reviewStoreService = reviewStoreService;
         this.auditService = auditService;
@@ -216,6 +259,8 @@ public class AiBackendService {
         this.runAssetSnapshotService = runAssetSnapshotService;
         this.runReviewService = runReviewService;
         this.studyUploadMaxBytes = studyUploadMaxBytes <= 0 ? DEFAULT_STUDY_UPLOAD_BYTES : studyUploadMaxBytes;
+        this.objectStorage = objectStorage;
+        this.durableObjectAssetRepository = durableObjectAssetRepository;
     }
 
     public Map<String, Object> health() {
@@ -424,8 +469,10 @@ public class AiBackendService {
     public StudyUploadResponseDto uploadStudy(MultipartFile file, String caseId) {
         String normalizedCaseId = trimmed(caseId);
         validateStudyUpload(file, normalizedCaseId);
+        byte[] rawBytes = readAllBytes(file);
         Map<String, Object> response = normalizeForFrontend(aiServiceClient.uploadStudy(file, normalizedCaseId));
         StudyUploadResponseDto publicResponse = toStudyUploadResponse(normalizedCaseId, response);
+        persistStudyInputDurably(publicResponse.studyId(), rawBytes, file.getOriginalFilename());
         String traceId = text(response.get("traceId"));
         audit("backend", "upload.study.completed", publicResponse.studyId(), traceId, Map.of(
             "caseId", publicResponse.caseId(),
@@ -437,6 +484,89 @@ public class AiBackendService {
             "hasAxial", publicResponse.axial() != null
         ));
         return publicResponse;
+    }
+
+    /**
+     * Persists the raw study ZIP durably, keyed by studyId, so it can be reprocessed
+     * later via {@link #reprocessStudy(String)} without asking the client to upload it
+     * again. Best-effort: a durable-storage failure here must not fail the upload the
+     * doctor is waiting on, since the AI module already accepted and processed the
+     * study — see docs/cloud/CLOUD_DURABLE_STORAGE_DESIGN.md.
+     */
+    private void persistStudyInputDurably(String studyId, byte[] rawBytes, String originalFilename) {
+        if (objectStorage == null || durableObjectAssetRepository == null) return;
+        if (studyId == null || studyId.isBlank() || rawBytes == null || rawBytes.length == 0) return;
+        try {
+            String assetId = UUID.randomUUID().toString();
+            String filename = "study.zip";
+            String objectKey = ar.edu.uade.pfi.backend.storage.ObjectKeys.studyInput(studyId, assetId, filename);
+            ar.edu.uade.pfi.backend.storage.StoredObject stored =
+                objectStorage.put(objectKey, rawBytes, "application/zip");
+            durableObjectAssetRepository.save(new ar.edu.uade.pfi.backend.domain.DurableObjectAsset(
+                assetId,
+                studyId,
+                null,
+                null,
+                stored.objectKey(),
+                stored.contentType(),
+                stored.sizeBytes(),
+                stored.sha256(),
+                "study_input",
+                stored.storageProvider(),
+                originalFilename,
+                java.time.Instant.now()
+            ));
+        } catch (RuntimeException ex) {
+            audit("backend", "upload.study.durable_persist_failed", studyId, "", Map.of(
+                "studyId", studyId,
+                "errorType", ex.getClass().getSimpleName()
+            ));
+        }
+    }
+
+    /**
+     * Reprocesses a study's already-persisted DICOM input without a new client upload:
+     * reads the durable bytes recorded by {@link #persistStudyInputDurably} and resends
+     * them to the AI module exactly as a fresh upload would. Demonstrates that the raw
+     * study is reusable from durable storage alone.
+     */
+    public StudyUploadResponseDto reprocessStudy(String studyId, String caseId) {
+        String normalizedStudyId = trimmed(studyId);
+        String normalizedCaseId = trimmed(caseId);
+        if (normalizedStudyId.isBlank()) {
+            throw badRequest("studyId es obligatorio.");
+        }
+        if (durableObjectAssetRepository == null || objectStorage == null) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                "Almacenamiento durable no configurado.");
+        }
+        ar.edu.uade.pfi.backend.domain.DurableObjectAsset asset = durableObjectAssetRepository
+            .findLatestStudyInput(normalizedStudyId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                "No hay un input DICOM durable para este studyId."));
+        byte[] content = objectStorage.get(asset.objectKey())
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.GONE,
+                "El objeto durable referenciado ya no existe."));
+        MultipartFile replay = new ByteArrayMultipartFile(
+            "file", asset.originalFilename() == null ? "study.zip" : asset.originalFilename(),
+            asset.contentType(), content);
+        Map<String, Object> response = normalizeForFrontend(aiServiceClient.uploadStudy(replay, normalizedCaseId));
+        StudyUploadResponseDto publicResponse = toStudyUploadResponse(normalizedCaseId, response);
+        audit("backend", "upload.study.reprocessed", normalizedStudyId, text(response.get("traceId")), Map.of(
+            "studyId", normalizedStudyId,
+            "reusedAssetId", asset.assetId(),
+            "reusedObjectKey", asset.objectKey(),
+            "reusedSha256", asset.sha256()
+        ));
+        return publicResponse;
+    }
+
+    private byte[] readAllBytes(MultipartFile file) {
+        try {
+            return file.getBytes();
+        } catch (IOException ex) {
+            throw badRequest("No se pudo leer el archivo del estudio.");
+        }
     }
 
     public ResponseEntity<byte[]> getAsset(String runId, String plane, String assetName) {

@@ -41,7 +41,8 @@ public class AuthFilter extends OncePerRequestFilter {
         "/api/auth/logout"
     );
     /** Only a minimal, no-detail liveness endpoint is anonymously reachable — see P10-A.1 §7. */
-    private static final Set<String> PUBLIC_LIVENESS_PATHS = Set.of("/api/system/health");
+    private static final Set<String> PUBLIC_LIVENESS_PATHS =
+        Set.of("/api/system/health", "/api/system/runtime-diagnostics");
 
     /**
      * Documentacion OpenAPI, cuando esta habilitada. Son prefijos y no rutas exactas porque

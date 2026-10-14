@@ -111,6 +111,18 @@ public class AiBackendController {
         return aiBackendService.uploadStudy(file, caseId);
     }
 
+    /**
+     * Reprocesses a study from its durably persisted DICOM input, without asking the
+     * client to upload the ZIP again. Cloud P0B durable-storage evidence endpoint.
+     */
+    @PostMapping("/studies/{studyId}/reprocess")
+    public StudyUploadResponseDto reprocessStudy(
+        @PathVariable String studyId,
+        @RequestParam String caseId
+    ) {
+        return aiBackendService.reprocessStudy(studyId, caseId);
+    }
+
     @GetMapping("/assets/{runId}/{plane}/{assetName}")
     public ResponseEntity<byte[]> getAsset(
         @PathVariable String runId,

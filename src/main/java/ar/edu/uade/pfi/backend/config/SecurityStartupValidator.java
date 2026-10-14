@@ -9,6 +9,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Fail-closed startup gate for production profiles. This never runs (and never blocks
@@ -20,6 +22,7 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class SecurityStartupValidator {
+    private static final Logger log = LoggerFactory.getLogger(SecurityStartupValidator.class);
     /** Must match TokenService's own default so we can detect "nobody configured a real secret". */
     static final String DEMO_DEFAULT_SECRET = "pfi-demo-change-me-2026";
     static final int MIN_SECRET_BYTES = 32;
@@ -92,10 +95,12 @@ public class SecurityStartupValidator {
 
     @PostConstruct
     void validate() {
+        log.info("startup.securityValidator.begin");
         // Corre antes del corte por perfil: un runtime cloud/demo puede exigir IA privada sin
         // estar marcado como "production".
         validateAiServiceAuthorization();
         if (!isProductionProfile()) {
+            log.info("startup.securityValidator.ok");
             return;
         }
         validateJwtSecret();
@@ -104,6 +109,7 @@ public class SecurityStartupValidator {
         validateDevCodesHidden();
         validatePostgresPersistence();
         validateCors();
+        log.info("startup.securityValidator.ok");
     }
 
     private void validateJwtSecret() {
