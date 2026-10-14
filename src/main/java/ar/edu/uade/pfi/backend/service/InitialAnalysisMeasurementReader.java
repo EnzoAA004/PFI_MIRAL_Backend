@@ -1,6 +1,7 @@
 package ar.edu.uade.pfi.backend.service;
 
 import ar.edu.uade.pfi.backend.domain.InputResource;
+import ar.edu.uade.pfi.backend.dto.InitialAnalysisComparisonDto;
 import ar.edu.uade.pfi.backend.domain.MeasurementCorrection;
 import ar.edu.uade.pfi.backend.domain.Study;
 import ar.edu.uade.pfi.backend.domain.StudyRun;
@@ -59,7 +60,9 @@ public class InitialAnalysisMeasurementReader {
         Double correctedValue,
         boolean corrected,
         /** No nulo cuando el valor no se puede usar: se informa, nunca se reemplaza por cero. */
-        String invalidReason
+        String invalidReason,
+        /** Dónde está en la imagen, tal como quedó persistido; nunca deducido. */
+        InitialAnalysisComparisonDto.Location location
     ) {
     }
 
@@ -80,8 +83,9 @@ public class InitialAnalysisMeasurementReader {
             }
             Object list = planeNode.get("measurements");
             if (!(list instanceof List<?> items)) continue;
+            PlaneFrame frame = PlaneFrame.of(plane, planeNode);
             for (Object item : items) {
-                if (item instanceof Map<?, ?> raw) measurements.add(toMeasurement(plane, asMap(raw), corrections));
+                if (item instanceof Map<?, ?> raw) measurements.add(toMeasurement(plane, asMap(raw), corrections, frame));
             }
         }
         RunContext context = new RunContext(
@@ -94,7 +98,7 @@ public class InitialAnalysisMeasurementReader {
         return new Reading(run, context, List.copyOf(measurements));
     }
 
-    private Measurement toMeasurement(String plane, Map<String, Object> raw, Map<String, MeasurementCorrection> corrections) {
+    private Measurement toMeasurement(String plane, Map<String, Object> raw, Map<String, MeasurementCorrection> corrections, PlaneFrame frame) {
         String id = text(raw.get("id"));
         String unit = blankToEmpty(text(raw.get("unit")));
         Double stored = number(raw.get("value"));
@@ -134,8 +138,84 @@ public class InitialAnalysisMeasurementReader {
             effective,
             invalid == null ? corrected : null,
             invalid == null && hasCorrection,
-            id == null ? "La medición no trae identificador." : invalid
+            id == null ? "La medición no trae identificador." : invalid,
+            locationOf(raw, correction, frame, slice instanceof Number sliceNumber ? sliceNumber.intValue() : null)
         );
+    }
+
+    /** Lo que la corrida declara del plano y que hace falta para ubicar un trazo sobre su imagen. */
+    private record PlaneFrame(String plane, String planeRunId, String inputId, String space, Integer width, Integer height, Integer sourceSliceIndex, boolean pixelUnits) {
+        static PlaneFrame of(String plane, Map<String, Object> planeNode) {
+            Map<String, Object> space = asMap(planeNode.get("coordinateSpace"));
+            Double width = number(space.get("width"));
+            Double height = number(space.get("height"));
+            Double source = number(space.get("sourceSliceIndex"));
+            return new PlaneFrame(
+                plane,
+                text(planeNode.get("planeRunId")),
+                text(asMap(planeNode.get("input")).get("inputId")),
+                text(space.get("name")),
+                width == null ? null : width.intValue(),
+                height == null ? null : height.intValue(),
+                source == null ? null : source.intValue(),
+                "pixel".equals(text(space.get("units")))
+            );
+        }
+    }
+
+    /**
+     * Ubicación persistida de la medición. El trazo se acepta solo si la corrida declara un espacio de
+     * coordenadas en píxeles cuyo corte de origen es el de la medición: sin eso no hay forma de saber sobre qué
+     * imagen está. Un trazo no se estira ni se reemplaza para que coincida con un valor corregido.
+     */
+    private static InitialAnalysisComparisonDto.Location locationOf(
+        Map<String, Object> raw, MeasurementCorrection correction, PlaneFrame frame, Integer sliceIndex
+    ) {
+        List<InitialAnalysisComparisonDto.Point> own = points(raw.get("points"));
+        String kind = own.size() == 2 ? "segment" : own.size() == 4 ? "angle" : "none";
+        String status;
+        String reason = null;
+        if (sliceIndex == null) {
+            status = InitialAnalysisComparisonDto.Location.NOT_LOCATED;
+            reason = "La corrida no guardó el corte de esta medición.";
+        } else if (kind.equals("none")) {
+            status = InitialAnalysisComparisonDto.Location.SLICE_ONLY;
+            reason = "La medición no tiene un trazo guardado (por ejemplo, las áreas): se conoce el corte, no el trazo.";
+        } else if (frame.space() == null || !frame.pixelUnits() || frame.width() == null || frame.height() == null) {
+            status = InitialAnalysisComparisonDto.Location.SLICE_ONLY;
+            kind = "none";
+            reason = "La corrida no declara el espacio de coordenadas del trazo, así que no se puede ubicar sobre la imagen.";
+        } else if (frame.sourceSliceIndex() != null && !frame.sourceSliceIndex().equals(sliceIndex)) {
+            status = InitialAnalysisComparisonDto.Location.SLICE_ONLY;
+            kind = "none";
+            reason = "El trazo está en el espacio de otro corte (" + frame.sourceSliceIndex() + ") y no se puede ubicar en el corte " + sliceIndex + ".";
+        } else {
+            status = InitialAnalysisComparisonDto.Location.LOCATED;
+        }
+        boolean located = status.equals(InitialAnalysisComparisonDto.Location.LOCATED);
+        List<InitialAnalysisComparisonDto.Point> corrected = List.of();
+        if (located && correction != null) {
+            List<InitialAnalysisComparisonDto.Point> saved = points(correction.afterValue().get("points"));
+            if (saved.size() == own.size() && !saved.equals(own)) corrected = saved;
+        }
+        return new InitialAnalysisComparisonDto.Location(
+            frame.plane(), frame.planeRunId(), frame.inputId(), sliceIndex,
+            frame.space(), frame.width(), frame.height(),
+            kind, located ? own : List.of(), corrected, status, reason
+        );
+    }
+
+    private static List<InitialAnalysisComparisonDto.Point> points(Object value) {
+        if (!(value instanceof List<?> items)) return List.of();
+        List<InitialAnalysisComparisonDto.Point> result = new ArrayList<>();
+        for (Object item : items) {
+            Map<String, Object> point = asMap(item);
+            Double x = number(point.get("x"));
+            Double y = number(point.get("y"));
+            if (x == null || y == null) return List.of();
+            result.add(new InitialAnalysisComparisonDto.Point(x, y));
+        }
+        return List.copyOf(result);
     }
 
     /** Si una medición tiene más de una corrección guardada, rige la más reciente. */

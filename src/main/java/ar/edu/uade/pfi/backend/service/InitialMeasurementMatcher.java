@@ -287,7 +287,7 @@ public final class InitialMeasurementMatcher {
 
     private static InitialAnalysisComparisonDto.Value value(Measurement m) {
         return new InitialAnalysisComparisonDto.Value(
-            m.id(), m.effectiveValue(), m.originalValue(), m.correctedValue(), m.corrected(), m.sliceIndex());
+            m.id(), m.effectiveValue(), m.originalValue(), m.correctedValue(), m.corrected(), m.sliceIndex(), m.location());
     }
 
     private static final Comparator<Key> KEY_ORDER = Comparator

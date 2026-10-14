@@ -51,8 +51,40 @@ public record InitialAnalysisComparisonDto(
         double originalValue,
         Double correctedValue,
         boolean corrected,
-        Integer sliceIndex
+        Integer sliceIndex,
+        Location location
     ) {
+    }
+
+    public record Point(double x, double y) {
+    }
+
+    /**
+     * Dónde está la medición en la imagen, tal como quedó persistida: nada se deduce por el nombre de la
+     * medición ni por el número de corte del otro estudio.
+     *
+     * <p>{@code geometry} es el trazo de la IA en el espacio {@code coordinateSpace}. La corrección numérica no lo
+     * modifica; {@code correctedGeometry} solo viaja si el revisor guardó un trazo propio distinto del de la IA.
+     * {@code status}: {@code located} (corte y trazo), {@code slice_only} (corte sin trazo, p. ej. áreas),
+     * {@code not_located} (sin corte persistido).
+     */
+    public record Location(
+        String plane,
+        String planeRunId,
+        String inputId,
+        Integer sliceIndex,
+        String coordinateSpace,
+        Integer coordinateWidth,
+        Integer coordinateHeight,
+        String geometryKind,
+        List<Point> geometry,
+        List<Point> correctedGeometry,
+        String status,
+        String reason
+    ) {
+        public static final String LOCATED = "located";
+        public static final String SLICE_ONLY = "slice_only";
+        public static final String NOT_LOCATED = "not_located";
     }
 
     public record Row(
