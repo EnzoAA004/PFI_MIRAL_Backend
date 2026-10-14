@@ -7,6 +7,7 @@ public record AiPlaneSeriesV2Dto(
     String id,
     String plane,
     String sequence,
+    AiSequenceV2Dto sequenceInfo,
     Integer selectedSliceIndex,
     Integer sliceCount,
     String status) {}

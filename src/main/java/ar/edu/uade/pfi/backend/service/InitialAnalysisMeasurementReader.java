@@ -1,6 +1,7 @@
 package ar.edu.uade.pfi.backend.service;
 
 import ar.edu.uade.pfi.backend.domain.InputResource;
+import ar.edu.uade.pfi.backend.domain.InputSequence;
 import ar.edu.uade.pfi.backend.dto.InitialAnalysisComparisonDto;
 import ar.edu.uade.pfi.backend.domain.MeasurementCorrection;
 import ar.edu.uade.pfi.backend.domain.Study;
@@ -39,10 +40,14 @@ public class InitialAnalysisMeasurementReader {
         String modelKey,
         String artifactHash,
         String effectiveInferenceMode,
-        /** {@code t1}, {@code t2} o vacío si el estudio no lo informa. */
-        String sagittalSequence,
+        /** Ponderación de la serie sagital y su procedencia (declarada, detectada o desconocida). */
+        InputSequence sequence,
         boolean syntheticSagittal
     ) {
+        /** {@code t1}, {@code t2}, {@code other} o vacío si el estudio no lo informa. */
+        public String sagittalSequence() {
+            return sequence.isKnown() ? sequence.value() : "";
+        }
     }
 
     public record Measurement(
@@ -75,11 +80,16 @@ public class InitialAnalysisMeasurementReader {
         List<Measurement> measurements = new ArrayList<>();
         boolean syntheticSagittal = false;
         String sagittalInputId = null;
+        InputSequence snapshotSequence = null;
         for (String plane : List.of("sagittal", "axial")) {
             Map<String, Object> planeNode = asMap(planes.get(plane));
             if (plane.equals("sagittal")) {
                 syntheticSagittal = Boolean.TRUE.equals(planeNode.get("synthetic"));
-                sagittalInputId = text(asMap(planeNode.get("input")).get("inputId"));
+                Map<String, Object> input = asMap(planeNode.get("input"));
+                sagittalInputId = text(input.get("inputId"));
+                // La corrida es la fuente de la secuencia con que se midió. Si la publicó (aun como
+                // desconocida) se respeta; si no (corridas anteriores) se cae a lo registrado del estudio.
+                if (input.get("sequence") instanceof Map<?, ?> published) snapshotSequence = InputSequence.fromMap(published);
             }
             Object list = planeNode.get("measurements");
             if (!(list instanceof List<?> items)) continue;
@@ -92,7 +102,7 @@ public class InitialAnalysisMeasurementReader {
             blankToEmpty(run.sagittalModelKey()),
             blankToEmpty(run.sagittalArtifactHash()),
             blankToEmpty(run.effectiveInferenceMode()),
-            sequenceOf(study, sagittalInputId),
+            snapshotSequence != null ? snapshotSequence : sequenceOf(study, sagittalInputId),
             syntheticSagittal
         );
         return new Reading(run, context, List.copyOf(measurements));
@@ -231,15 +241,14 @@ public class InitialAnalysisMeasurementReader {
         return latest;
     }
 
-    private String sequenceOf(Study study, String sagittalInputId) {
-        if (sagittalInputId == null) return "";
+    private InputSequence sequenceOf(Study study, String sagittalInputId) {
+        if (sagittalInputId == null) return InputSequence.unknown();
         for (InputResource input : repository.findInputsByStudyId(study.id())) {
             if (sagittalInputId.equals(input.inputId())) {
-                String weighting = blankToEmpty(input.weighting()).toLowerCase(Locale.ROOT);
-                return weighting.equals("unknown") ? "" : weighting;
+                return InputSequence.fromStored(input.weighting(), input.sequenceSource(), input.sequenceDescription());
             }
         }
-        return "";
+        return InputSequence.unknown();
     }
 
     @SuppressWarnings("unchecked")

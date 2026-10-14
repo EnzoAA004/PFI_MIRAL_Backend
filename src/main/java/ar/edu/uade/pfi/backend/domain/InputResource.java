@@ -12,7 +12,7 @@ public record InputResource(
     long size,
     /** Series description as the study declared it: {@code t2_tse_sag_384}. */
     String description,
-    /** {@code t1}, {@code t2} or {@code unknown}. */
+    /** {@code t1}, {@code t2}, {@code other} or empty/{@code unknown}. See {@link InputSequence}. */
     String weighting,
     int sliceCount,
     /** Series whose slices do not share a plane: a localizer. Not a volume. */
@@ -27,7 +27,29 @@ public record InputResource(
      * acquired data (a console capture).
      */
     boolean analyzable,
+    /** {@code user_declared}, {@code auto_detected} o vacío (filas anteriores a la procedencia). */
+    String sequenceSource,
+    /** Texto libre de la secuencia «otra»; vacío para el resto. No se interpreta como ponderación. */
+    String sequenceDescription,
     Instant createdAt) {
+  /** Forma anterior a la procedencia de la secuencia. */
+  public InputResource(
+      String id,
+      String studyId,
+      String plane,
+      String inputId,
+      String format,
+      long size,
+      String description,
+      String weighting,
+      int sliceCount,
+      boolean multiplanar,
+      boolean derived,
+      boolean analyzable,
+      Instant createdAt) {
+    this(id, studyId, plane, inputId, format, size, description, weighting, sliceCount, multiplanar, derived, analyzable, "", "", createdAt);
+  }
+
   /** Pre-BE-015 shape: the two analysed planes, before the study kept every series. */
   public InputResource(
       String id,
@@ -37,7 +59,7 @@ public record InputResource(
       String format,
       long size,
       Instant createdAt) {
-    this(id, studyId, plane, inputId, format, size, "", "", 0, false, false, true, createdAt);
+    this(id, studyId, plane, inputId, format, size, "", "", 0, false, false, true, "", "", createdAt);
   }
 
   public InputResource {
@@ -49,6 +71,8 @@ public record InputResource(
     Objects.requireNonNull(createdAt, "createdAt");
     if (description == null) description = "";
     if (weighting == null) weighting = "";
+    if (sequenceSource == null) sequenceSource = "";
+    if (sequenceDescription == null) sequenceDescription = "";
     if (size < 0) throw new IllegalArgumentException("size must be non-negative");
     if (sliceCount < 0) throw new IllegalArgumentException("sliceCount must be non-negative");
   }

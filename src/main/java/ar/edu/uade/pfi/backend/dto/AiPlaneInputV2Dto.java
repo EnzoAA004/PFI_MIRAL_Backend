@@ -16,4 +16,5 @@ public record AiPlaneInputV2Dto(
     Integer selectedSliceIndex,
     Integer sliceCount,
     Integer selectedAxis,
-    List<Double> inPlaneSpacingMm) {}
+    List<Double> inPlaneSpacingMm,
+    AiSequenceV2Dto sequence) {}

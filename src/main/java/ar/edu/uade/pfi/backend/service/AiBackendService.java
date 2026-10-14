@@ -379,17 +379,50 @@ public class AiBackendService {
     }
 
     public AiInputResponseDto uploadInput(MultipartFile file, String caseId, String plane) {
+        return uploadInput(file, caseId, plane, null, null);
+    }
+
+    /**
+     * Carga por plano con la secuencia opcional que declara el usuario. Sin declaración (o
+     * {@code unknown}) el comportamiento es el de siempre y la secuencia queda desconocida.
+     */
+    public AiInputResponseDto uploadInput(MultipartFile file, String caseId, String plane, String sequence, String sequenceDescription) {
         String normalizedCaseId = trimmed(caseId);
         String normalizedPlane = normalized(plane);
         validateInputUpload(file, normalizedCaseId, normalizedPlane);
-        AiInputResponseDto response = aiServiceClient.uploadInput(file, normalizedCaseId, normalizedPlane);
-        audit("backend", "upload.input.completed", response.inputId(), "", Map.of(
-            "caseId", response.caseId(),
-            "plane", response.plane(),
-            "format", response.format(),
-            "size", response.size()
-        ));
+        String declared = normalized(sequence);
+        String description = trimmed(sequenceDescription);
+        validateSequenceDeclaration(declared, description);
+        boolean hasDeclaration = !declared.isBlank() && !declared.equals("unknown");
+        AiInputResponseDto response = hasDeclaration
+            ? aiServiceClient.uploadInput(file, normalizedCaseId, normalizedPlane, declared, description)
+            : aiServiceClient.uploadInput(file, normalizedCaseId, normalizedPlane);
+        Map<String, Object> auditMetadata = new java.util.LinkedHashMap<>();
+        auditMetadata.put("caseId", response.caseId());
+        auditMetadata.put("plane", response.plane());
+        auditMetadata.put("format", response.format());
+        auditMetadata.put("size", response.size());
+        if (response.sequence() != null) {
+            auditMetadata.put("sequence", response.sequence().value());
+            auditMetadata.put("sequenceSource", response.sequence().source());
+        }
+        audit("backend", "upload.input.completed", response.inputId(), "", auditMetadata);
         return response;
+    }
+
+    private static final java.util.Set<String> DECLARABLE_SEQUENCES = java.util.Set.of("", "unknown", "t1", "t2", "other");
+
+    /** Valores y descripción de la secuencia declarada. La descripción solo acompaña a «other». */
+    private void validateSequenceDeclaration(String sequence, String description) {
+        if (!DECLARABLE_SEQUENCES.contains(sequence)) throw badRequest("sequence invalida: use unknown, t1, t2 u other.");
+        if (sequence.equals("other")) {
+            if (description.isBlank()) throw badRequest("La secuencia «otra» requiere una descripcion.");
+            if (description.length() > 80 || description.chars().anyMatch((c) -> c < 32)) {
+                throw badRequest("La descripcion de la secuencia admite hasta 80 caracteres y una sola linea.");
+            }
+        } else if (!description.isBlank()) {
+            throw badRequest("La descripcion de la secuencia solo aplica a «otra».");
+        }
     }
 
     public AiInputResponseDto registerServerSideInput(String caseId, String plane, String sourceKey) {

@@ -36,6 +36,10 @@ public record InitialAnalysisComparisonDto(
         String reviewStatus,
         String modelKey,
         String sagittalSequence,
+        /** {@code user_declared}, {@code auto_detected} o {@code unknown}. Una declaración no es una detección. */
+        String sagittalSequenceSource,
+        /** Texto libre de la secuencia «otra», solo informativo. */
+        String sagittalSequenceDescription,
         int usableMeasurementCount,
         String patientLink
     ) {

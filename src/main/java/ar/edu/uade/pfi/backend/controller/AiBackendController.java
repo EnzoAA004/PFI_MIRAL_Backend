@@ -90,9 +90,11 @@ public class AiBackendController {
     public AiInputResponseDto uploadInput(
         @RequestParam("file") MultipartFile file,
         @RequestParam String caseId,
-        @RequestParam String plane
+        @RequestParam String plane,
+        @RequestParam(required = false) String sequence,
+        @RequestParam(required = false) String sequenceDescription
     ) {
-        return aiBackendService.uploadInput(file, caseId, plane);
+        return aiBackendService.uploadInput(file, caseId, plane, sequence, sequenceDescription);
     }
 
     @PostMapping("/inputs/server-side")

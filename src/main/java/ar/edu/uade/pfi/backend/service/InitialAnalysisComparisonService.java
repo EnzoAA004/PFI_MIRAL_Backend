@@ -1,5 +1,6 @@
 package ar.edu.uade.pfi.backend.service;
 
+import ar.edu.uade.pfi.backend.domain.InputSequence;
 import ar.edu.uade.pfi.backend.domain.Study;
 import ar.edu.uade.pfi.backend.domain.StudyRun;
 import ar.edu.uade.pfi.backend.dto.InitialAnalysisComparisonDto;
@@ -86,8 +87,27 @@ public class InitialAnalysisComparisonService {
                 result.rows().size(), result.excluded().size(), currentReading.measurements().size(), referenceReading.measurements().size()),
             result.rows(),
             result.excluded(),
-            LIMITATIONS
+            limitations(currentReading.context(), referenceReading.context())
         );
+    }
+
+    /** Las fijas, más una nota cuando la secuencia coincide: qué es esa coincidencia y qué no garantiza. */
+    static List<String> limitations(InitialAnalysisMeasurementReader.RunContext current, InitialAnalysisMeasurementReader.RunContext reference) {
+        if (!current.sequence().isComparableWeighting() || !current.sequence().value().equals(reference.sequence().value())) {
+            return LIMITATIONS;
+        }
+        List<String> all = new ArrayList<>(LIMITATIONS);
+        all.add("La secuencia sagital es " + current.sequence().value().toUpperCase(java.util.Locale.ROOT) + " en ambos estudios ("
+            + provenance(reference.sequence()) + " en la referencia, " + provenance(current.sequence()) + " en el estudio abierto). "
+            + (current.sequence().isDeclared() || reference.sequence().isDeclared()
+                ? "Una declaración no es una detección automática ni una validación del modelo, y coincidir "
+                : "Coincidir ")
+            + "en ponderación no garantiza el mismo protocolo, equipo, resolución ni corte.");
+        return List.copyOf(all);
+    }
+
+    private static String provenance(InputSequence sequence) {
+        return sequence.isDeclared() ? "declarada por quien cargó el archivo" : "detectada del estudio DICOM";
     }
 
     public InitialAnalysisComparisonDto.Candidates candidates(String caseId, String currentRunId) {
@@ -166,11 +186,13 @@ public class InitialAnalysisComparisonService {
         return new InitialAnalysisComparisonDto.StudySide(
             study.caseId(), study.studyDate(), run.multiplanarRunId(), run.createdAt(), run.status(),
             ReviewStatusMapper.toApiStatus(run.reviewStatus()), reading.context().modelKey(),
-            reading.context().sagittalSequence(), usable, link.code());
+            reading.context().sagittalSequence(), reading.context().sequence().source(),
+            reading.context().sequence().description().isEmpty() ? null : reading.context().sequence().description(),
+            usable, link.code());
     }
 
     private InitialAnalysisComparisonDto.StudySide emptySide(Study study) {
         LocalDate date = study.studyDate();
-        return new InitialAnalysisComparisonDto.StudySide(study.caseId(), date, null, null, null, null, null, null, 0, Link.NONE.code());
+        return new InitialAnalysisComparisonDto.StudySide(study.caseId(), date, null, null, null, null, null, null, null, null, 0, Link.NONE.code());
     }
 }

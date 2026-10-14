@@ -35,6 +35,11 @@ public interface AiServiceOperations {
         throw new UnsupportedOperationException("input_upload_unavailable");
     }
 
+    /** Carga por plano con la secuencia que declara el usuario (opcional: sin declaración es desconocida). */
+    default AiInputResponseDto uploadInput(MultipartFile file, String caseId, String plane, String sequence, String sequenceDescription) {
+        throw new UnsupportedOperationException("input_upload_unavailable");
+    }
+
     default AiInputResponseDto registerServerSideInput(String caseId, String plane, String sourceKey) {
         throw new UnsupportedOperationException("server_side_input_unavailable");
     }

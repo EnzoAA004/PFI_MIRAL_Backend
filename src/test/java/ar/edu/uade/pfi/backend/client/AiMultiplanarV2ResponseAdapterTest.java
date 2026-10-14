@@ -61,6 +61,42 @@ class AiMultiplanarV2ResponseAdapterTest {
   }
 
   @Test
+  void theSequenceThatTheAiModulePublishesSurvivesTheTypedDtosAndReachesTheSnapshotInput() throws Exception {
+    com.fasterxml.jackson.databind.node.ObjectNode tree;
+    try (InputStream json =
+        getClass().getResourceAsStream("/contracts/ai-module-multiplanar-v2-real-baseline.json")) {
+      tree = (com.fasterxml.jackson.databind.node.ObjectNode) objectMapper.readTree(json);
+    }
+    com.fasterxml.jackson.databind.node.ObjectNode plane =
+        (com.fasterxml.jackson.databind.node.ObjectNode) tree.path("planes").path("sagittal");
+    com.fasterxml.jackson.databind.node.ObjectNode sequence = objectMapper.createObjectNode();
+    sequence.put("value", "t1").put("source", "user_declared").putNull("description");
+    ((com.fasterxml.jackson.databind.node.ObjectNode) plane.path("input")).set("sequence", sequence);
+    ((com.fasterxml.jackson.databind.node.ObjectNode) plane.path("series").get(0)).set("sequenceInfo", sequence);
+
+    CanonicalPlaneRun sagittal =
+        adapter.toCanonical(objectMapper.treeToValue(tree, AiMultiplanarV2ResponseDto.class)).sagittal();
+
+    assertEquals(
+        "user_declared", ((java.util.Map<?, ?>) sagittal.input().get("sequence")).get("source"));
+    assertEquals("t1", ((java.util.Map<?, ?>) sagittal.input().get("sequence")).get("value"));
+    assertEquals(
+        "t1", ((java.util.Map<?, ?>) sagittal.series().get(0).get("sequenceInfo")).get("value"));
+  }
+
+  @Test
+  void aResponseWithoutSequenceStillAdaptsAndLeavesItAbsent() throws Exception {
+    AiMultiplanarV2ResponseDto response;
+    try (InputStream json =
+        getClass().getResourceAsStream("/contracts/ai-module-multiplanar-v2-real-baseline.json")) {
+      response = objectMapper.readValue(json, AiMultiplanarV2ResponseDto.class);
+    }
+    CanonicalPlaneRun sagittal = adapter.toCanonical(response).sagittal();
+    Object sequence = sagittal.input().get("sequence");
+    assertTrue(sequence == null, "una respuesta anterior no trae secuencia: queda ausente, no T2");
+  }
+
+  @Test
   void returnsNullForNullResponse() {
     assertEquals(null, adapter.toCanonical(null));
   }

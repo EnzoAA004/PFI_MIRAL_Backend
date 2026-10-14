@@ -204,11 +204,19 @@ public class AiServiceClient implements AiServiceOperations {
 
     @Override
     public AiInputResponseDto uploadInput(MultipartFile file, String caseId, String plane) {
+        return uploadInput(file, caseId, plane, null, null);
+    }
+
+    @Override
+    public AiInputResponseDto uploadInput(MultipartFile file, String caseId, String plane, String sequence, String sequenceDescription) {
         MultipartBodyBuilder body = new MultipartBodyBuilder();
         body.part("file", file.getResource())
             .filename(file.getOriginalFilename() == null ? "input" : file.getOriginalFilename());
         body.part("caseId", caseId);
         body.part("plane", plane);
+        // Solo se envian si hay declaracion: sin ella el modulo registra la secuencia como desconocida.
+        if (sequence != null && !sequence.isBlank()) body.part("sequence", sequence);
+        if (sequenceDescription != null && !sequenceDescription.isBlank()) body.part("sequenceDescription", sequenceDescription);
         return execute(() -> aiWebClient.post()
             .uri("/inputs")
             .contentType(MediaType.MULTIPART_FORM_DATA)

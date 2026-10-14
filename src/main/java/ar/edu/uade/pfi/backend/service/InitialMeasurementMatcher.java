@@ -155,8 +155,14 @@ public final class InitialMeasurementMatcher {
         if (!current.effectiveInferenceMode().equals(reference.effectiveInferenceMode())) {
             return "Modos de inferencia distintos (" + dash(reference.effectiveInferenceMode()) + " y " + dash(current.effectiveInferenceMode()) + ").";
         }
-        if (current.sagittalSequence().isEmpty() || reference.sagittalSequence().isEmpty()) {
+        // Desconocida no equivale a desconocida: sin dato en un lado no hay nada que coincida.
+        if (!current.sequence().isKnown() || !reference.sequence().isKnown()) {
             return "La secuencia de la serie sagital no está informada en uno de los estudios: no se puede demostrar que se midió sobre la misma.";
+        }
+        // «Otra» es una categoría, no una secuencia: dos «Otra» no son la misma por usar la misma categoría
+        // (ni por repetir la descripción: el texto libre no se interpreta).
+        if (!current.sequence().isComparableWeighting() || !reference.sequence().isComparableWeighting()) {
+            return "Una de las series sagitales está declarada como secuencia «Otra»: no se puede demostrar que sea la misma que la del otro estudio, ni siquiera si ambas son «Otra».";
         }
         if (!current.sagittalSequence().equals(reference.sagittalSequence())) {
             return "Secuencias distintas (" + reference.sagittalSequence().toUpperCase(Locale.ROOT) + " en la referencia, "

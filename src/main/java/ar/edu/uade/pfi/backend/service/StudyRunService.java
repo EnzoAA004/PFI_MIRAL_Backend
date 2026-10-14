@@ -3,6 +3,7 @@ import ar.edu.uade.pfi.backend.service.exception.StudyMetadataException;
 import ar.edu.uade.pfi.backend.service.exception.DatabaseUnavailableException;
 
 import ar.edu.uade.pfi.backend.domain.InputResource;
+import ar.edu.uade.pfi.backend.domain.InputSequence;
 import ar.edu.uade.pfi.backend.domain.Patient;
 import ar.edu.uade.pfi.backend.domain.DomainAuditEvent;
 import ar.edu.uade.pfi.backend.domain.RunArtifact;
@@ -226,6 +227,28 @@ public class StudyRunService {
         boolean derived,
         boolean analyzable
     ) {
+        return createInput(study, plane, inputId, format, size, description, weighting, sliceCount, multiplanar, derived, analyzable, "", "");
+    }
+
+    /**
+     * Igual que la anterior, con la procedencia de la ponderación ({@code user_declared} o
+     * {@code auto_detected}) y la descripción de la secuencia «otra». Ver {@link InputSequence}.
+     */
+    public InputResource createInput(
+        Study study,
+        String plane,
+        String inputId,
+        String format,
+        long size,
+        String description,
+        String weighting,
+        int sliceCount,
+        boolean multiplanar,
+        boolean derived,
+        boolean analyzable,
+        String sequenceSource,
+        String sequenceDescription
+    ) {
         return repository.saveInput(new InputResource(
             UUID.randomUUID().toString(),
             study.id(),
@@ -239,6 +262,8 @@ public class StudyRunService {
             multiplanar,
             derived,
             analyzable,
+            sequenceSource,
+            sequenceDescription,
             clock.instant()
         ));
     }

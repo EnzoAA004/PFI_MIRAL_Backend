@@ -2,6 +2,7 @@ package ar.edu.uade.pfi.backend.service;
 
 import ar.edu.uade.pfi.backend.domain.CanonicalMultiplanarRun;
 import ar.edu.uade.pfi.backend.domain.CanonicalPlaneRun;
+import ar.edu.uade.pfi.backend.domain.InputSequence;
 import ar.edu.uade.pfi.backend.domain.RunArtifact;
 import ar.edu.uade.pfi.backend.domain.Study;
 import ar.edu.uade.pfi.backend.dto.MultiplanarRunRequestDto;
@@ -71,8 +72,8 @@ public class MultiplanarRunPersistenceService {
     if (response == null || blank(response.multiplanarRunId())) return;
     Study study = studyRunService.upsertStudyMetadata(request.caseId(), studyMetadata);
 
-    registerInput(study, "sagittal", request.sagittalInputId());
-    registerInput(study, "axial", request.axialInputId());
+    registerInput(study, "sagittal", request.sagittalInputId(), response.sagittal());
+    registerInput(study, "axial", request.axialInputId(), response.axial());
     registerStudySeries(study, request);
 
     CanonicalPlaneRun sagittal = response.sagittal();
@@ -156,13 +157,40 @@ public class MultiplanarRunPersistenceService {
           item.sliceCount() == null ? 0 : item.sliceCount(),
           item.multiplanar(),
           item.derived(),
-          item.analyzable());
+          item.analyzable(),
+          // La ponderacion de un estudio DICOM la lee la ingesta: es deteccion, no declaracion.
+          InputSequence.fromStored(item.weighting(), "", "").isComparableWeighting()
+              ? InputSequence.AUTO_DETECTED
+              : "",
+          "");
     }
   }
 
-  private void registerInput(Study study, String plane, String inputId) {
+  /**
+   * Registra la serie de un plano analizado con la secuencia que la corrida informó de ella
+   * ({@code input.sequence}: declarada por quien cargó el archivo, detectada por la ingesta, o
+   * desconocida). Si la corrida no la informó queda desconocida; no se completa con nada.
+   */
+  private void registerInput(Study study, String plane, String inputId, CanonicalPlaneRun planeRun) {
     if (blank(inputId)) return;
-    studyRunService.createInput(study, plane, inputId, "ai-module-input", 0);
+    InputSequence sequence = InputSequence.unknown();
+    if (planeRun != null && planeRun.input().get("sequence") instanceof Map<?, ?> raw) {
+      sequence = InputSequence.fromMap(raw);
+    }
+    studyRunService.createInput(
+        study,
+        plane,
+        inputId,
+        "ai-module-input",
+        0,
+        "",
+        sequence.isKnown() ? sequence.value() : "",
+        0,
+        false,
+        false,
+        true,
+        sequence.isKnown() ? sequence.source() : "",
+        sequence.description());
   }
 
   private List<RunArtifact> artifacts(
