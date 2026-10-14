@@ -19,6 +19,7 @@ import ar.edu.uade.pfi.backend.repository.InMemoryStudyRepository;
 import ar.edu.uade.pfi.backend.service.exception.PatientDomainException;
 import ar.edu.uade.pfi.backend.service.exception.StudyMetadataException;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -85,7 +86,7 @@ class PatientClinicalContextTest {
   void rejectsInvalidNamesAndBirthDates() {
     assertThrows(PatientDomainException.class, () -> createPatient("PAC-X1", "R2D2", null, null));
     assertThrows(PatientDomainException.class, () -> createPatient("PAC-X2", null, null, LocalDate.parse("1850-01-01")));
-    assertThrows(PatientDomainException.class, () -> createPatient("PAC-X3", null, null, LocalDate.now().plusDays(1)));
+    assertThrows(PatientDomainException.class, () -> createPatient("PAC-X3", null, null, LocalDate.now(ZoneOffset.UTC).plusDays(1)));
     assertThrows(PatientDomainException.class, () -> patientService.search("bad<query>", null));
   }
 
