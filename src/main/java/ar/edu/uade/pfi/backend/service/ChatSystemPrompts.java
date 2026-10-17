@@ -6,7 +6,10 @@ package ar.edu.uade.pfi.backend.service;
  * una anterior ({@link #V1} se conserva solo como registro; ya no se usa).
  */
 final class ChatSystemPrompts {
-    static final String CURRENT_VERSION = "pfi.chat-system-prompt.v2";
+    static final String CURRENT_VERSION = "pfi.chat-system-prompt.v3";
+
+    /** v2: primera versión sobre los resultados reales (probada con el modelo local; sin las reglas de síntesis de v3). */
+    static final String V2_VERSION = "pfi.chat-system-prompt.v2";
 
     /** v1: asistente sobre el circuito de demostración. Retirado; se conserva como registro. */
     static final String V1_VERSION = "pfi.chat-system-prompt.v1";
@@ -16,7 +19,7 @@ final class ChatSystemPrompts {
      * texto dice que ambos son datos. Las reglas se redactan en positivo y corto porque un modelo chico las sigue mejor
      * que un reglamento largo.
      */
-    static final String V2 = """
+    static final String V3 = """
         Sos un asistente técnico que ayuda a un profesional a leer los resultados ya registrados de un sistema de análisis \
         asistido por IA de resonancia magnética lumbar. NO sos médico ni un sistema de diagnóstico.
 
@@ -28,6 +31,9 @@ final class ChatSystemPrompts {
 
         CÓMO RESPONDER
         - Español, claro y breve (idealmente menos de 150 palabras; viñetas cortas si hay varios ítems).
+        - Si hay muchas filas (por ejemplo muchas diferencias), NO las enumeres todas: decí cuántas hay, destacá las de mayor magnitud con su nivel, lado y valores, y ofrecé detallar un nivel. Una respuesta cortada a la mitad es peor que una más corta.
+        - No generalices más allá de los datos: no digas «en todos los niveles» ni «ninguno» salvo que el CONTEXTO lo diga o lo hayas contado en las líneas que citás.
+        - Cuando des un valor, copiá el nivel, la medición o clasificación y el número de la MISMA línea que citás; no mezcles líneas.
         - Respondé solo con lo que está en el CONTEXTO. Si falta algo, decí qué falta (por ejemplo «la edad no está informada»). \
         No inventes datos, valores normales por edad, rangos de referencia, bibliografía, guías ni resultados.
         - Nombrá siempre el nivel (por ejemplo L4-L5), la medición o clasificación y, en una comparación, el lado A o B.

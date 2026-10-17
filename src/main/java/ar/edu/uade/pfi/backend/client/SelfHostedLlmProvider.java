@@ -93,7 +93,8 @@ public class SelfHostedLlmProvider implements LlmProvider {
             if (usage.get("prompt_tokens") instanceof Number n) promptTokens = n.intValue();
             if (usage.get("completion_tokens") instanceof Number n) completionTokens = n.intValue();
         }
-        return new LlmChatResult(content.trim(), properties.resolvedModel(), properties.resolvedProvider(), promptTokens, completionTokens);
+        boolean truncated = "length".equals(choice.get("finish_reason"));
+        return new LlmChatResult(content.trim(), properties.resolvedModel(), properties.resolvedProvider(), promptTokens, completionTokens, truncated);
     }
 
     private RunReviewException translate(RuntimeException ex) {

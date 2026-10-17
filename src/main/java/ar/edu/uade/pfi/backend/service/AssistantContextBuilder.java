@@ -116,7 +116,7 @@ public class AssistantContextBuilder {
         List<String> sources = new ArrayList<>(List.of("current_analysis", "reference_analysis"));
         List<String> missing = new ArrayList<>();
         lines.add("ÁMBITO: comparación entre dos estudios del mismo paciente. A = Referencia, B = Actual (estudio abierto).");
-        lines.add("Convención de las diferencias: diferencia = B − A. Todas las diferencias las calculó el sistema.");
+        lines.add("Convención de las diferencias: diferencia = B − A. Todas las diferencias las calculó el sistema. En los motivos de exclusión, «referencia» significa A y «estudio abierto» o «actual» significa B.");
         if (current.studyDate() != null && reference.studyDate() != null) {
             long days = ChronoUnit.DAYS.between(reference.studyDate(), current.studyDate());
             lines.add("Fechas de estudio: A " + reference.studyDate() + ", B " + current.studyDate() + " (B − A = " + days + " días, calculado).");
@@ -462,7 +462,11 @@ public class AssistantContextBuilder {
             lines.element(ref, "Mediciones no comparables: " + entry.getKey());
             long a = group.stream().filter(e -> "reference".equalsIgnoreCase(e.side())).count();
             long b = group.stream().filter(e -> "current".equalsIgnoreCase(e.side())).count();
-            lines.add("  [" + ref + "] No comparables (" + group.size() + "; en A " + a + ", en B " + b + "): " + group.get(0).reason());
+            String which = group.stream().limit(6)
+                .map(e -> metricLabel(e.metricKey()) + " (" + ("reference".equalsIgnoreCase(e.side()) ? "A" : "B") + ", " + (e.level() == null ? "sin nivel" : e.level()) + ")")
+                .collect(java.util.stream.Collectors.joining("; "));
+            lines.add("  [" + ref + "] No comparables (" + group.size() + "; en A " + a + ", en B " + b + "): " + group.get(0).reason()
+                + " Mediciones: " + which + (group.size() > 6 ? "; y " + (group.size() - 6) + " más" : "") + ".");
         }
     }
 

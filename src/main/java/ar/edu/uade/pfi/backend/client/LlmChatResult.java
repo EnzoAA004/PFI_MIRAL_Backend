@@ -7,10 +7,15 @@ package ar.edu.uade.pfi.backend.client;
  * 80-L: "No permitir que provider cambie esos flags").
  *
  * <p>{@code promptTokens}/{@code completionTokens} son los que el proveedor informa (si los informa): sirven para
- * medir, nunca para decidir nada.
+ * medir, nunca para decidir nada. {@code truncated} es {@code true} cuando el proveedor cortó la respuesta por el límite de longitud
+ * ({@code finish_reason = length}).
  */
-public record LlmChatResult(String content, String model, String provider, Integer promptTokens, Integer completionTokens) {
+public record LlmChatResult(String content, String model, String provider, Integer promptTokens, Integer completionTokens, boolean truncated) {
     public LlmChatResult(String content, String model, String provider) {
-        this(content, model, provider, null, null);
+        this(content, model, provider, null, null, false);
+    }
+
+    public LlmChatResult(String content, String model, String provider, Integer promptTokens, Integer completionTokens) {
+        this(content, model, provider, promptTokens, completionTokens, false);
     }
 }

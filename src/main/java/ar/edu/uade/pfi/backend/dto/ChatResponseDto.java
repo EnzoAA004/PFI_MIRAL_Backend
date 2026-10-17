@@ -29,7 +29,8 @@ public record ChatResponseDto(
     Scope scope,
     long elapsedMs,
     Integer promptTokens,
-    Integer completionTokens
+    Integer completionTokens,
+    boolean truncated
 ) {
     public record Reference(String ref, String label) {
     }
