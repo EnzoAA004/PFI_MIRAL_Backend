@@ -557,6 +557,28 @@ public class InMemoryStudyRepository implements StudyRepository {
         return feedbackStatusChangesByCandidateId.getOrDefault(candidateId, List.of());
     }
 
+    private final ConcurrentMap<String, ar.edu.uade.pfi.backend.domain.ReportDraft> reportDrafts = new ConcurrentHashMap<>();
+
+    @Override
+    public Optional<ar.edu.uade.pfi.backend.domain.ReportDraft> findReportDraft(String studyId, String runId) {
+        return Optional.ofNullable(reportDrafts.get(studyId + "|" + runId));
+    }
+
+    @Override
+    public synchronized ar.edu.uade.pfi.backend.domain.ReportDraft saveReportDraft(ar.edu.uade.pfi.backend.domain.ReportDraft draft, Integer expectedVersion) {
+        String key = draft.studyId() + "|" + draft.runId();
+        ar.edu.uade.pfi.backend.domain.ReportDraft existing = reportDrafts.get(key);
+        if (existing == null ? expectedVersion != null : expectedVersion == null || expectedVersion != existing.version()) {
+            throw new IllegalStateException("REPORT_DRAFT_VERSION_CONFLICT");
+        }
+        ar.edu.uade.pfi.backend.domain.ReportDraft saved = new ar.edu.uade.pfi.backend.domain.ReportDraft(
+            existing == null ? draft.id() : existing.id(), draft.studyId(), draft.runId(), existing == null ? 1 : existing.version() + 1,
+            draft.sourceFingerprint(), draft.generatedJson(), draft.editsJson(), existing == null ? draft.createdAt() : existing.createdAt(),
+            draft.updatedAt(), draft.updatedBy());
+        reportDrafts.put(key, saved);
+        return saved;
+    }
+
     // ---- Stage 80: contextual chat ----
 
     @Override

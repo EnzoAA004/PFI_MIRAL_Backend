@@ -51,7 +51,7 @@ public class AssistantContextBuilder {
         Map.entry("vertebra area", "área de la vértebra"),
         Map.entry("segmental angle", "ángulo segmentario"));
 
-    private static final Map<String, String> FINDING_LABELS = Map.of(
+    static final Map<String, String> FINDING_LABELS = Map.of(
         "disc_bulging", "Abombamiento discal",
         "disc_narrowing", "Estrechamiento discal",
         "upper_endplate_change", "Cambio del platillo superior",

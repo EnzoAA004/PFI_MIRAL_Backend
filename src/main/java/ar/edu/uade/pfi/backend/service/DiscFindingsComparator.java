@@ -54,8 +54,18 @@ public final class DiscFindingsComparator {
         boolean externalValidationAvailable,
         String modelId,
         String modelSha256,
-        List<String> availableRoles
+        List<String> availableRoles,
+        /** Una entrada por modalidad declarada, con su región evaluada si la corrida la persistió y es válida. */
+        List<Source> sources
     ) {
+    }
+
+    /** Dónde se evaluó el resultado en una serie. No es la extensión de una lesión. */
+    public record Region(String inputId, int sliceIndex, double pointY, double pointX, double y0, double y1, double x0, double x1, int height, int width) {
+    }
+
+    /** {@code regionIssue} no nulo = la corrida declaró una región que no se puede usar (se conserva la clasificación sin localización). */
+    public record Source(String role, boolean available, List<Integer> positions, Region region, String regionIssue) {
     }
 
     /** Un resultado que no cumple el contrato, con lo que se pudo identificar de él. */
@@ -194,6 +204,7 @@ public final class DiscFindingsComparator {
             return null;
         }
         List<String> roles = new ArrayList<>();
+        List<Source> sources = new ArrayList<>();
         Object sourceSeries = raw.get("sourceSeries");
         if (sourceSeries != null) {
             if (!(sourceSeries instanceof List<?> list) || list.isEmpty()) {
@@ -207,14 +218,24 @@ public final class DiscFindingsComparator {
                     failure[0] = "las series de origen declaradas no son válidas";
                     return null;
                 }
+                List<Integer> positionList = new ArrayList<>();
                 if (source.get("positions") instanceof List<?> positions) {
                     for (Object position : positions) {
                         if (!(position instanceof Number n) || n.doubleValue() != Math.rint(n.doubleValue()) || n.doubleValue() < 0) {
                             failure[0] = "las series de origen declaradas no son válidas";
                             return null;
                         }
+                        positionList.add(n.intValue());
                     }
                 }
+                Object[] parsed = parseRegion(source, positionList);
+                Region region = (Region) parsed[0];
+                String regionIssue = (String) parsed[1];
+                if (region != null && !available) {
+                    region = null;
+                    regionIssue = "una modalidad que no entró al modelo no puede localizar nada";
+                }
+                sources.add(new Source(role, available, List.copyOf(positionList), region, regionIssue));
                 if (available) roles.add(role.equals("sagittal_t1") ? "T1" : "T2");
             }
             if (roles.isEmpty()) {
@@ -225,7 +246,58 @@ public final class DiscFindingsComparator {
         Map<String, Double> distribution = classProbabilities(classification.get("classProbabilities"), findingType, label, confidence);
         return new Finding(
             findingId, findingType, level, label, confidence, distribution, deployment, text(evidence.get("evaluationDataset")),
-            external, modelId, modelSha, List.copyOf(roles));
+            external, modelId, modelSha, List.copyOf(roles), List.copyOf(sources));
+    }
+
+    /**
+     * Espejo de {@code parseEvaluatedRegion} del Frontend: la región es válida entera o no se usa. Devuelve
+     * {@code {Region|null, issue|null}}.
+     */
+    private static Object[] parseRegion(Map<String, Object> raw, List<Integer> positions) {
+        String[] keys = {"inputId", "sliceIndex", "pointYx", "bboxYx", "coordinateSpaceHeight", "coordinateSpaceWidth"};
+        int present = 0;
+        for (String key : keys) if (raw.containsKey(key)) present += 1;
+        if (present == 0) return new Object[] {null, null};
+        if (present != keys.length) return new Object[] {null, "la región vino incompleta"};
+        String inputId = text(raw.get("inputId"));
+        Double height = number(raw.get("coordinateSpaceHeight"));
+        Double width = number(raw.get("coordinateSpaceWidth"));
+        Double slice = number(raw.get("sliceIndex"));
+        if (inputId.isEmpty() || height == null || width == null || height <= 0 || width <= 0) {
+            return new Object[] {null, "la serie o el espacio de coordenadas de la región no son válidos"};
+        }
+        if (slice == null || slice != Math.rint(slice) || slice < 0) return new Object[] {null, "el corte de la región no es un índice válido"};
+        int sliceIndex = slice.intValue();
+        if (!positions.isEmpty() && !positions.contains(sliceIndex)) return new Object[] {null, "el corte de la región no está entre los cortes analizados"};
+        List<Double> point = numbers(raw.get("pointYx"), 2);
+        List<Double> bbox = numbers(raw.get("bboxYx"), 4);
+        if (point == null) return new Object[] {null, "el punto de la región no es válido"};
+        if (bbox == null) return new Object[] {null, "el recuadro de la región no es válido"};
+        double pointY = point.get(0);
+        double pointX = point.get(1);
+        double y0 = bbox.get(0);
+        double y1 = bbox.get(1);
+        double x0 = bbox.get(2);
+        double x1 = bbox.get(3);
+        if (y1 <= y0 || x1 <= x0) return new Object[] {null, "el recuadro de la región no tiene área"};
+        if (y0 < 0 || x0 < 0 || y1 > height || x1 > width) return new Object[] {null, "el recuadro de la región cae fuera de su espacio de coordenadas"};
+        if (pointY < y0 || pointY > y1 || pointX < x0 || pointX > x1) return new Object[] {null, "el punto de la región cae fuera de su recuadro"};
+        return new Object[] {new Region(inputId, sliceIndex, pointY, pointX, y0, y1, x0, x1, height.intValue(), width.intValue()), null};
+    }
+
+    private static Double number(Object value) {
+        return value instanceof Number n && Double.isFinite(n.doubleValue()) ? n.doubleValue() : null;
+    }
+
+    private static List<Double> numbers(Object value, int size) {
+        if (!(value instanceof List<?> list) || list.size() != size) return null;
+        List<Double> result = new ArrayList<>();
+        for (Object item : list) {
+            Double parsed = number(item);
+            if (parsed == null) return null;
+            result.add(parsed);
+        }
+        return result;
     }
 
     /** Igual que {@code parseClassProbabilities}: claves del catálogo, valores en [0,1], suma ≈ 1 y coherente con la confianza. */

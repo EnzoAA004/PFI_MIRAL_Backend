@@ -1501,6 +1501,78 @@ public class PostgresStudyRepository implements StudyRepository {
         }
     }
 
+    // ---- Preinforme: borrador por corrida ----
+
+    @Override
+    public Optional<ar.edu.uade.pfi.backend.domain.ReportDraft> findReportDraft(String studyId, String runId) {
+        try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
+            SELECT id, study_id, run_id, version, source_fingerprint, generated_json::text AS generated_json, edits_json::text AS edits_json,
+                   created_at, updated_at, updated_by
+            FROM domain_report_drafts WHERE study_id = ?::uuid AND run_id = ?
+            """)) {
+            statement.setString(1, studyId);
+            statement.setString(2, runId);
+            try (ResultSet rs = statement.executeQuery()) {
+                if (!rs.next()) return Optional.empty();
+                return Optional.of(readReportDraft(rs));
+            }
+        } catch (Exception ex) {
+            throw new IllegalStateException("Could not find report draft", ex);
+        }
+    }
+
+    @Override
+    public ar.edu.uade.pfi.backend.domain.ReportDraft saveReportDraft(ar.edu.uade.pfi.backend.domain.ReportDraft draft, Integer expectedVersion) {
+        try (Connection connection = connection()) {
+            if (expectedVersion == null) {
+                try (PreparedStatement insert = connection.prepareStatement("""
+                    INSERT INTO domain_report_drafts(id, study_id, run_id, version, source_fingerprint, generated_json, edits_json, created_at, updated_at, updated_by)
+                    VALUES (?::uuid, ?::uuid, ?, 1, ?, ?::jsonb, ?::jsonb, ?, ?, ?)
+                    ON CONFLICT (study_id, run_id) DO NOTHING
+                    """)) {
+                    insert.setString(1, draft.id());
+                    insert.setString(2, draft.studyId());
+                    insert.setString(3, draft.runId());
+                    insert.setString(4, draft.sourceFingerprint());
+                    insert.setString(5, draft.generatedJson());
+                    insert.setString(6, draft.editsJson());
+                    insert.setTimestamp(7, Timestamp.from(draft.createdAt()));
+                    insert.setTimestamp(8, Timestamp.from(draft.updatedAt()));
+                    insert.setString(9, draft.updatedBy());
+                    if (insert.executeUpdate() == 0) throw new IllegalStateException("REPORT_DRAFT_VERSION_CONFLICT");
+                }
+            } else {
+                try (PreparedStatement update = connection.prepareStatement("""
+                    UPDATE domain_report_drafts
+                    SET version = version + 1, source_fingerprint = ?, generated_json = ?::jsonb, edits_json = ?::jsonb, updated_at = ?, updated_by = ?
+                    WHERE study_id = ?::uuid AND run_id = ? AND version = ?
+                    """)) {
+                    update.setString(1, draft.sourceFingerprint());
+                    update.setString(2, draft.generatedJson());
+                    update.setString(3, draft.editsJson());
+                    update.setTimestamp(4, Timestamp.from(draft.updatedAt()));
+                    update.setString(5, draft.updatedBy());
+                    update.setString(6, draft.studyId());
+                    update.setString(7, draft.runId());
+                    update.setInt(8, expectedVersion);
+                    if (update.executeUpdate() == 0) throw new IllegalStateException("REPORT_DRAFT_VERSION_CONFLICT");
+                }
+            }
+        } catch (IllegalStateException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new IllegalStateException("Could not save report draft", ex);
+        }
+        return findReportDraft(draft.studyId(), draft.runId()).orElseThrow();
+    }
+
+    private ar.edu.uade.pfi.backend.domain.ReportDraft readReportDraft(ResultSet rs) throws Exception {
+        return new ar.edu.uade.pfi.backend.domain.ReportDraft(
+            rs.getObject("id", UUID.class).toString(), rs.getObject("study_id", UUID.class).toString(), rs.getString("run_id"),
+            rs.getInt("version"), rs.getString("source_fingerprint"), rs.getString("generated_json"), rs.getString("edits_json"),
+            rs.getTimestamp("created_at").toInstant(), rs.getTimestamp("updated_at").toInstant(), rs.getString("updated_by"));
+    }
+
     // ---- Stage 80: contextual chat ----
 
     @Override
