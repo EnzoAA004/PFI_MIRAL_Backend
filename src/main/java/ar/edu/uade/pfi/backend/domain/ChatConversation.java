@@ -3,11 +3,21 @@ package ar.edu.uade.pfi.backend.domain;
 import java.time.Instant;
 
 /**
- * Stage 80-S: one chat exchange thread for a Study. A Study can have many conversations
- * (80-U) — this stage creates exactly one new conversation per {@code POST .../chat} call
- * (single-turn per conversation; a future stage could add an optional {@code conversationId} to
- * the request to continue one, but that is not built here — documented as a deliberate
- * simplification, not an oversight).
+ * Un hilo de conversacion del asistente. Pertenece a un ambito: una corrida de un estudio
+ * ({@code scopeKey = "run:<runId>"}) o el par de corridas del visor dual
+ * ({@code "pair:<runId>|<referenceRunId>"}). {@code scopeKey == null} marca las conversaciones del
+ * circuito de demostracion anterior: se conservan, pero no pertenecen a ningun ambito real.
  */
-public record ChatConversation(String id, String studyId, Instant createdAt) {
+public record ChatConversation(
+    String id,
+    String studyId,
+    Instant createdAt,
+    String scopeKey,
+    String runId,
+    String referenceStudyId,
+    String referenceRunId
+) {
+    public ChatConversation(String id, String studyId, Instant createdAt) {
+        this(id, studyId, createdAt, null, null, null, null);
+    }
 }

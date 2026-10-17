@@ -1545,11 +1545,16 @@ public class PostgresStudyRepository implements StudyRepository {
 
     private void insertChatConversation(Connection connection, ChatConversation conversation) throws Exception {
         try (PreparedStatement statement = connection.prepareStatement("""
-            INSERT INTO domain_chat_conversations(id, study_id, created_at) VALUES (?::uuid, ?::uuid, ?)
+            INSERT INTO domain_chat_conversations(id, study_id, created_at, scope_key, run_id, reference_study_id, reference_run_id)
+            VALUES (?::uuid, ?::uuid, ?, ?, ?, ?::uuid, ?)
             """)) {
             statement.setString(1, conversation.id());
             statement.setString(2, conversation.studyId());
             statement.setTimestamp(3, Timestamp.from(conversation.createdAt()));
+            statement.setString(4, conversation.scopeKey());
+            statement.setString(5, conversation.runId());
+            statement.setString(6, conversation.referenceStudyId());
+            statement.setString(7, conversation.referenceRunId());
             statement.executeUpdate();
         }
     }
@@ -1557,8 +1562,9 @@ public class PostgresStudyRepository implements StudyRepository {
     private void insertChatMessage(Connection connection, ChatMessage message) throws Exception {
         try (PreparedStatement statement = connection.prepareStatement("""
             INSERT INTO domain_chat_messages(
-                id, conversation_id, role, content, created_at, model, provider, prompt_version, analysis_run_id, baseline_study_id
-            ) VALUES (?::uuid, ?::uuid, ?, ?, ?, ?, ?, ?, ?::uuid, ?::uuid)
+                id, conversation_id, role, content, created_at, model, provider, prompt_version, analysis_run_id, baseline_study_id,
+                context_fingerprint, references_json
+            ) VALUES (?::uuid, ?::uuid, ?, ?, ?, ?, ?, ?, ?::uuid, ?::uuid, ?, ?)
             """)) {
             statement.setString(1, message.id());
             statement.setString(2, message.conversationId());
@@ -1570,6 +1576,8 @@ public class PostgresStudyRepository implements StudyRepository {
             statement.setString(8, message.promptVersion());
             statement.setString(9, message.analysisRunId());
             statement.setString(10, message.baselineStudyId());
+            statement.setString(11, message.contextFingerprint());
+            statement.setString(12, message.referencesJson());
             statement.executeUpdate();
         }
     }
@@ -1577,7 +1585,7 @@ public class PostgresStudyRepository implements StudyRepository {
     @Override
     public List<ChatConversation> findChatConversationsByStudyId(String studyId) {
         try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
-            SELECT id, study_id, created_at FROM domain_chat_conversations WHERE study_id = ?::uuid ORDER BY created_at DESC
+            SELECT id, study_id, created_at, scope_key, run_id, reference_study_id, reference_run_id FROM domain_chat_conversations WHERE study_id = ?::uuid ORDER BY created_at DESC
             """)) {
             statement.setString(1, studyId);
             try (ResultSet rs = statement.executeQuery()) {
@@ -1593,7 +1601,7 @@ public class PostgresStudyRepository implements StudyRepository {
     @Override
     public Optional<ChatConversation> findChatConversationById(String conversationId) {
         try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
-            SELECT id, study_id, created_at FROM domain_chat_conversations WHERE id = ?::uuid
+            SELECT id, study_id, created_at, scope_key, run_id, reference_study_id, reference_run_id FROM domain_chat_conversations WHERE id = ?::uuid
             """)) {
             statement.setString(1, conversationId);
             try (ResultSet rs = statement.executeQuery()) {
@@ -1609,14 +1617,19 @@ public class PostgresStudyRepository implements StudyRepository {
         return new ChatConversation(
             rs.getObject("id", UUID.class).toString(),
             rs.getObject("study_id", UUID.class).toString(),
-            rs.getTimestamp("created_at").toInstant()
+            rs.getTimestamp("created_at").toInstant(),
+            rs.getString("scope_key"),
+            rs.getString("run_id"),
+            rs.getObject("reference_study_id", UUID.class) == null ? null : rs.getObject("reference_study_id", UUID.class).toString(),
+            rs.getString("reference_run_id")
         );
     }
 
     @Override
     public List<ChatMessage> findChatMessagesByConversationId(String conversationId) {
         try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
-            SELECT id, conversation_id, role, content, created_at, model, provider, prompt_version, analysis_run_id, baseline_study_id
+            SELECT id, conversation_id, role, content, created_at, model, provider, prompt_version, analysis_run_id, baseline_study_id,
+                   context_fingerprint, references_json
             FROM domain_chat_messages WHERE conversation_id = ?::uuid ORDER BY created_at ASC
             """)) {
             statement.setString(1, conversationId);
@@ -1633,7 +1646,9 @@ public class PostgresStudyRepository implements StudyRepository {
                         rs.getString("provider"),
                         rs.getString("prompt_version"),
                         rs.getString("analysis_run_id"),
-                        rs.getString("baseline_study_id")
+                        rs.getString("baseline_study_id"),
+                        rs.getString("context_fingerprint"),
+                        rs.getString("references_json")
                     ));
                 }
                 return messages;

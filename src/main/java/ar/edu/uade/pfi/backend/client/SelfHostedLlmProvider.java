@@ -87,7 +87,13 @@ public class SelfHostedLlmProvider implements LlmProvider {
         if (!(choices.get(0) instanceof Map<?, ?> choice)) throw contractViolation();
         if (!(choice.get("message") instanceof Map<?, ?> message)) throw contractViolation();
         if (!(message.get("content") instanceof String content) || content.isBlank()) throw contractViolation();
-        return new LlmChatResult(content.trim(), properties.resolvedModel(), properties.resolvedProvider());
+        Integer promptTokens = null;
+        Integer completionTokens = null;
+        if (raw.get("usage") instanceof Map<?, ?> usage) {
+            if (usage.get("prompt_tokens") instanceof Number n) promptTokens = n.intValue();
+            if (usage.get("completion_tokens") instanceof Number n) completionTokens = n.intValue();
+        }
+        return new LlmChatResult(content.trim(), properties.resolvedModel(), properties.resolvedProvider(), promptTokens, completionTokens);
     }
 
     private RunReviewException translate(RuntimeException ex) {
