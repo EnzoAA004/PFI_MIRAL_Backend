@@ -45,11 +45,11 @@ class AssistantContextBuilderTest {
         String text = context.text();
         assertTrue(text.contains("Edad al estudio: 54 años (calculada a partir de la fecha de nacimiento"), text);
         assertTrue(text.contains("«Lumbalgia crónica»") && text.contains("«6 meses»") && text.contains("«Cirugía previa de rodilla»"));
-        assertTrue(text.contains("altura del disco | original 5.79 mm | corrección 6.1 mm (profesional) | efectivo 6.1 mm"), text);
-        assertTrue(text.contains("área del disco | original 126.81 mm2 | corrección no | efectivo 126.81 mm2"), text);
-        assertTrue(text.contains("L5-S1 | Abombamiento discal | clase predicha: presente | probabilidad de la clase: 73.0 %"), text);
-        assertTrue(text.contains("distribución: absent 27.0 %, present 73.0 %"), text);
-        assertTrue(text.contains("revisión profesional: pendiente"));
+        assertTrue(text.contains("altura del disco 6.1 mm (corregido por un profesional; original de la IA 5.79 mm)"), text);
+        assertTrue(text.contains("área del disco 126.81 mm2"), text);
+        assertTrue(text.contains("L5-S1 · Abombamiento discal: presente (73.0 %)"), text);
+        assertFalse(text.contains("distribución:"), "en una clasificación binaria la otra clase es el complemento: no se repite");
+        assertTrue(text.contains("revisión profesional pendiente"));
         assertTrue(text.contains("No se entregan ni se analizaron imágenes") || text.contains("No se entregan ni se analizaron imágenes."));
         assertTrue(context.sources().contains("professional_correction") && context.sources().contains("clinical_context"));
         assertEquals(List.of(), context.missing());
@@ -110,9 +110,9 @@ class AssistantContextBuilderTest {
         fx.run(study, "run-vieja", AssistantTestFixtures.T0, List.of(AssistantTestFixtures.disc("L4-L5", "height", 5.0)), null);
         fx.run(study, "run-nueva", AssistantTestFixtures.T0.plusSeconds(500), List.of(AssistantTestFixtures.disc("L4-L5", "height", 9.0)), null);
         String old = builder.buildStudy(study, "run-vieja").text();
-        assertTrue(old.contains("original 5 mm") && !old.contains("original 9 mm"), old);
+        assertTrue(old.contains("altura del disco 5 mm") && !old.contains("altura del disco 9 mm"), old);
         String latest = builder.buildStudy(study, "run-nueva").text();
-        assertTrue(latest.contains("original 9 mm") && !latest.contains("original 5 mm"));
+        assertTrue(latest.contains("altura del disco 9 mm") && !latest.contains("altura del disco 5 mm"));
     }
 
     @Test
@@ -168,8 +168,8 @@ class AssistantContextBuilderTest {
         assertTrue(text.contains("B − A = 189 días"), text);
         // La diferencia la calcula el comparador existente: 7.3 − 5.79 = 1.51 (con 2 decimales y signo).
         assertTrue(text.contains("altura del disco") && text.contains("A 5.79 mm") && text.contains("B 7.3 mm") && text.contains("B − A +1.51 mm"), text);
-        assertTrue(text.contains("L4-L5 | Abombamiento discal | A: ausente (80.0 %) | B: presente (70.0 %) | estado: Ausente → Presente"), text);
-        assertTrue(text.contains("L5-S1 | Abombamiento discal | A: presente (60.0 %) | B: presente (90.0 %) | estado: sin cambio de clasificación"), text);
+        assertTrue(text.contains("L4-L5 · Abombamiento discal: A ausente (80.0 %) → B presente (70.0 %) · Ausente → Presente"), text);
+        assertTrue(text.contains("L5-S1 · Abombamiento discal: A presente (60.0 %) → B presente (90.0 %) · sin cambio de clasificación"), text);
         assertTrue(text.contains("«Control»") && text.contains("«Seguimiento»"), "contexto clínico de cada estudio por separado");
         assertTrue(context.elements().keySet().containsAll(List.of("A.C", "B.C", "A.R", "B.R", "D1", "H1")), context.elements().toString());
         assertTrue(context.scope().findingsComparable());
@@ -228,5 +228,43 @@ class AssistantContextBuilderTest {
         assertEquals("CHAT_RUN_NOT_FOUND", assertThrows(RunReviewException.class, () -> builder.buildPair(s[0], "run-b", s[1], "run-b")).code());
         assertEquals("CHAT_RUN_NOT_FOUND", assertThrows(RunReviewException.class, () -> builder.buildPair(s[0], "no-existe", s[1], "run-a")).code());
         assertEquals("CHAT_RUN_REQUIRED", assertThrows(RunReviewException.class, () -> builder.buildPair(s[0], "run-b", s[1], null)).code());
+    }
+
+    @Test
+    void categoricalFindingsKeepTheirFullDistribution() {
+        Study study = fx.study("CASO-1", "PAT-1", "S", LocalDate.of(2026, 10, 7));
+        fx.run(study, "run-1", AssistantTestFixtures.T0, List.of(AssistantTestFixtures.disc("L4-L5", "height", 5.79)),
+            List.of(AssistantTestFixtures.finding("L4-L5", "pfirrmann_grade", "II",
+                java.util.Map.of("I", 0.1, "II", 0.6, "III", 0.2, "IV", 0.05, "V", 0.05))));
+        String text = builder.buildStudy(study, "run-1").text();
+        assertTrue(text.contains("Grado de Pfirrmann: grado II (60.0 %) · distribución: I 10.0 %, II 60.0 %, III 20.0 %, IV 5.0 %, V 5.0 %"), text);
+        assertTrue(text.contains("Estado: experimentales (1)"), text);
+    }
+
+    @Test
+    void aLargeRunStaysCompactEnoughForASmallLocalModel() {
+        Study study = fx.study("CASO-1", "PAT-1", "S", LocalDate.of(2026, 10, 7));
+        List<java.util.Map<String, Object>> measurements = new java.util.ArrayList<>();
+        List<java.util.Map<String, Object>> findings = new java.util.ArrayList<>();
+        for (String level : List.of("T11-T12", "T12-L1", "L1-L2", "L2-L3", "L3-L4", "L4-L5", "L5-S1")) {
+            for (String metric : List.of("height", "width", "area")) measurements.add(AssistantTestFixtures.disc(level, metric, 10.5));
+            measurements.add(AssistantTestFixtures.measurement("vertebra-" + level + "-height", "vertebra height", level, "mm", 20.1));
+            measurements.add(AssistantTestFixtures.measurement("vertebra-" + level + "-width", "vertebra width", level, "mm", 40.2));
+            measurements.add(AssistantTestFixtures.measurement("vertebra-" + level + "-area", "vertebra area", level, "mm2", 800.3));
+            measurements.add(AssistantTestFixtures.measurement("canal-" + level, "canal ap", level, "mm", 14.1));
+            measurements.add(AssistantTestFixtures.measurement("angle-" + level, "segmental angle", level, "deg", 4.2));
+        }
+        for (String level : List.of("L1-L2", "L2-L3", "L3-L4", "L4-L5", "L5-S1")) {
+            for (String type : DiscFindingsComparator.TYPES) {
+                if (type.equals("pfirrmann_grade")) findings.add(AssistantTestFixtures.finding(level, type, "II", java.util.Map.of("I", 0.1, "II", 0.6, "III", 0.2, "IV", 0.05, "V", 0.05)));
+                else if (type.equals("modic_change")) findings.add(AssistantTestFixtures.finding(level, type, "none", java.util.Map.of("none", 0.7, "I", 0.1, "II", 0.1, "III", 0.1)));
+                else findings.add(AssistantTestFixtures.finding(level, type, "absent", java.util.Map.of("absent", 0.8, "present", 0.2)));
+            }
+        }
+        fx.run(study, "run-grande", AssistantTestFixtures.T0, measurements, findings);
+        AssistantContext context = builder.buildStudy(study, "run-grande");
+        // ~3,5 caracteres por token en español: por debajo de ~11 000 caracteres quedan holgados 8192 tokens de contexto.
+        assertTrue(context.text().length() < 11000, "contexto de " + context.text().length() + " caracteres");
+        assertTrue(context.elements().containsKey("M56") && context.elements().containsKey("F40"));
     }
 }

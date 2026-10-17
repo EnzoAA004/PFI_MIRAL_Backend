@@ -226,7 +226,7 @@ class ChatServiceTest {
         List<LlmChatMessage> sent = llm.lastRequest.messages();
         assertTrue(sent.stream().anyMatch(m -> m.role().equals("assistant") && m.content().contains("Respuesta anterior omitida")), "la respuesta anterior se reemplaza por una nota");
         assertFalse(sent.stream().anyMatch(m -> m.role().equals("assistant") && m.content().contains("5.79 mm [M1]")), "el valor viejo no se reenvía como si fuera actual");
-        assertTrue(sent.get(1).content().contains("corrección 6.1 mm (profesional)"));
+        assertTrue(sent.get(1).content().contains("corregido por un profesional; original de la IA 5.79 mm"));
         var messages = service.detail("CASO-1", first.conversationId()).messages();
         assertEquals(first.contextFingerprint(), messages.get(1).contextFingerprint());
         assertEquals(second.contextFingerprint(), messages.get(3).contextFingerprint());

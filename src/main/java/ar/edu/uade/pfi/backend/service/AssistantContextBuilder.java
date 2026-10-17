@@ -212,15 +212,26 @@ public class AssistantContextBuilder {
             else usable.add(measurement);
         }
         if (usable.stream().anyMatch(Measurement::corrected)) sources.add("professional_correction");
-        lines.add("MEDICIONES" + (side.isEmpty() ? "" : " " + side) + " (" + usable.size() + " utilizables" + (invalid > 0 ? ", " + invalid + " ilegibles y excluidas" : "") + "). "
-            + "Cada línea: referencia | plano | nivel | medición | valor original de la IA | corrección profesional | valor efectivo | observaciones.");
+        lines.add("MEDICIONES" + (side.isEmpty() ? "" : " " + side) + " (" + usable.size() + " utilizables" + (invalid > 0 ? ", " + invalid + " ilegibles y excluidas" : "") + ").");
         if (side.isEmpty()) {
-            int n = 0;
+            lines.add("Una línea por nivel y corte: [referencia] medición valor. Los valores son los originales de la IA, salvo los marcados «corregido por un profesional» (entonces se indica también el original). Plano sagital salvo que se indique.");
+            Map<String, List<Measurement>> byGroup = new LinkedHashMap<>();
             for (Measurement measurement : usable) {
-                n += 1;
-                String ref = "M" + n;
-                lines.element(ref, measurementTitle(measurement));
-                lines.add(measurementLine(ref, measurement));
+                String key = measurement.plane() + "|" + (measurement.level() == null ? "sin nivel" : measurement.level()) + "|" + measurement.sliceIndex();
+                byGroup.computeIfAbsent(key, k -> new ArrayList<>()).add(measurement);
+            }
+            int n = 0;
+            for (List<Measurement> group : byGroup.values()) {
+                Measurement first = group.get(0);
+                List<String> items = new ArrayList<>();
+                for (Measurement measurement : group) {
+                    n += 1;
+                    String ref = "M" + n;
+                    lines.element(ref, measurementTitle(measurement));
+                    items.add(measurementItem(ref, measurement));
+                }
+                lines.add("  " + (first.level() == null ? "sin nivel asignado" : first.level()) + " · " + first.plane()
+                    + (first.sliceIndex() == null ? "" : " · corte " + (first.sliceIndex() + 1)) + ": " + String.join("; ", items));
             }
             if (usable.isEmpty()) lines.add("  (este estudio no tiene mediciones utilizables)");
         } else {
@@ -262,47 +273,77 @@ public class AssistantContextBuilder {
         return METRIC_LABELS.getOrDefault(key, key);
     }
 
-    private static String measurementLine(String ref, Measurement m) {
+    private static String measurementItem(String ref, Measurement m) {
         String unit = m.unit().isEmpty() ? "" : " " + m.unit();
         List<String> notes = new ArrayList<>();
         if (m.experimental()) notes.add("experimental");
         if (m.levelScope() != null && !m.levelScope().isEmpty() && !m.levelScope().equals("level")) notes.add("alcance: " + m.levelScope());
-        if (m.level() == null) notes.add("sin nivel asignado");
         if (!m.basis().isEmpty() && !m.basis().equals("physical_spacing")) notes.add("base: " + m.basis());
-        if (m.sliceIndex() != null) notes.add("corte " + (m.sliceIndex() + 1));
-        return "  [" + ref + "] " + m.plane() + " | " + (m.level() == null ? "sin nivel" : m.level()) + " | " + metricLabel(m.labelKey())
-            + " | original " + num(m.originalValue()) + unit
-            + " | corrección " + (m.corrected() ? num(m.correctedValue()) + unit + " (profesional)" : "no")
-            + " | efectivo " + num(m.effectiveValue()) + unit
-            + (notes.isEmpty() ? "" : " | " + String.join("; ", notes));
+        String value = m.corrected()
+            ? num(m.correctedValue()) + unit + " (corregido por un profesional; original de la IA " + num(m.originalValue()) + unit + ")"
+            : num(m.effectiveValue()) + unit;
+        return "[" + ref + "] " + metricLabel(m.labelKey()) + " " + value + (notes.isEmpty() ? "" : " (" + String.join("; ", notes) + ")");
     }
 
     /* ------------------------------------------------------------------ hallazgos */
 
     private void renderFindingsList(Lines lines, DiscFindingsComparator.Side side, String prefix, List<String> missing) {
         lines.add("");
-        lines.add("HALLAZGOS DISCALES P10.7 (predicciones del modelo, experimentales o de investigación; ninguna tiene revisión profesional registrada)");
+        lines.add("HALLAZGOS DISCALES P10.7 (predicciones del modelo; ninguna tiene revisión profesional registrada)");
         if (side.status() != DiscFindingsComparator.SideStatus.READY) {
             lines.add("  " + side.reason());
             lines.add("  Sin hallazgos persistidos no hay resultados que resumir: la falta de dato no equivale a «ausente».");
             missing.add("Hallazgos P10.7");
             return;
         }
+        // Lo que es igual en todos los hallazgos se dice una vez; solo se anota lo que se aparta.
+        String dataset = mostCommon(side.findings().stream().map(DiscFindingsComparator.Finding::evaluationDataset).toList());
+        String roles = mostCommon(side.findings().stream().map(AssistantContextBuilder::rolesOf).toList());
+        boolean allWithoutExternal = side.findings().stream().noneMatch(DiscFindingsComparator.Finding::externalValidationAvailable);
+        lines.add("  Comunes a todos salvo que se indique: base de evaluación " + (dataset.isEmpty() ? "no informada" : dataset)
+            + "; validación externa " + (allWithoutExternal ? "no" : "variable (se indica en cada uno)") + "; modalidades de entrada " + roles
+            + "; revisión profesional pendiente. Cada línea: [referencia] nivel · clasificación: clase predicha con su probabilidad.");
+        Map<String, List<DiscFindingsComparator.Finding>> byStatus = new LinkedHashMap<>();
+        for (String status : List.of("supported_internal", "experimental", "not_product_supported")) byStatus.put(status, new ArrayList<>());
+        side.findings().forEach(f -> byStatus.computeIfAbsent(f.deploymentStatus(), k -> new ArrayList<>()).add(f));
         int n = 0;
-        for (DiscFindingsComparator.Finding finding : side.findings()) {
-            n += 1;
-            String ref = prefix + "F" + n;
-            lines.element(ref, findingTitle(finding));
-            lines.add("  [" + ref + "] " + findingLine(finding));
+        for (Map.Entry<String, List<DiscFindingsComparator.Finding>> entry : byStatus.entrySet()) {
+            if (entry.getValue().isEmpty()) continue;
+            lines.add("  Estado: " + deploymentLabel(entry.getKey()) + " (" + entry.getValue().size() + ")");
+            for (DiscFindingsComparator.Finding finding : entry.getValue()) {
+                n += 1;
+                String ref = prefix + "F" + n;
+                lines.element(ref, findingTitle(finding));
+                List<String> notes = new ArrayList<>();
+                if (!finding.evaluationDataset().equals(dataset)) notes.add("base de evaluación " + (finding.evaluationDataset().isEmpty() ? "no informada" : finding.evaluationDataset()));
+                if (!rolesOf(finding).equals(roles)) notes.add("modalidades " + rolesOf(finding));
+                if (finding.externalValidationAvailable()) notes.add("con validación externa");
+                lines.add("    [" + ref + "] " + finding.level() + " · " + FINDING_LABELS.getOrDefault(finding.findingType(), finding.findingType()) + ": "
+                    + className(finding) + " " + (finding.confidence() == null ? "(probabilidad no informada)" : "(" + pct(finding.confidence()) + ")")
+                    + categoricalDistribution(finding) + (notes.isEmpty() ? "" : " [" + String.join("; ", notes) + "]"));
+            }
         }
         if (!side.rejected().isEmpty()) {
             lines.add("  " + side.rejected().size() + " resultado(s) no cumplen el contrato y no se muestran: no se interpretan como «ausente».");
             missing.add(side.rejected().size() + " hallazgo(s) P10.7 inválido(s)");
         }
-        Map<String, Long> byStatus = new LinkedHashMap<>();
-        side.findings().forEach(f -> byStatus.merge(f.deploymentStatus(), 1L, Long::sum));
-        lines.add("  Total de hallazgos válidos: " + side.findings().size() + " (" + statusSummary(byStatus) + ").");
-        lines.add("  Un nivel o clasificación que no aparece en la lista no fue evaluado o no tiene resultado: no se debe suponer que sea normal.");
+        lines.add("  Total de hallazgos válidos: " + side.findings().size() + ". Un nivel o clasificación que no aparece en la lista no fue evaluado o no tiene resultado: no se debe suponer que sea normal.");
+    }
+
+    private static String rolesOf(DiscFindingsComparator.Finding finding) {
+        return finding.availableRoles().isEmpty() ? "sin dato" : String.join("+", new java.util.TreeSet<>(finding.availableRoles()));
+    }
+
+    private static String mostCommon(List<String> values) {
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        values.forEach(value -> counts.merge(value, 1, Integer::sum));
+        return counts.entrySet().stream().max(Map.Entry.comparingByValue()).map(Map.Entry::getKey).orElse("");
+    }
+
+    /** Las clasificaciones de más de dos clases traen la distribución completa; en las binarias la otra clase es el complemento. */
+    private static String categoricalDistribution(DiscFindingsComparator.Finding f) {
+        boolean binary = DiscFindingsComparator.labelsFor(f.findingType()).size() == 2;
+        return binary || f.classProbabilities() == null ? "" : " · distribución: " + distribution(f);
     }
 
     private static String statusSummary(Map<String, Long> byStatus) {
@@ -322,16 +363,6 @@ public class AssistantContextBuilder {
 
     private static String findingTitle(DiscFindingsComparator.Finding finding) {
         return FINDING_LABELS.getOrDefault(finding.findingType(), finding.findingType()) + " " + finding.level();
-    }
-
-    private static String findingLine(DiscFindingsComparator.Finding f) {
-        return f.level() + " | " + FINDING_LABELS.getOrDefault(f.findingType(), f.findingType()) + " | clase predicha: " + className(f)
-            + " | probabilidad de la clase: " + (f.confidence() == null ? "no informada" : pct(f.confidence()))
-            + (f.classProbabilities() == null ? "" : " | distribución: " + distribution(f))
-            + " | " + deploymentLabel(f.deploymentStatus()) + " | base de evaluación: " + (f.evaluationDataset().isEmpty() ? "no informada" : f.evaluationDataset())
-            + " | validación externa: " + (f.externalValidationAvailable() ? "sí" : "no")
-            + " | modalidades: " + (f.availableRoles().isEmpty() ? "sin dato" : String.join("+", new java.util.TreeSet<>(f.availableRoles())))
-            + " | revisión profesional: pendiente";
     }
 
     private static String className(DiscFindingsComparator.Finding f) {
@@ -359,18 +390,18 @@ public class AssistantContextBuilder {
     }
 
     private void renderFindingsComparison(Lines lines, DiscFindingsComparator.Result result) {
-        lines.add("Cada fila: referencia | nivel | clasificación | A | B | estado. «Cambio» significa solo que cambió la clase predicha; "
+        lines.add("Cada fila: [referencia] nivel · clasificación: A → B · estado. «Cambio» significa solo que cambió la clase predicha; "
             + "una variación de probabilidad con la misma clase no es un cambio. No se interpreta ningún cambio como mejoría, empeoramiento ni progresión.");
         int n = 0;
         for (DiscFindingsComparator.Row row : result.rows()) {
             n += 1;
             String ref = "H" + n;
             lines.element(ref, FINDING_LABELS.getOrDefault(row.findingType(), row.findingType()) + " " + row.level());
-            lines.add("  [" + ref + "] " + row.level() + " | " + FINDING_LABELS.getOrDefault(row.findingType(), row.findingType())
-                + " | A: " + sideCell(row.reference(), row.rejected().get("reference"))
-                + " | B: " + sideCell(row.current(), row.rejected().get("current"))
-                + " | estado: " + statusLabel(row.status()) + (row.reason() == null ? "" : " — " + row.reason().text())
-                + ("research".equals(row.section()) ? " [resultado de investigación]" : ""));
+            lines.add("  [" + ref + "] " + row.level() + " · " + FINDING_LABELS.getOrDefault(row.findingType(), row.findingType())
+                + ": A " + sideCell(row.reference(), row.rejected().get("reference"))
+                + " → B " + sideCell(row.current(), row.rejected().get("current"))
+                + " · " + statusLabel(row.status()) + (row.reason() == null ? "" : " — " + row.reason().text())
+                + ("research".equals(row.section()) ? " [investigación]" : ""));
         }
         int changes = result.mainCounts()[1] + result.researchCounts()[1];
         int notComparable = result.mainCounts()[3] + result.researchCounts()[3];
@@ -405,7 +436,7 @@ public class AssistantContextBuilder {
         lines.add(numeric.reference().sagittalSequence().isEmpty() && numeric.current().sagittalSequence().isEmpty() ? "" : "Secuencia sagital: A "
             + (numeric.reference().sagittalSequence().isEmpty() ? "no informada" : numeric.reference().sagittalSequence().toUpperCase(Locale.ROOT))
             + ", B " + (numeric.current().sagittalSequence().isEmpty() ? "no informada" : numeric.current().sagittalSequence().toUpperCase(Locale.ROOT)) + ".");
-        lines.add("Cada fila: referencia | nivel | plano | medición | A | B | B − A | variación %. Los valores usados son los efectivos (corregidos profesionalmente si hay corrección).");
+        lines.add("Cada fila: [referencia] nivel · medición: A → B · B − A (variación %). Los valores usados son los efectivos (corregidos profesionalmente si hay corrección). Plano sagital salvo que se indique.");
         int n = 0;
         for (InitialAnalysisComparisonDto.Row row : numeric.comparisons()) {
             n += 1;
@@ -413,10 +444,11 @@ public class AssistantContextBuilder {
             lines.element(ref, comparedLabel(row) + " " + row.level());
             String unit = row.unit() == null || row.unit().isEmpty() ? "" : " " + row.unit();
             String percent = row.deltaPercent() == null ? "variación % no calculable (A es 0)" : signed(row.deltaPercent()) + " %";
-            lines.add("  [" + ref + "] " + row.level() + " | " + row.plane() + " | " + comparedLabel(row) + (row.experimental() ? " (experimental)" : "")
-                + " | A " + num(row.reference().effectiveValue()) + unit + valueOrigin(row.reference())
-                + " | B " + num(row.current().effectiveValue()) + unit + valueOrigin(row.current())
-                + " | B − A " + signed(row.deltaAbsolute()) + unit + " | " + percent);
+            lines.add("  [" + ref + "] " + row.level() + " · " + comparedLabel(row) + (row.experimental() ? " (experimental)" : "")
+                + (row.plane().equals("sagittal") ? "" : " [" + row.plane() + "]")
+                + ": A " + num(row.reference().effectiveValue()) + unit + valueOrigin(row.reference())
+                + " → B " + num(row.current().effectiveValue()) + unit + valueOrigin(row.current())
+                + " · B − A " + signed(row.deltaAbsolute()) + unit + " (" + percent + ")");
         }
         if (numeric.comparisons().isEmpty()) lines.add("  (no hay mediciones comparables entre las dos corridas)");
         // Excluidas, agrupadas por motivo para no gastar el contexto en filas repetidas.
@@ -455,7 +487,7 @@ public class AssistantContextBuilder {
     }
 
     private static String valueOrigin(InitialAnalysisComparisonDto.Value value) {
-        return value.corrected() ? " (corregido profesionalmente; original de la IA " + num(value.originalValue()) + ")" : "";
+        return value.corrected() ? " (corregido por un profesional; original de la IA " + num(value.originalValue()) + ")" : "";
     }
 
     /* ------------------------------------------------------------------ utilidades */

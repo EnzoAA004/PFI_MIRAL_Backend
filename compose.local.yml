@@ -92,6 +92,18 @@ services:
       PFI_AUTH_DEMO_ENABLED: ${PFI_AUTH_DEMO_ENABLED:-true}
       PFI_AUTH_EXPOSE_DEV_CODES: ${PFI_AUTH_EXPOSE_DEV_CODES:-true}
       PFI_CORS_ALLOWED_ORIGINS: ${PFI_CORS_ALLOWED_ORIGINS:-http://localhost:8088}
+      # Asistente conversacional: apagado por defecto. Con PFI_LLM_ENABLED=true usa un runtime local con API
+      # compatible con OpenAI (ej. LM Studio en el anfitrion). Nunca una API externa por defecto.
+      PFI_LLM_ENABLED: ${PFI_LLM_ENABLED:-false}
+      PFI_LLM_PROVIDER: ${PFI_LLM_PROVIDER:-self-hosted}
+      PFI_LLM_BASE_URL: ${PFI_LLM_BASE_URL:-http://host.docker.internal:1234}
+      PFI_LLM_MODEL: ${PFI_LLM_MODEL:-qwen3-4b-instruct-2507}
+      PFI_LLM_TIMEOUT_SECONDS: ${PFI_LLM_TIMEOUT_SECONDS:-120}
+      PFI_LLM_TEMPERATURE: ${PFI_LLM_TEMPERATURE:-0.1}
+      PFI_LLM_MAX_OUTPUT_TOKENS: ${PFI_LLM_MAX_OUTPUT_TOKENS:-400}
+      PFI_LLM_HISTORY_WINDOW_TURNS: ${PFI_LLM_HISTORY_WINDOW_TURNS:-3}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "${BACKEND_PORT:-8080}:8080"
     depends_on:
