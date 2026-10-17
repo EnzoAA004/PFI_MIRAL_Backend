@@ -120,6 +120,7 @@ public class ChatService {
         if (verified.removed() > 0) {
             warnings.add("La respuesta citó " + verified.removed() + " referencia(s) que no existen en los datos; se quitaron del texto.");
         }
+        warnings.addAll(verified.inconsistencies());
         if (result.truncated()) {
             warnings.add("La respuesta se cortó por el límite de longitud: puede estar incompleta. Pedí un nivel o un tema más puntual.");
         }
