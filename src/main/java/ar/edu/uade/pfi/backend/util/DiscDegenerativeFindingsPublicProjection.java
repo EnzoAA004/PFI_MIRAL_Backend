@@ -21,6 +21,16 @@ import java.util.Map;
  * product already reports it this way, next to every measurement. So the projection reduces the
  * vector to its reported component instead of dropping it.
  *
+ * <p>The comparison view added a second, strictly additive field: {@code
+ * classification.classProbabilities}, the same per-class values in a differently named key.
+ * A professional comparing two studies has to be able to look at how each side's result was
+ * distributed before reading a change of class as a change at all (a flip between two classes of
+ * 0.48 and 0.47 is not the same thing as one between 0.96 and 0.02). It is deliberately NOT named
+ * {@code probabilities}: consumers that validate the old contract still reject that key, and the
+ * confidence of the reported label keeps travelling exactly as before. The values are the model's
+ * own and are never reinterpreted, thresholded or rescaled here; a distribution that is not made
+ * of finite numbers in [0, 1] is omitted rather than repaired.
+ *
  * <p>Used by both the live {@code POST /api/ai/v2/product/disc-degenerative-findings} response and
  * the persisted {@code GET /api/studies/{caseId}/runs} snapshot, so the two paths cannot silently
  * diverge on what they publish.
@@ -62,9 +72,30 @@ public final class DiscDegenerativeFindingsPublicProjection {
       Object probabilities = sanitizedClassification.remove("probabilities");
       Double confidence = confidenceForLabel(probabilities, sanitizedClassification.get("label"));
       if (confidence != null) sanitizedClassification.put("confidence", confidence);
+      Map<String, Double> distribution = distributionOf(probabilities);
+      if (distribution != null) sanitizedClassification.put("classProbabilities", distribution);
       copy.put("classification", sanitizedClassification);
     }
     return copy;
+  }
+
+  /**
+   * The model's per-class values as published, or {@code null} when any of them is not a finite
+   * number in [0, 1] (or there are none). All-or-nothing: a partly repaired distribution would
+   * read as a measurement the model never made.
+   */
+  private static Map<String, Double> distributionOf(Object probabilities) {
+    if (!(probabilities instanceof Map<?, ?> distribution) || distribution.isEmpty()) return null;
+    Map<String, Double> published = new LinkedHashMap<>();
+    for (Map.Entry<?, ?> entry : distribution.entrySet()) {
+      if (!(entry.getKey() instanceof String name) || !(entry.getValue() instanceof Number number)) {
+        return null;
+      }
+      double value = number.doubleValue();
+      if (!Double.isFinite(value) || value < 0 || value > 1) return null;
+      published.put(name, value);
+    }
+    return published;
   }
 
   /**

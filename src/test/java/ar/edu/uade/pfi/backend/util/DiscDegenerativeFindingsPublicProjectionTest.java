@@ -46,6 +46,51 @@ class DiscDegenerativeFindingsPublicProjectionTest {
   }
 
   @Test
+  @SuppressWarnings("unchecked")
+  void addsTheClassDistributionUnderANewKeyWithoutReintroducingProbabilities() throws Exception {
+    Map<String, Object> source = envelope();
+    Map<String, Object> sanitized = DiscDegenerativeFindingsPublicProjection.sanitize(source);
+    Map<String, Object> classification =
+        (Map<String, Object>)
+            ((List<Map<String, Object>>) sanitized.get("findings")).get(0).get("classification");
+
+    assertFalse(classification.containsKey("probabilities"));
+    Map<String, Double> distribution = (Map<String, Double>) classification.get("classProbabilities");
+    assertEquals(Map.of("absent", 0.2, "present", 0.8), distribution);
+    assertEquals(0.8d, (Double) classification.get("confidence"), 1e-9);
+
+    // The internal object keeps its own key and is not given the new one.
+    Map<String, Object> sourceClassification =
+        (Map<String, Object>)
+            ((List<Map<String, Object>>) source.get("findings")).get(0).get("classification");
+    assertTrue(sourceClassification.containsKey("probabilities"));
+    assertFalse(sourceClassification.containsKey("classProbabilities"));
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void omitsTheDistributionWhenAnyValueIsNotAFiniteProbability() throws Exception {
+    for (Object bad : new Object[] {1.5, -0.1, Double.NaN, "0.5"}) {
+      Map<String, Object> source = envelope();
+      Map<String, Object> classification =
+          (Map<String, Object>)
+              ((List<Map<String, Object>>) source.get("findings")).get(0).get("classification");
+      classification.put("probabilities", Map.of("absent", bad, "present", 0.8));
+
+      Map<String, Object> published =
+          (Map<String, Object>)
+              ((List<Map<String, Object>>)
+                      DiscDegenerativeFindingsPublicProjection.sanitize(source).get("findings"))
+                  .get(0)
+                  .get("classification");
+      assertFalse(published.containsKey("classProbabilities"), "repaired distribution for " + bad);
+      assertFalse(published.containsKey("probabilities"));
+      // The reported label's confidence is independent of the other classes.
+      assertEquals(0.8d, (Double) published.get("confidence"), 1e-9);
+    }
+  }
+
+  @Test
   void preservesLabelAndGovernanceAndProvenanceFields() throws Exception {
     Map<String, Object> sanitized = DiscDegenerativeFindingsPublicProjection.sanitize(envelope());
     @SuppressWarnings("unchecked")
