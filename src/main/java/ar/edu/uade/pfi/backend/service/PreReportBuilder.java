@@ -383,7 +383,8 @@ public class PreReportBuilder {
     }
 
     private static void addLevel(List<String> names, String level) {
-        if (level != null && !level.isBlank() && !names.contains(level)) names.add(level);
+        // Solo espacios discales (T11-T12, L4-L5…): las vértebras sueltas (L4) no son un nivel de ficha y quedan en el anexo.
+        if (level != null && level.contains("-") && !names.contains(level)) names.add(level);
     }
 
     private static int levelRank(String level) {
