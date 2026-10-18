@@ -149,7 +149,8 @@ public class PreReportBuilder {
             "Este preinforme resume mediciones automáticas y predicciones de un modelo experimental. Requiere revisión profesional y no constituye un diagnóstico.",
             "Las predicciones P10.7 no tienen validación externa; el grado de Pfirrmann es experimental. La región evaluada indica dónde se evaluó el resultado, no delimita una lesión.",
             "Cada medición sale de un único corte inferido por la corrida. Una corrección numérica del profesional no modifica el trazo original de la IA.",
-            "El nivel de cada resultado lo asigna el análisis inicial contando los espacios discales desde el inferior (supone un encuadre que llega a L5-S1); no se verificó contra la anatomía de la imagen.",
+            "El nivel de cada resultado lo asigna el circuito que lo produjo contando los espacios discales desde el inferior (supone un encuadre que llega a L5-S1): las mediciones, sobre el corte analizado; las predicciones P10.7, sobre la segmentación de serie completa, con el corte de mayor área discal. No se verificó contra la anatomía de la imagen.",
+            "Las mediciones y las predicciones P10.7 de un mismo nivel no están vinculadas por ninguna estructura persistida: su correspondencia con el mismo disco está pendiente de verificación y el documento no las presenta como evidencia de un mismo disco.",
             "La revisión individual de cada medición no está registrada: la aprobación global del estudio no la reemplaza ni se deduce de ella."));
         return doc;
     }
