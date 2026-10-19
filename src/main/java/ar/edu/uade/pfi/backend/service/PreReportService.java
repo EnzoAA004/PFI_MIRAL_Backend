@@ -233,7 +233,54 @@ public class PreReportService {
                 if (!b.containsKey(entry.getKey())) changes.add(change("removed", section, entry.getKey(), label(entry.getValue()), null, null));
             }
         }
+        compareDocument(before, after, changes);
         return changes;
+    }
+
+    /**
+     * Lo que no son datos del estudio pero entra en la huella: el texto con que el sistema genera el documento (limitaciones,
+     * apartados omitidos, estado de los hallazgos, corrida) y, si no hay otra explicación, su estructura derivada. Sin esto una
+     * huella distinta aparecía como «cambiaron las correcciones o el contexto» con una lista de cambios vacía.
+     * Estos cambios van en la sección «document»: no son resultados clínicos ni se atribuyen al estudio.
+     */
+    private void compareDocument(Map<String, Object> before, Map<String, Object> after, List<Map<String, Object>> changes) {
+        boolean dataChanged = !changes.isEmpty();
+        Map<String, String> direct = new LinkedHashMap<>();
+        direct.put("schema", "Versión del esquema del documento");
+        direct.put("run", "Datos de la corrida en el documento");
+        direct.put("findingsStatus", "Estado de la comparación de hallazgos");
+        direct.put("findingsStatusReason", "Motivo del estado de los hallazgos");
+        direct.put("omitted", "Apartados omitidos del cuerpo");
+        for (Map.Entry<String, String> entry : direct.entrySet()) {
+            if (!canonicalEquals(before.get(entry.getKey()), after.get(entry.getKey()))) {
+                changes.add(change("changed", "document", "doc:" + entry.getKey(), entry.getValue(), null, null));
+            }
+        }
+        Set<String> oldLimits = new LinkedHashSet<>(stringList(before.get("limitations")));
+        Set<String> newLimits = new LinkedHashSet<>(stringList(after.get("limitations")));
+        for (String text : newLimits) if (!oldLimits.contains(text)) changes.add(change("added", "document", "doc:limitation:" + Integer.toHexString(text.hashCode()), "Limitación (texto del documento): " + shorten(text), null, null));
+        for (String text : oldLimits) if (!newLimits.contains(text)) changes.add(change("removed", "document", "doc:limitation:" + Integer.toHexString(text.hashCode()), "Limitación (texto anterior): " + shorten(text), null, null));
+        if (!dataChanged && changes.isEmpty()) {
+            Map<String, String> derived = new LinkedHashMap<>();
+            derived.put("series", "Series analizadas");
+            derived.put("coverage", "Cobertura del documento");
+            derived.put("levels", "Niveles y fichas");
+            for (Map.Entry<String, String> entry : derived.entrySet()) {
+                if (!canonicalEquals(before.get(entry.getKey()), after.get(entry.getKey()))) {
+                    changes.add(change("changed", "document", "doc:" + entry.getKey(), entry.getValue(), null, null));
+                }
+            }
+        }
+    }
+
+    private static List<String> stringList(Object value) {
+        List<String> out = new ArrayList<>();
+        if (value instanceof List<?> list) for (Object item : list) if (item instanceof String s) out.add(s);
+        return out;
+    }
+
+    private static String shorten(String text) {
+        return text.length() <= 120 ? text : text.substring(0, 117) + "…";
     }
 
     private void compareScalars(String title, String section, Map<String, Object> a, Map<String, Object> b, List<Map<String, Object>> changes) {

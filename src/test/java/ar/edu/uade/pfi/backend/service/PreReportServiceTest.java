@@ -256,6 +256,42 @@ class PreReportServiceTest {
         assertEquals("C", service.view("MEN-1", "run-1").draft().edits().get("observations"));
     }
 
+    /**
+     * Regresión: un borrador creado con otra redacción de las limitaciones (cambió el generador, no el estudio) figuraba como
+     * desactualizado «por correcciones o contexto» con una lista de cambios vacía. Ahora el detalle lo explica como cambio del
+     * documento y no inventa cambios de datos del estudio.
+     */
+    @Test
+    @SuppressWarnings("unchecked")
+    void aChangedGeneratorTextIsExplainedAsADocumentChangeNotAsStudyData() throws Exception {
+        Study study = fx.studyWithContext("MEN-1", "P-1", LocalDate.of(2026, 10, 7), 54, Study.AGE_REPORTED, "Lumbalgia", null, null, null);
+        realisticRun(study, "run-1", true);
+        PreReportService service = service();
+        PreReportViewDto first = service.save("MEN-1", "run-1", null, Map.of("observations", "Mi observación."), "dra", null);
+        assertFalse(first.stale());
+
+        // El borrador se guardó cuando el generador redactaba otra limitación (se reescribe lo guardado como lo dejaría una versión anterior).
+        var stored = fx.repository.findReportDraft(study.id(), "run-1").orElseThrow();
+        Map<String, Object> generated = mapper.readValue(stored.generatedJson(), new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() { });
+        List<String> limits = new ArrayList<>((List<String>) generated.get("limitations"));
+        limits.set(3, "Redacción anterior de la limitación del nivel.");
+        generated.put("limitations", limits);
+        fx.repository.saveReportDraft(new ar.edu.uade.pfi.backend.domain.ReportDraft(stored.id(), stored.studyId(), stored.runId(), stored.version(), "src-anterior",
+            mapper.writeValueAsString(generated), stored.editsJson(), stored.createdAt(), stored.updatedAt(), stored.updatedBy()), stored.version());
+
+        int versionBefore = fx.repository.findReportDraft(study.id(), "run-1").orElseThrow().version();
+        PreReportViewDto view = service.view("MEN-1", "run-1");
+        assertTrue(view.stale(), "la huella cambió");
+        assertFalse(view.changes().isEmpty(), "una huella distinta no puede quedar sin explicación");
+        assertTrue(view.changes().stream().allMatch(c -> "document".equals(c.get("section"))), view.changes().toString());
+        assertTrue(view.changes().stream().anyMatch(c -> String.valueOf(c.get("label")).startsWith("Limitación")), view.changes().toString());
+        assertTrue(view.changes().stream().noneMatch(c -> String.valueOf(c.get("key")).startsWith("study:") || String.valueOf(c.get("key")).startsWith("m:") || String.valueOf(c.get("key")).startsWith("f:")),
+            "no se atribuyen cambios al contexto, las correcciones ni los resultados");
+        assertEquals("Mi observación.", view.draft().edits().get("observations"), "no se toca el contenido del borrador");
+        assertEquals(versionBefore, view.draft().version(), "ver el borrador no lo guarda ni lo regenera");
+        assertEquals(versionBefore, fx.repository.findReportDraft(study.id(), "run-1").orElseThrow().version());
+    }
+
     @Test
     void changedSourcesMarkTheDraftAsOutdatedWithoutRewritingItAndUpdatingIsExplicit() {
         Study study = fx.studyWithContext("MEN-1", "P-1", LocalDate.of(2026, 10, 7), 54, Study.AGE_REPORTED, "Lumbalgia", null, null, null);
