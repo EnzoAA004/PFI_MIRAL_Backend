@@ -85,6 +85,11 @@ final class StructuredAssistant {
 
     /* ------------------------------------------------------------------ alcance y vocabulario */
 
+    /** {@code List.copyOf(...).contains(null)} lanza NullPointerException: un hecho sin nivel (p. ej. «sin nivel asignado») no coincide con ningún filtro. */
+    private static boolean inList(List<String> values, String value) {
+        return value != null && values.contains(value);
+    }
+
     private static boolean isPair(AssistantContext context) {
         return AssistantContext.KIND_PAIR.equals(context.scope().kind());
     }
@@ -240,8 +245,9 @@ final class StructuredAssistant {
     }
 
     /**
-     * Valida la salida del modelo: JSON de un objeto con exactamente las claves esperadas, intención soportada en este ámbito,
-     * filtros dentro del vocabulario del contexto Y con base en lo que la pregunta dice. Cualquier otra cosa se rechaza.
+     * Valida la salida del modelo: JSON de un objeto con exactamente las claves esperadas, intención soportada en este ámbito y
+     * filtros dentro del vocabulario del contexto. Cualquier otra cosa se rechaza. Los filtros que la pregunta no nombra se
+     * descartan (nunca se muestran datos de un nivel o una medición que el usuario no pidió).
      */
     static Plan parsePlan(String json, String question, AssistantContext context, ObjectMapper mapper) throws PlanException {
         JsonNode root;
@@ -268,11 +274,12 @@ final class StructuredAssistant {
         List<String> metrics = stringList(root.get("metrics"), metrics(context), "metrics");
         List<String> classifications = stringList(root.get("classifications"), classifications(context), "classifications");
         if (intent == Intent.UNSUPPORTED) return Plan.of(Intent.UNSUPPORTED);
+        // Un filtro que la pregunta no nombra no se aplica: se descarta (la respuesta es más amplia, nunca de otro nivel o medición).
         String q = simplify(question);
         Set<String> mentioned = levelsMentioned(question);
-        for (String level : levels) if (!mentioned.contains(level)) throw new PlanException("El nivel " + level + " no figura en la pregunta.");
-        for (String metric : metrics) if (!metricGrounded(metric, q)) throw new PlanException("La medición «" + metric + "» no figura en la pregunta.");
-        for (String classification : classifications) if (!classificationGrounded(classification, q)) throw new PlanException("La clasificación «" + classification + "» no figura en la pregunta.");
+        levels = levels.stream().filter(mentioned::contains).toList();
+        metrics = metrics.stream().filter(metric -> metricGrounded(metric, q)).toList();
+        classifications = classifications.stream().filter(classification -> classificationGrounded(classification, q)).toList();
         return new Plan(intent, levels, metrics, classifications, root.get("only_present").asBoolean());
     }
 
@@ -408,8 +415,8 @@ final class StructuredAssistant {
         List<AssistantFact> all = facts(context, AssistantFact.Kind.MEASUREMENT);
         AssistantFact run = fact(context, "R");
         List<AssistantFact> selected = all.stream()
-            .filter(f -> plan.levels().isEmpty() || plan.levels().contains(f.level()))
-            .filter(f -> plan.metrics().isEmpty() || plan.metrics().contains(f.label()))
+            .filter(f -> plan.levels().isEmpty() || inList(plan.levels(), f.level()))
+            .filter(f -> plan.metrics().isEmpty() || inList(plan.metrics(), f.label()))
             .toList();
         List<Line> lines = new ArrayList<>();
         String scope = scopeText(plan);
@@ -431,11 +438,16 @@ final class StructuredAssistant {
             data.add(new Line(measurementLine(fact), List.of(fact.ref())));
             shown += 1;
         }
-        String header = "Mostrando " + shown + " de " + all.size() + " mediciones registradas" + scope + (selected.size() > shown ? " (hay " + selected.size() + " en este filtro; indicá un nivel o una medición para ver el resto)" : "") + ".";
+        String header = "Mostrando " + shown + " de " + all.size() + " mediciones registradas" + scope + (selected.size() > shown ? " (" + truncationHint(plan, selected.size()) + ")" : "") + ".";
         lines.add(new Line("[R] " + header, List.of("R")));
         lines.addAll(data);
         lines.add(new Line(FOOTER_MEASUREMENTS, List.of()));
         return new Answer(Intent.LIST_MEASUREMENTS, join(lines), lines, shown, all.size(), true);
+    }
+
+    private static String truncationHint(Plan plan, int inFilter) {
+        boolean filtered = !plan.levels().isEmpty() || !plan.metrics().isEmpty() || !plan.classifications().isEmpty();
+        return (filtered ? "hay " + inFilter + " en este filtro; " : "") + "indicá un nivel o una medición para ver el resto";
     }
 
     private static String measurementTotals(AssistantFact run) {
@@ -508,8 +520,8 @@ final class StructuredAssistant {
         }
         List<AssistantFact> all = facts(context, AssistantFact.Kind.FINDING);
         List<AssistantFact> selected = all.stream()
-            .filter(f -> plan.levels().isEmpty() || plan.levels().contains(f.level()))
-            .filter(f -> plan.classifications().isEmpty() || plan.classifications().contains(f.label()))
+            .filter(f -> plan.levels().isEmpty() || inList(plan.levels(), f.level()))
+            .filter(f -> plan.classifications().isEmpty() || inList(plan.classifications(), f.label()))
             .filter(f -> !plan.onlyPresent() || isPresent(f))
             .sorted(Comparator.comparingInt((AssistantFact f) -> levelRank(f.level())).thenComparing(AssistantFact::label))
             .toList();
@@ -544,9 +556,9 @@ final class StructuredAssistant {
         for (AssistantFact fact : all) present.add(fact.level() + "|" + fact.label());
         List<String> missing = new ArrayList<>();
         for (String level : levels) {
-            if (!plan.levels().isEmpty() && !plan.levels().contains(level)) continue;
+            if (!plan.levels().isEmpty() && !inList(plan.levels(), level)) continue;
             for (String type : types) {
-                if (!plan.classifications().isEmpty() && !plan.classifications().contains(type)) continue;
+                if (!plan.classifications().isEmpty() && !inList(plan.classifications(), type)) continue;
                 if (!present.contains(level + "|" + type)) missing.add(level + " · " + type);
             }
         }
@@ -629,8 +641,8 @@ final class StructuredAssistant {
         AssistantFact summary = fact(context, "S");
         List<Line> lines = new ArrayList<>();
         List<AssistantFact> selected = all.stream()
-            .filter(f -> plan.levels().isEmpty() || plan.levels().contains(f.level()))
-            .filter(f -> plan.metrics().isEmpty() || plan.metrics().contains(f.label()))
+            .filter(f -> plan.levels().isEmpty() || inList(plan.levels(), f.level()))
+            .filter(f -> plan.metrics().isEmpty() || inList(plan.metrics(), f.label()))
             .toList();
         String scope = scopeText(plan);
         if (summary == null) {
@@ -644,7 +656,7 @@ final class StructuredAssistant {
         List<AssistantFact> ordered = orderedBy(selected, f -> f.label() + "|" + f.unit());
         int shown = Math.min(ordered.size(), MAX_DATA_LINES);
         lines.add(new Line("[S] Mostrando " + shown + " de " + all.size() + " diferencias comparadas" + scope
-            + (ordered.size() > shown ? " (hay " + ordered.size() + " en este filtro; indicá un nivel o una medición para ver el resto)" : "")
+            + (ordered.size() > shown ? " (" + truncationHint(plan, ordered.size()) + ")" : "")
             + "; no comparables: " + summary.countB() + ".", List.of("S")));
         String currentGroup = null;
         for (AssistantFact fact : ordered.subList(0, shown)) {
@@ -696,8 +708,8 @@ final class StructuredAssistant {
             return new Answer(Intent.LIST_FINDING_CHANGES, join(lines), lines, 0, 0, true);
         }
         List<AssistantFact> selected = all.stream()
-            .filter(f -> plan.levels().isEmpty() || plan.levels().contains(f.level()))
-            .filter(f -> plan.classifications().isEmpty() || plan.classifications().contains(f.label()))
+            .filter(f -> plan.levels().isEmpty() || inList(plan.levels(), f.level()))
+            .filter(f -> plan.classifications().isEmpty() || inList(plan.classifications(), f.label()))
             .sorted(Comparator.comparingInt((AssistantFact f) -> levelRank(f.level())).thenComparing(AssistantFact::label))
             .toList();
         int shown = Math.min(selected.size(), MAX_DATA_LINES);

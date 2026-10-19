@@ -148,20 +148,41 @@ class StructuredAssistantTest {
     /* ------------------------------------------------------------------ nivel, métrica o lado incorrectos */
 
     @Test
-    void aFilterThatTheQuestionDoesNotMentionIsRejectedNotApplied() throws Exception {
+    void aFilterThatTheQuestionDoesNotMentionIsDroppedNotApplied() throws Exception {
         AssistantContext context = mendeleyLike();
         String json = "{\"intent\":\"LIST_MEASUREMENTS\",\"levels\":[\"L5-S1\"],\"metrics\":[],\"classifications\":[],\"only_present\":false}";
-        // La pregunta nombra L4-L5; el modelo eligió otro nivel: se rechaza en lugar de mostrar datos de otro nivel.
-        assertThrows(PlanException.class, () -> StructuredAssistant.parsePlan(json, "¿Qué mediciones hay en L4-L5?", context, mapper));
+        // La pregunta nombra L4-L5; el modelo eligió otro nivel: ese filtro se descarta (no se muestra solo L5-S1 como si se hubiera pedido).
+        assertEquals(List.of(), StructuredAssistant.parsePlan(json, "¿Qué mediciones hay en L4-L5?", context, mapper).levels());
         Plan ok = StructuredAssistant.parsePlan(json, "¿Qué mediciones hay en L5 S1?", context, mapper);
         assertEquals(List.of("L5-S1"), ok.levels());
         // Medición: la pregunta dice «altura», el modelo eligió «ancho».
         String metric = "{\"intent\":\"LIST_MEASUREMENTS\",\"levels\":[],\"metrics\":[\"ancho del disco\"],\"classifications\":[],\"only_present\":false}";
-        assertThrows(PlanException.class, () -> StructuredAssistant.parsePlan(metric, "¿Cuál es la altura del disco?", context, mapper));
+        assertEquals(List.of(), StructuredAssistant.parsePlan(metric, "¿Cuál es la altura del disco?", context, mapper).metrics());
         assertEquals(List.of("ancho del disco"), StructuredAssistant.parsePlan(metric, "¿Cuál es el ancho del disco?", context, mapper).metrics());
-        // Valor fuera del vocabulario real del estudio.
+        // El modelo rellena todas las mediciones aunque la pregunta no nombre ninguna: se descartan.
+        String all = "{\"intent\":\"LIST_MEASUREMENTS\",\"levels\":[\"L5-S1\"],\"metrics\":[\"altura del disco\",\"ancho del disco\"],\"classifications\":[],\"only_present\":false}";
+        Plan filled = StructuredAssistant.parsePlan(all, "¿Qué mediciones hay en el disco L5-S1?", context, mapper);
+        assertEquals(List.of("L5-S1"), filled.levels());
+        assertEquals(List.of(), filled.metrics());
+        // Valor fuera del vocabulario real del estudio: se rechaza.
         String vocab = "{\"intent\":\"LIST_MEASUREMENTS\",\"levels\":[\"L1-L2\"],\"metrics\":[],\"classifications\":[],\"only_present\":false}";
         assertThrows(PlanException.class, () -> StructuredAssistant.parsePlan(vocab, "mediciones de L1-L2", context, mapper));
+    }
+
+    @Test
+    void aLevelFilterOverMeasurementsWithoutLevelDoesNotFail() {
+        // Regresión: «sin nivel asignado» (level nulo) con un filtro de nivel lanzaba NullPointerException.
+        Study study = fx.studyWithContext("CASO-N", "PAT-N", LocalDate.of(2026, 10, 7), null, null, null, null, null, null);
+        fx.run(study, "run-n", AssistantTestFixtures.T0, List.of(AssistantTestFixtures.disc("L4-L5", "height", 5.79),
+            AssistantTestFixtures.measurement("sagittal-general-area", "disc area", null, "mm2", 2975.2)), null);
+        AssistantContext context = builder.buildStudy(study, "run-n");
+        Answer answer = StructuredAssistant.answer(new Plan(Intent.LIST_MEASUREMENTS, List.of("L4-L5"), List.of(), List.of(), false), context);
+        assertTrue(answer.text().contains("L4-L5 · altura del disco: 5,79 mm"), answer.text());
+        assertFalse(answer.text().contains("2975"), "la medición sin nivel no es de L4-L5");
+        assertVerified(answer, context);
+        Answer none = StructuredAssistant.answer(new Plan(Intent.LIST_MEASUREMENTS, List.of(), List.of("área del disco"), List.of(), false), context);
+        assertTrue(none.text().contains("sin nivel asignado · área del disco: 2975,2 mm²"), none.text());
+        assertVerified(none, context);
     }
 
     @Test
@@ -233,6 +254,7 @@ class StructuredAssistantTest {
         assertEquals((int) compared, answer.total());
         assertTrue(answer.text().contains("Mostrando " + StructuredAssistant.MAX_DATA_LINES + " de " + compared + " diferencias comparadas"), answer.text());
         assertTrue(answer.text().contains("indicá un nivel o una medición"));
+        assertFalse(answer.text().contains("en este filtro"), "sin filtro no se habla de filtro");
         long dataLines = answer.lines().stream().filter(l -> l.refs().size() == 1 && l.refs().get(0).startsWith("D")).count();
         assertEquals(StructuredAssistant.MAX_DATA_LINES, dataLines);
         assertVerified(answer, context);
