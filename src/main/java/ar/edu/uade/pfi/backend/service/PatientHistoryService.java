@@ -50,6 +50,7 @@ public class PatientHistoryService {
         }
     }
 
+    @SuppressWarnings("unchecked")
     private Map<String, Object> toHistoryStudy(Study study) {
         List<StudyRun> runs = repository.findRunsByStudyId(study.id());
         StudyRun latestRun = runs.isEmpty() ? null : runs.get(0);
@@ -68,6 +69,9 @@ public class PatientHistoryService {
         item.put("reviewedAt", latestRun == null || latestRun.reviewedAt() == null ? null : latestRun.reviewedAt().toString());
         item.put("measurementsByPlane", latestRun == null ? Map.of() : measurementsByPlane(latestRun.metricsSnapshot()));
         item.put("corrections", latestRun == null ? List.of() : corrections(latestRun.id()));
+        // Campo aditivo: resumen de la corrida real del análisis inicial (la misma de measurementsByPlane). Es null si el
+        // estudio no tiene corrida. Las mediciones se cuentan de ESA corrida; nunca se suman corridas distintas.
+        item.put("latestRun", latestRun == null ? null : latestRunSummary(latestRun, (List<Map<String, Object>>) item.get("corrections")));
         item.put("createdAt", study.createdAt().toString());
         item.put("updatedAt", study.updatedAt().toString());
         // Stage 84-C: the post-e50 AI product analysis summary (Stage 76/78/79's own concept,
@@ -82,6 +86,20 @@ public class PatientHistoryService {
      * Stage 84-D: {@code null} when the Study has no effective run yet -- this is a normal state
      * ("Sin análisis"), never an error, and the Study is never hidden because of it.
      */
+    private Map<String, Object> latestRunSummary(StudyRun run, List<Map<String, Object>> corrections) {
+        Map<String, List<Map<String, Object>>> byPlane = measurementsByPlane(run.metricsSnapshot());
+        int measurementCount = byPlane.values().stream().mapToInt(List::size).sum();
+        long correctedCount = corrections.stream().map(correction -> correction.get("measurementId")).distinct().count();
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("runId", run.multiplanarRunId());
+        summary.put("status", run.status());
+        summary.put("createdAt", run.createdAt().toString());
+        summary.put("planes", planes(run));
+        summary.put("measurementCount", measurementCount);
+        summary.put("correctedMeasurementCount", (int) correctedCount);
+        return summary;
+    }
+
     private Map<String, Object> productAnalysisSummary(Study study) {
         return runSelector.selectEffectiveRun(study.id()).map(this::toProductAnalysisSummary).orElse(null);
     }

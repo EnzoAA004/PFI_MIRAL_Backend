@@ -133,6 +133,12 @@ class PatientHistoryServiceTest {
         Map<String, List<Map<String, Object>>> measurements = (Map<String, List<Map<String, Object>>>) studies.get(0).get("measurementsByPlane");
         assertEquals(8.2, measurements.get("sagittal").get(0).get("aiValue"));
         assertEquals(1, ((List<?>) studies.get(0).get("corrections")).size());
+        // latestRun: resumen aditivo de la MISMA corrida que measurementsByPlane (no suma corridas distintas).
+        Map<String, Object> latestRun = (Map<String, Object>) studies.get(0).get("latestRun");
+        assertEquals("multi-new", latestRun.get("runId"));
+        assertEquals("completed", latestRun.get("status"));
+        assertEquals(measurements.get("sagittal").size(), latestRun.get("measurementCount"));
+        assertEquals(1, latestRun.get("correctedMeasurementCount"));
         String serialized = history.toString();
         assertFalse(serialized.contains("lordosisAngle"));
         assertFalse(serialized.contains("canalDiameter"));
