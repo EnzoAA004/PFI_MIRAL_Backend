@@ -14,8 +14,15 @@ public record ChatContextInfoDto(
     List<String> missing,
     int elementCount,
     String contextText,
-    Provider provider
+    Provider provider,
+    /** {@code structured} o {@code free}. */
+    String mode,
+    /** Las consultas que el asistente responde, con su intención; el texto exacto de cada una se resuelve sin consultar al modelo. */
+    List<SuggestedQuestion> suggestedQuestions
 ) {
+    public record SuggestedQuestion(String text, String intent) {
+    }
+
     public record Provider(boolean enabled, boolean available, String model) {
     }
 }

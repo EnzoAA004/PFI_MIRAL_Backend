@@ -71,6 +71,8 @@ public class SelfHostedLlmProvider implements LlmProvider {
         body.put("messages", messages);
         body.put("temperature", request.temperature());
         body.put("max_tokens", request.maxOutputTokens());
+        // Salida estructurada (esquema JSON estricto): la usa el modo acotado para que el modelo solo pueda elegir dentro de un vocabulario.
+        if (request.responseFormat() != null) body.put("response_format", request.responseFormat());
         return body;
     }
 

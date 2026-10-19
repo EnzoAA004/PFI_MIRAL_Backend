@@ -30,7 +30,16 @@ public record ChatResponseDto(
     long elapsedMs,
     Integer promptTokens,
     Integer completionTokens,
-    boolean truncated
+    boolean truncated,
+    /** {@code structured}: respuesta armada por el servidor con plantillas sobre datos registrados; {@code free}: texto libre del modelo (modo anterior). */
+    String mode,
+    /** Intención soportada que se respondió (modo acotado); {@code null} en el modo libre. */
+    String intent,
+    /** Cuántos elementos se muestran y cuántos hay en el ámbito pedido (modo acotado). */
+    Integer shownCount,
+    Integer totalCount,
+    /** La respuesta está respaldada por datos registrados (false si la consulta quedó fuera del alcance). */
+    boolean answerSupported
 ) {
     public record Reference(String ref, String label) {
     }

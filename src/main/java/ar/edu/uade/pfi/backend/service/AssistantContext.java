@@ -20,7 +20,9 @@ public record AssistantContext(
     String fingerprint,
     Map<String, String> elements,
     List<String> sources,
-    List<String> missing
+    List<String> missing,
+    /** Los mismos datos del texto, en forma estructurada: de acá salen las respuestas del modo acotado. */
+    List<AssistantFact> facts
 ) {
     public static final String KIND_STUDY = "study";
     public static final String KIND_PAIR = "pair";

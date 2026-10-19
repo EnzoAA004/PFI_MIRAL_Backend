@@ -158,6 +158,7 @@ public class AssistantContextBuilder {
             sources.add("findings_comparison");
         } else {
             lines.add("NO HAY COMPARACIÓN DE HALLAZGOS P10.7 PARA ESTE PAR. " + sideSummary("A", sideA) + " " + sideSummary("B", sideB));
+            lines.fact(withReason(AssistantFact.of("HS", AssistantFact.Kind.FINDING_CHANGE_SUMMARY), sideSummary("A", sideA) + " " + sideSummary("B", sideB)));
             lines.add("No se debe afirmar que algún hallazgo cambió, se mantuvo o está ausente: sin datos en los dos lados no hay comparación.");
             missing.add("Hallazgos P10.7 en A y/o B: sin ellos no hay comparación de hallazgos");
         }
@@ -185,6 +186,7 @@ public class AssistantContextBuilder {
             + (context.sequence().isDeclared() ? " (declarada por quien cargó el archivo)" : " (detectada del estudio)");
         long corrected = reading.measurements().stream().filter(Measurement::corrected).count();
         lines.element(prefix + "R", "Datos de la corrida" + (side.isEmpty() ? "" : " " + side));
+        lines.fact(runFact(prefix + "R", side, run, reading));
         lines.add("[" + prefix + "R] Corrida del análisis inicial · estado: " + run.status() + " · revisión profesional de las mediciones: "
             + reviewLabel(ReviewStatusMapper.toApiStatus(run.reviewStatus())) + " · modelo sagital: " + context.modelKey()
             + " · secuencia sagital: " + sequence + " · mediciones con corrección profesional: " + corrected);
@@ -228,6 +230,7 @@ public class AssistantContextBuilder {
                     n += 1;
                     String ref = "M" + n;
                     lines.element(ref, measurementTitle(measurement));
+                    lines.fact(measurementFact(ref, measurement));
                     items.add(measurementItem(ref, measurement));
                 }
                 lines.add("  " + (first.level() == null ? "sin nivel asignado" : first.level()) + " · " + first.plane()
@@ -290,6 +293,7 @@ public class AssistantContextBuilder {
     private void renderFindingsList(Lines lines, DiscFindingsComparator.Side side, String prefix, List<String> missing) {
         lines.add("");
         lines.add("HALLAZGOS DISCALES P10.7 (predicciones del modelo; ninguna tiene revisión profesional registrada)");
+        lines.fact(findingsStatusFact(side));
         if (side.status() != DiscFindingsComparator.SideStatus.READY) {
             lines.add("  " + side.reason());
             lines.add("  Sin hallazgos persistidos no hay resultados que resumir: la falta de dato no equivale a «ausente».");
@@ -314,6 +318,7 @@ public class AssistantContextBuilder {
                 n += 1;
                 String ref = prefix + "F" + n;
                 lines.element(ref, findingTitle(finding));
+                lines.fact(findingFact(ref, prefix, finding));
                 List<String> notes = new ArrayList<>();
                 if (!finding.evaluationDataset().equals(dataset)) notes.add("base de evaluación " + (finding.evaluationDataset().isEmpty() ? "no informada" : finding.evaluationDataset()));
                 if (!rolesOf(finding).equals(roles)) notes.add("modalidades " + rolesOf(finding));
@@ -397,6 +402,7 @@ public class AssistantContextBuilder {
             n += 1;
             String ref = "H" + n;
             lines.element(ref, FINDING_LABELS.getOrDefault(row.findingType(), row.findingType()) + " " + row.level());
+            lines.fact(findingChangeFact(ref, row));
             lines.add("  [" + ref + "] " + row.level() + " · " + FINDING_LABELS.getOrDefault(row.findingType(), row.findingType())
                 + ": A " + sideCell(row.reference(), row.rejected().get("reference"))
                 + " → B " + sideCell(row.current(), row.rejected().get("current"))
@@ -406,6 +412,7 @@ public class AssistantContextBuilder {
         int changes = result.mainCounts()[1] + result.researchCounts()[1];
         int notComparable = result.mainCounts()[3] + result.researchCounts()[3];
         int unchanged = result.mainCounts()[2] + result.researchCounts()[2];
+        lines.fact(findingChangeSummaryFact(changes, unchanged, notComparable, result.unreadableReference() + result.unreadableCurrent()));
         lines.add("  Resumen: " + changes + " con cambio de clase, " + unchanged + " sin cambio de clase, " + notComparable + " no comparables.");
         if (result.unreadableReference() + result.unreadableCurrent() > 0) {
             lines.add("  Hay " + (result.unreadableReference() + result.unreadableCurrent()) + " resultado(s) inválidos sin nivel o tipo identificable; no se interpretan como «ausente».");
@@ -433,6 +440,7 @@ public class AssistantContextBuilder {
     private void renderNumeric(Lines lines, InitialAnalysisComparisonDto numeric) {
         InitialAnalysisComparisonDto.Summary summary = numeric.summary();
         lines.add("Comparables: " + summary.comparedCount() + ". No comparables/excluidas: " + summary.excludedCount() + ".");
+        lines.fact(withCounts(AssistantFact.of("S", AssistantFact.Kind.DIFFERENCE_SUMMARY), summary.comparedCount(), summary.excludedCount(), null));
         lines.add(numeric.reference().sagittalSequence().isEmpty() && numeric.current().sagittalSequence().isEmpty() ? "" : "Secuencia sagital: A "
             + (numeric.reference().sagittalSequence().isEmpty() ? "no informada" : numeric.reference().sagittalSequence().toUpperCase(Locale.ROOT))
             + ", B " + (numeric.current().sagittalSequence().isEmpty() ? "no informada" : numeric.current().sagittalSequence().toUpperCase(Locale.ROOT)) + ".");
@@ -442,6 +450,7 @@ public class AssistantContextBuilder {
             n += 1;
             String ref = "D" + n;
             lines.element(ref, comparedLabel(row) + " " + row.level());
+            lines.fact(differenceFact(ref, row));
             String unit = row.unit() == null || row.unit().isEmpty() ? "" : " " + row.unit();
             String percent = row.deltaPercent() == null ? "variación % no calculable (A es 0)" : signed(row.deltaPercent()) + " %";
             lines.add("  [" + ref + "] " + row.level() + " · " + comparedLabel(row) + (row.experimental() ? " (experimental)" : "")
@@ -460,6 +469,7 @@ public class AssistantContextBuilder {
             List<InitialAnalysisComparisonDto.Exclusion> group = entry.getValue();
             String ref = "X" + x;
             lines.element(ref, "Mediciones no comparables: " + entry.getKey());
+            lines.fact(exclusionFact(ref, entry.getKey(), entry.getValue()));
             long a = group.stream().filter(e -> "reference".equalsIgnoreCase(e.side())).count();
             long b = group.stream().filter(e -> "current".equalsIgnoreCase(e.side())).count();
             String which = group.stream().limit(6)
@@ -494,6 +504,89 @@ public class AssistantContextBuilder {
         return value.corrected() ? " (corregido por un profesional; original de la IA " + num(value.originalValue()) + ")" : "";
     }
 
+    /* ------------------------------------------------------------------ hechos estructurados */
+
+    private static AssistantFact withReason(AssistantFact base, String reason) {
+        return new AssistantFact(base.ref(), base.kind(), base.side(), base.level(), base.group(), base.label(), base.unit(), base.value(),
+            base.originalValue(), base.corrected(), base.experimental(), base.plane(), base.slice(), base.classText(), base.probability(),
+            base.section(), base.referenceValue(), base.currentValue(), base.delta(), base.deltaPercent(), base.referenceCorrected(),
+            base.currentCorrected(), base.referenceOriginal(), base.currentOriginal(), base.status(), base.fromText(), base.toText(), reason,
+            base.reasonCode(), base.count(), base.countB(), base.countC());
+    }
+
+    private static AssistantFact withCounts(AssistantFact base, Integer count, Integer countB, Integer countC) {
+        return new AssistantFact(base.ref(), base.kind(), base.side(), base.level(), base.group(), base.label(), base.unit(), base.value(),
+            base.originalValue(), base.corrected(), base.experimental(), base.plane(), base.slice(), base.classText(), base.probability(),
+            base.section(), base.referenceValue(), base.currentValue(), base.delta(), base.deltaPercent(), base.referenceCorrected(),
+            base.currentCorrected(), base.referenceOriginal(), base.currentOriginal(), base.status(), base.fromText(), base.toText(), base.reason(),
+            base.reasonCode(), count, countB, countC);
+    }
+
+    private static AssistantFact runFact(String ref, String side, StudyRun run, Reading reading) {
+        int usable = (int) reading.measurements().stream().filter(m -> m.invalidReason() == null).count();
+        int corrected = (int) reading.measurements().stream().filter(m -> m.invalidReason() == null && m.corrected()).count();
+        return new AssistantFact(ref, AssistantFact.Kind.RUN, side, null, null, "Datos de la corrida", null, null, null, false, false, null, null,
+            reviewLabel(ReviewStatusMapper.toApiStatus(run.reviewStatus())), null, null, null, null, null, null, false, false, null, null,
+            run.status(), null, null, null, null, usable, corrected, null);
+    }
+
+    private static AssistantFact measurementFact(String ref, Measurement m) {
+        return new AssistantFact(ref, AssistantFact.Kind.MEASUREMENT, "", m.level(), m.labelKey(), metricLabel(m.labelKey()), m.unit(),
+            m.effectiveValue(), m.originalValue(), m.corrected(), m.experimental(), m.plane(), m.sliceIndex() == null ? null : m.sliceIndex() + 1,
+            null, null, null, null, null, null, null, false, false, null, null, null, null, null, null, null, null, null, null);
+    }
+
+    private static String sectionOf(DiscFindingsComparator.Finding finding) {
+        return "not_product_supported".equals(finding.deploymentStatus()) ? "research" : "main";
+    }
+
+    private static AssistantFact findingFact(String ref, String side, DiscFindingsComparator.Finding finding) {
+        return new AssistantFact(ref, AssistantFact.Kind.FINDING, side, finding.level(), finding.findingType(),
+            FINDING_LABELS.getOrDefault(finding.findingType(), finding.findingType()), null, null, null, false, false, null, null,
+            className(finding), finding.confidence(), sectionOf(finding), null, null, null, null, false, false, null, null,
+            finding.deploymentStatus(), null, null, null, null, null, null, null);
+    }
+
+    private static AssistantFact findingsStatusFact(DiscFindingsComparator.Side side) {
+        // value = cuántas de las clasificaciones válidas fueron predichas como presentes (presente, o Modic de algún tipo).
+        double predictedPresent = side.findings().stream().filter(f -> "presente".equals(className(f)) || className(f).startsWith("Modic tipo")).count();
+        return new AssistantFact("FS", AssistantFact.Kind.FINDINGS_STATUS, "", null, null, "Clasificaciones degenerativas por IA", null, predictedPresent, null,
+            false, false, null, null, null, null, null, null, null, null, null, false, false, null, null, side.status().name(), null, null,
+            side.status() == DiscFindingsComparator.SideStatus.READY ? null : side.reason(), null, side.findings().size(), side.rejected().size(), null);
+    }
+
+    private static AssistantFact findingChangeFact(String ref, DiscFindingsComparator.Row row) {
+        return new AssistantFact(ref, AssistantFact.Kind.FINDING_CHANGE, "", row.level(), row.findingType(),
+            FINDING_LABELS.getOrDefault(row.findingType(), row.findingType()), null, null, null, false, false, null, null, null, null,
+            row.section(), null, null, null, null, false, false, null, null, row.status(), sideCell(row.reference(), row.rejected().get("reference")),
+            sideCell(row.current(), row.rejected().get("current")), row.reason() == null ? null : row.reason().text(), null, null, null, null);
+    }
+
+    private static AssistantFact findingChangeSummaryFact(int changes, int unchanged, int notComparable, int unreadable) {
+        return new AssistantFact("HS", AssistantFact.Kind.FINDING_CHANGE_SUMMARY, "", null, null, "Comparación de clasificaciones", null, null, null,
+            false, false, null, null, null, null, null, null, null, null, null, false, false, null, null, "COMPARED", null, null,
+            unreadable > 0 ? unreadable + " resultado(s) inválidos sin nivel o tipo identificable; no se interpretan como «ausente»." : null,
+            null, changes, notComparable, unchanged);
+    }
+
+    private static AssistantFact differenceFact(String ref, InitialAnalysisComparisonDto.Row row) {
+        return new AssistantFact(ref, AssistantFact.Kind.DIFFERENCE, "", row.level(), row.structure() + "|" + row.metric(), comparedLabel(row), row.unit(),
+            null, null, false, row.experimental(), row.plane(), null, null, null, null, row.reference().effectiveValue(), row.current().effectiveValue(),
+            row.deltaAbsolute(), row.deltaPercent(), row.reference().corrected(), row.current().corrected(), row.reference().originalValue(),
+            row.current().originalValue(), null, null, null, null, null, null, null, null);
+    }
+
+    private static AssistantFact exclusionFact(String ref, String reasonCode, List<InitialAnalysisComparisonDto.Exclusion> group) {
+        long a = group.stream().filter(e -> "reference".equalsIgnoreCase(e.side())).count();
+        long b = group.stream().filter(e -> "current".equalsIgnoreCase(e.side())).count();
+        String which = group.stream().limit(6)
+            .map(e -> metricLabel(e.metricKey()) + " (" + ("reference".equalsIgnoreCase(e.side()) ? "A" : "B") + ", " + (e.level() == null ? "sin nivel" : e.level()) + ")")
+            .collect(java.util.stream.Collectors.joining("; ")) + (group.size() > 6 ? "; y " + (group.size() - 6) + " más" : "");
+        return new AssistantFact(ref, AssistantFact.Kind.EXCLUSION, "", null, reasonCode, which, null, null, null, false, false, null, null,
+            "en A " + a + ", en B " + b, null, null, null, null, null, null, false, false, null, null, null, null, null, group.get(0).reason(), reasonCode,
+            group.size(), null, null);
+    }
+
     /* ------------------------------------------------------------------ utilidades */
 
     private StudyRun requireRun(Study study, String runId, String role) {
@@ -515,7 +608,13 @@ public class AssistantContextBuilder {
             missing.forEach(item -> lines.add("- " + item));
         }
         String text = lines.text();
-        return new AssistantContext(scope, text, fingerprint(text), Map.copyOf(lines.elements), List.copyOf(sources), List.copyOf(missing));
+        List<AssistantFact> facts = new ArrayList<>(lines.facts);
+        int gap = 0;
+        for (String item : missing) {
+            gap += 1;
+            facts.add(withReason(AssistantFact.of("G" + gap, AssistantFact.Kind.MISSING), item));
+        }
+        return new AssistantContext(scope, text, fingerprint(text), Map.copyOf(lines.elements), List.copyOf(sources), List.copyOf(missing), List.copyOf(facts));
     }
 
     static String fingerprint(String text) {
@@ -548,6 +647,11 @@ public class AssistantContextBuilder {
     private static final class Lines {
         private final List<String> lines = new ArrayList<>();
         private final Map<String, String> elements = new LinkedHashMap<>();
+        private final List<AssistantFact> facts = new ArrayList<>();
+
+        void fact(AssistantFact fact) {
+            facts.add(fact);
+        }
 
         void add(String line) {
             if (line != null) lines.add(line);
