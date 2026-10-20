@@ -6,11 +6,11 @@ Documento autocontenido: describe el estado actual de la versión, no su histori
 
 ## A. Versión de referencia
 
-**Fecha del relevamiento:** 2026-10-19.
+**Fecha del relevamiento:** 2026-10-19 (actualizado el 2026-10-20 con el cambio de interacción «primera lectura sin IA», C.5.1).
 
 | Repositorio | Rama | SHA completo del código relevado | Enlace permanente |
 |---|---|---|---|
-| Frontend (`PFI_MVPTest_Enzo_Frontend`) | `agent/study-upload-review-20261006` | `4fc68cd66f69f18d21a33c57aa0235a563d19fea` | https://github.com/EnzoAA004/PFI_MVPTest_Enzo_Frontend/commit/4fc68cd66f69f18d21a33c57aa0235a563d19fea |
+| Frontend (`PFI_MVPTest_Enzo_Frontend`) | `agent/study-upload-review-20261006` | `0c915acd66ab77ac4ae0ea8fc62a8345750d00a6` | https://github.com/EnzoAA004/PFI_MVPTest_Enzo_Frontend/commit/0c915acd66ab77ac4ae0ea8fc62a8345750d00a6 |
 | Backend (`PFI_MVPTest_Enzo_Backend`) | `agent/patient-clinical-context-20261007` | `7d899cad8691e38963211df846a3a104f86e0477` | https://github.com/EnzoAA004/PFI_MVPTest_Enzo_Backend/commit/7d899cad8691e38963211df846a3a104f86e0477 |
 | Módulo IA (`PFI_MVPTest_Enzo_AImodule`) | `agent/sequence-declaration-20261014` | `a4dcdeefdb42e40ec4bf5c1735493839e6953660` | https://github.com/EnzoAA004/PFI_MVPTest_Enzo_AImodule/commit/a4dcdeefdb42e40ec4bf5c1735493839e6953660 |
 
@@ -100,6 +100,14 @@ Hay **tres etapas**, orquestadas **por el Frontend** (`features/worklist/product
 - **Leyendas:** la leyenda de segmentación sale de las **máscaras del plano canónico de la corrida** (`canonicalRun.planes[plano].masks`: `classKey`, color, contorno), leídas por `canonicalMasksForPlane`. **Cada corrida tiene su propia paleta**; el visor individual y cada lado de la comparación usan la misma lectura. El color de una clase no implica anatomía.
 - **Errores:** asset ausente (la imagen no se muestra y se indica), corrida sin clases publicadas (la leyenda lo dice).
 
+### C.5.1 Primera lectura sin IA y activación explícita (cambio de interacción, 2026-10-20)
+- **Qué cambió:** al abrir o recargar un estudio el visor muestra la **imagen original**: sin segmentación, trazos automáticos, mediciones de IA, derivadas, puntos de referencia, leyenda ni lista de estructuras; y el panel de resultados (Mediciones y Hallazgos IA) arranca en un estado compacto. Se activan con una acción explícita: botón **«Mostrar IA» / «Ocultar IA»** (accesible por teclado) y **«Mostrar resultados de la IA»**.
+- **Dónde vive:** `StudyReviewView.tsx` (estado `{ key, overlays, results }` atado a `caso|corrida`, por encima de las pestañas), `PlaneViewport.tsx` (botón), `MriSliceViewer.tsx` (props `aiVisible` y `evidenceMeasurementIds`; todo lo que dibuja la IA depende de `aiVisible`).
+- **Reglas:** el estado **no se persiste** (ni `localStorage` ni `sessionStorage`): abrir otro estudio, reabrirlo o recargar vuelve a empezar apagado; cambiar de pestaña dentro del estudio lo conserva. Mostrar/ocultar IA **no** cambia corte, zoom, ventana/nivel, corrida ni correcciones, y no borra resultados. Las anotaciones del profesional («Mis mediciones») no dependen del interruptor.
+- **Visor dual (C.7):** ambos lados empiezan sin superposiciones y cada uno tiene su **control independiente**; los resultados comparados (Diferencias y Hallazgos IA) se abren con **«Mostrar resultados comparados»**. Elegir una medición o un hallazgo muestra **solo su evidencia** (trazo o región evaluada) con estado visible y la posibilidad de ocultarla; cambiar de referencia vuelve a empezar sin IA.
+- **Alcance (lo que NO afirma):** esto evita la **exposición inicial automática** a las predicciones; **no** elimina todo sesgo de lectura. El profesional puede activar la IA cuando quiera y los resultados siguen rotulados como asistidos por IA que requieren revisión profesional. No cambia el análisis, los datos guardados ni el Backend.
+- **Para los diagramas:** es una transición de estado **solo del Frontend** («IA oculta» → «IA visible» por acción del usuario); no hay llamadas nuevas ni persistencia nueva. Documento detallado en el repositorio del Frontend: `docs/PRIMERA_LECTURA_SIN_IA.md`.
+
 ### C.6 Correcciones, anotaciones, guardado y aprobación profesional
 - **Front:** pestaña Revisión de `StudyReviewView.tsx`; `features/navigation/*` (aviso de cambios sin guardar); `api.ts`.
 - **Endpoints (`AiRunReviewController`, `/api/ai/runs/{multiplanarRunId}`):** `POST|PUT /review` (estado, notas y correcciones de medición), `GET /review`, `PUT|GET /annotations`. Clases `RunReviewService`, `ReviewerAnnotationService`, `EffectiveMeasurementResolver` (valor efectivo = corrección si existe, valor de la IA si no).
@@ -187,7 +195,7 @@ Hay **tres etapas**, orquestadas **por el Frontend** (`features/worklist/product
 **Implementado, con verificación pendiente:**
 - **«Finalizar y aprobar estudio»:** el entorno de pruebas denegó la acción y no se eludió. Pasos manuales sobre un caso de prueba propio (`TESIS-PRUEBA-1019`, paciente sintético): abrir el estudio → Revisión → elegir «Finalizado» y confirmar → «Finalizar y aprobar estudio». Esperado: estado «Finalizado» con revisor y fecha; al recargar se mantiene y coincide en la lista y en el historial del paciente. No hacerlo en estudios de datasets reales.
 - **Asistente A/B con respuesta nueva en un par real:** no se ejecutó una pregunta nueva en el par OSF (para no escribir en él). Las conversaciones guardadas de ese par pertenecen a una versión anterior del asistente. El intento de capturar el visor dual del par de **prueba** (`REVFIN-2110` frente a `PREISO-58044`, dos estudios cargados desde el mismo ZIP) terminó por **tiempo de espera de 30 s en un clic del script de captura**; la causa **no se diagnosticó** y **no es un fallo confirmado del LLM ni del producto**.
-- Comparación de hallazgos degenerativos **con cambios de clasificación:** no existe un par real con esos datos (el par OSF informa «no hay hallazgos comparables»).
+- Comparación de hallazgos degenerativos **con cambios de clasificación:** el par OSF informa «no hay hallazgos comparables». Existe un **par de prueba** (`caso1` referencia, `caso2` actual; mismo paciente de prueba `Prueba-001`) con 40 clasificaciones comparadas: 31 sin cambio, 9 con cambio (7 principales y 2 de investigación) y 0 no comparables. Sus archivos coinciden por hash con las dos visitas preparadas del paciente ID10 del dataset OSF, pero en el sistema es un **par de prueba: no se presenta como seguimiento clínico verificado** (no hay fechas de adquisición ni identificador de paciente en la base que lo confirme).
 - Edad **calculada** (requiere fecha de nacimiento y del estudio): no se verificó en pantalla con datos reales; se verificó la edad declarada.
 - Cierre de sesión en otra pestaña, registro de cuenta nueva, error 500 de la lista y carga con imágenes faltantes: no verificados.
 - Exportar a PDF en el navegador del usuario (verificado solo en Chromium automatizado).
@@ -198,3 +206,5 @@ Hay **tres etapas**, orquestadas **por el Frontend** (`features/worklist/product
 - La modalidad del estudio no se registra; la fecha y la edad no se infieren del DICOM (se cargan a mano o quedan «No informadas»).
 - Aprobación o firma del preinforme (es solo borrador).
 - Integración con `main`.
+
+**Entorno de presentación (local, no versionado):** como el sistema no tiene un mecanismo soportado para eliminar estudios (no hay endpoint de borrado en el Backend ni en el módulo IA, ni acción en la interfaz), la presentación usa un **entorno aislado** con otro proyecto Docker (frontend `8388`, backend `8380`, IA `8300`, PostgreSQL `54359`, volúmenes propios) que contiene únicamente tres estudios copiados con INSERT desde el entorno principal (`8288`, que no se modificó). Para los diagramas de despliegue sigue valiendo la topología de B; el entorno aislado es solo otra instancia de la misma.
