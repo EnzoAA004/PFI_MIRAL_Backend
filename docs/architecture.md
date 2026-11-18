@@ -38,7 +38,7 @@ No conoce la URL interna del AI Module ni descarga assets directamente desde él
 
 ### Backend
 
-Aplicación Spring Boot sobre Java 17. Sus responsabilidades actuales son:
+Aplicación Spring Boot sobre Java 21. Sus responsabilidades actuales son:
 
 - autenticación JWT, estados de cuenta y autorización por roles;
 - API REST y contrato OpenAPI;

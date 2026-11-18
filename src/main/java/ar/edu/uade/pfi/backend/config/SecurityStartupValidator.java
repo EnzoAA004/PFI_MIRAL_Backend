@@ -99,6 +99,12 @@ public class SecurityStartupValidator {
         // Corre antes del corte por perfil: un runtime cloud/demo puede exigir IA privada sin
         // estar marcado como "production".
         validateAiServiceAuthorization();
+        if (!environment.getProperty("K_SERVICE", "").isBlank()) {
+            validateAuthEnabled();
+            validateDemoDisabled();
+            validateDevCodesHidden();
+            validateJwtSecret();
+        }
         if (!isProductionProfile()) {
             log.info("startup.securityValidator.ok");
             return;

@@ -31,13 +31,13 @@ Para el Quick Start con imágenes publicadas sólo se necesita:
 
 Para trabajar desde código fuente:
 
-- Java 17;
+- Java 21;
 - Maven 3.8.3 o superior;
 - Python 3.12 recomendado para el AI Module;
-- Node.js 22 y npm para el frontend;
+- Node.js 24 y npm para el frontend;
 - los tres repositorios clonados como carpetas hermanas.
 
-Maven Enforcer rechaza un JDK distinto de Java 17.
+El proyecto compila para Java 21. CI y Docker usan JDK 21.
 
 ## Quick Start
 

@@ -29,7 +29,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-pfi}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-local-only}
     ports:
-      - "${POSTGRES_PORT:-54329}:5432"
+      - "${PFI_BIND_ADDRESS:-127.0.0.1}:${POSTGRES_PORT:-54329}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -95,7 +95,7 @@ services:
       PFI_STORAGE_LOCAL_ROOT: /app/storage/object_storage
       PFI_STORAGE_GCS_BUCKET: ${PFI_STORAGE_GCS_BUCKET:-}
     ports:
-      - "${BACKEND_PORT:-8080}:8080"
+      - "${PFI_BIND_ADDRESS:-127.0.0.1}:${BACKEND_PORT:-8080}:8080"
     volumes:
       - backend-storage:/app/storage
     depends_on:
@@ -122,7 +122,7 @@ services:
       # interna de Docker.
       BACKEND_URL: ${BACKEND_PUBLIC_URL:-http://localhost:8080}
     ports:
-      - "${FRONTEND_PORT:-8088}:80"
+      - "${PFI_BIND_ADDRESS:-127.0.0.1}:${FRONTEND_PORT:-8088}:80"
     depends_on:
       backend:
         condition: service_healthy

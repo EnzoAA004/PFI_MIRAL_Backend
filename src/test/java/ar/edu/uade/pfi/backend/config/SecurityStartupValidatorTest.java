@@ -13,6 +13,16 @@ class SecurityStartupValidatorTest {
     private static final String EXACT_ORIGIN = "https://pfi-mvp-test-enzo-frontend.vercel.app";
 
     @Test
+    void cloudRunEnforcesIdentitySettingsEvenWithoutAnActiveProfile() {
+        MockEnvironment env = new MockEnvironment().withProperty("K_SERVICE", "audit-service");
+        assertThrows(IllegalStateException.class, () -> validator(env, STRONG_SECRET, false, false, false, "postgres", EXACT_ORIGIN, "", false).validate());
+        assertThrows(IllegalStateException.class, () -> validator(env, STRONG_SECRET, true, true, false, "postgres", EXACT_ORIGIN, "", false).validate());
+        assertThrows(IllegalStateException.class, () -> validator(env, STRONG_SECRET, true, false, true, "postgres", EXACT_ORIGIN, "", false).validate());
+        assertThrows(IllegalStateException.class, () -> validator(env, "", true, false, false, "postgres", EXACT_ORIGIN, "", false).validate());
+        assertDoesNotThrow(() -> validator(env, STRONG_SECRET, true, false, false, "postgres", EXACT_ORIGIN, "", false).validate());
+    }
+
+    @Test
     void nonProductionProfileNeverBlocksStartupRegardlessOfConfig() {
         MockEnvironment env = new MockEnvironment();
         assertDoesNotThrow(() -> validator(env, "", false, true, true, "memory", "", "*", true).validate());
