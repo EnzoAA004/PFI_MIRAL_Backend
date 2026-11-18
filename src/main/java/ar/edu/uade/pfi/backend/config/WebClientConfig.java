@@ -37,7 +37,9 @@ public class WebClientConfig {
     }
 
     @Bean
-    public WebClient aiWebClient(AiServiceProperties properties, AiServiceAuthorizationProvider authorizationProvider) {
+    public WebClient aiWebClient(
+            AiServiceProperties properties,
+            @Qualifier("aiServiceAuthorizationProvider") AiServiceAuthorizationProvider authorizationProvider) {
         // El techo de respuesta queda en el mas largo de todos —una corrida multiplanar—,
         // y cada llamada lo acota hacia abajo segun lo que pide. Ver AiServiceClient.
         int timeoutSeconds = properties.resolvedTimeoutSeconds();

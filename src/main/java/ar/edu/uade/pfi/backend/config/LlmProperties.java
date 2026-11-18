@@ -1,6 +1,7 @@
 package ar.edu.uade.pfi.backend.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.ConstructorBinding;
 
 /**
  * Stage 80: configuration for the self-hosted LLM provider (Qwen2.5-7B-Instruct behind an
@@ -25,6 +26,9 @@ public record LlmProperties(
     String audience,
     Boolean privateRequired
 ) {
+    @ConstructorBinding
+    public LlmProperties {}
+
     public LlmProperties(Boolean enabled, String provider, String baseUrl, String model,
             Integer timeoutSeconds, Double temperature, Integer maxOutputTokens, Integer historyWindowTurns) {
         this(enabled, provider, baseUrl, model, timeoutSeconds, temperature, maxOutputTokens,
