@@ -175,3 +175,13 @@ El workflow publica en GHCR:
 - [Backend](https://github.com/EnzoAA004/PFI_MVPTest_Enzo_Backend)
 - [AI Module](https://github.com/EnzoAA004/PFI_MVPTest_Enzo_AImodule)
 - [Frontend](https://github.com/EnzoAA004/PFI_MVPTest_Enzo_Frontend)
+
+## Versiones verificadas el 18 de noviembre de 2026
+
+| Entorno de este componente | Referencia de código | Digest observado |
+|---|---|---|
+| Código fuente de partida en GitHub, rama main | 233f8d15625168bc868445e5314125b39345f216 | Depende del build local |
+| Docker local con imagen publicada en GHCR | 646f4a123e77f9572fa0c5c4ede0990b1535945d (etiqueta OCI de revisión) | sha256:29b91f1faa91649e6824a1806643ae1a8a4f1fb636e2f8a225c8937aa12ce1a2 |
+| Cloud Run E2E con tráfico en us-central1 | sha-ba76fa928c53ece6022bde432ba03a4497e39551 (tag de Artifact Registry) | sha256:98565af622ab68e73f09ea0379453f8c53289d206c78ee989393628c53f4c427 |
+
+Para reproducir la modalidad desde fuente, clonar los tres repositorios hermanos y usar el Compose local del backend. Para reproducir un despliegue publicado, fijar el digest individual de cada servicio. La etiqueta latest puede cambiar. Volver a verificar la revisión con tráfico y su digest en cada evaluación cloud.
