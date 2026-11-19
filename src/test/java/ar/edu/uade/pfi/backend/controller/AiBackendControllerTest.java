@@ -121,7 +121,7 @@ class AiBackendControllerTest {
                       "caseId": "case-001",
                       "plane": "sagittal",
                       "modelKey": "baseline",
-                      "inputPath": "studies/case-001"
+                      "inputId": "input-001"
                     }
                     """))
             .andExpect(status().isOk())
@@ -134,6 +134,16 @@ class AiBackendControllerTest {
             .andExpect(jsonPath("$.humanReviewRequired").value(true))
             .andExpect(jsonPath("$.notClinicalDiagnosis").value(true))
             .andExpect(jsonPath("$.review.status").value("pendiente"));
+    }
+
+    @Test
+    void pipelineRunRejectsFilesystemPathWithoutRegisteredInputId() throws Exception {
+        mockMvc.perform(post("/api/ai/pipeline/run")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"caseId":"case-001","plane":"sagittal","inputPath":"/etc/passwd"}
+                    """))
+            .andExpect(status().isBadRequest());
     }
 
     @Test

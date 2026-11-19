@@ -6,12 +6,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import ar.edu.uade.pfi.backend.client.AiProductCheckpointClient;
+import ar.edu.uade.pfi.backend.auth.RoleAuthorizationService;
 import ar.edu.uade.pfi.backend.dto.DiscDegenerativeProductRequestDto;
 import ar.edu.uade.pfi.backend.dto.DiscSegmentationSourceDto;
+import ar.edu.uade.pfi.backend.dto.FullSeriesSegmentationRequestDto;
 import ar.edu.uade.pfi.backend.service.DiscDegenerativeFindingsPersistenceService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -19,6 +23,8 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.web.server.ResponseStatusException;
+import jakarta.servlet.http.HttpServletRequest;
 
 /**
  * P10.9 hardening: {@code classification.probabilities} is needed internally (upstream contract
@@ -31,6 +37,46 @@ class AiProductCheckpointControllerTest {
   private final ObjectMapper mapper = new ObjectMapper();
 
   @Test
+  void fullSeriesRejectsInputFromAnotherCaseBeforeCallingAi() {
+    AiProductCheckpointClient client = mock(AiProductCheckpointClient.class);
+    RoleAuthorizationService authorization = mock(RoleAuthorizationService.class);
+    HttpServletRequest request = mock(HttpServletRequest.class);
+    AiProductCheckpointController controller = new AiProductCheckpointController(
+        client, mock(DiscDegenerativeFindingsPersistenceService.class), authorization);
+    doThrow(new ResponseStatusException(org.springframework.http.HttpStatus.NOT_FOUND))
+        .when(authorization).requireResourceBelongsToStudy(request, "input-b", "case-a", true);
+
+    org.junit.jupiter.api.Assertions.assertThrows(
+        ResponseStatusException.class,
+        () -> controller.runFullSeries(
+            new FullSeriesSegmentationRequestDto("case-a", "input-b", "sagittal", "sagittal_spider"), request));
+
+    verify(authorization).requireStudyWrite(request, "case-a");
+    verify(authorization).requireResourceBelongsToStudy(request, "input-b", "case-a", true);
+    verify(client, never()).runFullSeriesSegmentation(any());
+  }
+
+  @Test
+  void discProductChecksCaseAndEverySecondaryBodyReference() {
+    AiProductCheckpointClient client = mock(AiProductCheckpointClient.class);
+    RoleAuthorizationService authorization = mock(RoleAuthorizationService.class);
+    HttpServletRequest request = mock(HttpServletRequest.class);
+    AiProductCheckpointController controller = new AiProductCheckpointController(
+        client, mock(DiscDegenerativeFindingsPersistenceService.class), authorization);
+    DiscDegenerativeProductRequestDto body = new DiscDegenerativeProductRequestDto(
+        "run-a", "case-a", List.of(new DiscSegmentationSourceDto("sagittal_t2", "input-b", "seg-b")));
+    doThrow(new ResponseStatusException(org.springframework.http.HttpStatus.NOT_FOUND))
+        .when(authorization).requireResourceBelongsToStudy(request, "input-b", "case-a", true);
+
+    org.junit.jupiter.api.Assertions.assertThrows(
+        ResponseStatusException.class, () -> controller.predictDiscDegenerative(body, request));
+
+    verify(authorization).requireResourceBelongsToStudy(request, "run-a", "case-a", true);
+    verify(authorization).requireResourceBelongsToStudy(request, "input-b", "case-a", true);
+    verify(client, never()).predictDiscDegenerativeFromSegmentation(any());
+  }
+
+  @Test
   void publicPredictDiscDegenerativeResponseNeverContainsProbabilitiesButKeepsLabelAndGovernance()
       throws Exception {
     AiProductCheckpointClient client = mock(AiProductCheckpointClient.class);
@@ -40,7 +86,7 @@ class AiProductCheckpointControllerTest {
     when(client.predictDiscDegenerativeFromSegmentation(any())).thenReturn(upstream);
 
     AiProductCheckpointController controller =
-        new AiProductCheckpointController(client, persistence);
+        new AiProductCheckpointController(client, persistence, mock(RoleAuthorizationService.class));
     DiscDegenerativeProductRequestDto request =
         new DiscDegenerativeProductRequestDto(
             "multi-1",

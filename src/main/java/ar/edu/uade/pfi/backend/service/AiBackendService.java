@@ -472,7 +472,7 @@ public class AiBackendService {
         byte[] rawBytes = readAllBytes(file);
         Map<String, Object> response = normalizeForFrontend(aiServiceClient.uploadStudy(file, normalizedCaseId));
         StudyUploadResponseDto publicResponse = toStudyUploadResponse(normalizedCaseId, response);
-        persistStudyInputDurably(publicResponse.studyId(), rawBytes, file.getOriginalFilename());
+        persistStudyInputDurably(publicResponse.studyId(), caseId, rawBytes, file.getOriginalFilename());
         String traceId = text(response.get("traceId"));
         audit("backend", "upload.study.completed", publicResponse.studyId(), traceId, Map.of(
             "caseId", publicResponse.caseId(),
@@ -493,7 +493,7 @@ public class AiBackendService {
      * doctor is waiting on, since the AI module already accepted and processed the
      * study — see docs/cloud/CLOUD_DURABLE_STORAGE_DESIGN.md.
      */
-    private void persistStudyInputDurably(String studyId, byte[] rawBytes, String originalFilename) {
+    private void persistStudyInputDurably(String studyId, String caseId, byte[] rawBytes, String originalFilename) {
         if (objectStorage == null || durableObjectAssetRepository == null) return;
         if (studyId == null || studyId.isBlank() || rawBytes == null || rawBytes.length == 0) return;
         try {
@@ -505,6 +505,7 @@ public class AiBackendService {
             durableObjectAssetRepository.save(new ar.edu.uade.pfi.backend.domain.DurableObjectAsset(
                 assetId,
                 studyId,
+                caseId,
                 null,
                 null,
                 stored.objectKey(),
@@ -541,7 +542,7 @@ public class AiBackendService {
                 "Almacenamiento durable no configurado.");
         }
         ar.edu.uade.pfi.backend.domain.DurableObjectAsset asset = durableObjectAssetRepository
-            .findLatestStudyInput(normalizedStudyId)
+            .findLatestStudyInput(normalizedStudyId, normalizedCaseId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                 "No hay un input DICOM durable para este studyId."));
         byte[] content = objectStorage.get(asset.objectKey())

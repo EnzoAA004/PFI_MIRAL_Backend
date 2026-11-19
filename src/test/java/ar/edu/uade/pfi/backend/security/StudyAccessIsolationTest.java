@@ -64,6 +64,49 @@ class StudyAccessIsolationTest {
     }
 
     @Test
+    void missingAndUnassignedHistoricalStudiesFailClosed() {
+        Instant now = Instant.now();
+        repository.saveStudy(new Study("legacy-unassigned", "legacy-unassigned-case", "registered", now, now));
+        assertThrows(org.springframework.web.server.ResponseStatusException.class,
+            () -> authorization.requireStudyRead(request("any-user"), "never-existed"));
+        assertThrows(org.springframework.web.server.ResponseStatusException.class,
+            () -> authorization.requireStudyRead(request("any-user"), "legacy-unassigned-case"));
+        assertTrue(repository.claimStudyOwner("new-upload-case", "upload-owner"));
+        assertDoesNotThrow(() -> authorization.requireStudyWrite(request("upload-owner"), "new-upload-case"));
+        assertThrows(org.springframework.web.server.ResponseStatusException.class,
+            () -> authorization.requireStudyWrite(request("other-user"), "new-upload-case"));
+    }
+
+    @Test
+    void secondaryBodyResourceMustBelongToTheRequestedCase() {
+        Instant now = Instant.now();
+        repository.saveStudy(new Study("study-a", "case-a", "registered", now, now));
+        repository.saveStudy(new Study("study-b", "case-b", "registered", now, now));
+        repository.saveInput(new InputResource("row-a", "study-a", "sagittal", "input-a", "DICOM", 1, now));
+        repository.saveInput(new InputResource("row-b", "study-b", "sagittal", "input-b", "DICOM", 1, now));
+        assertTrue(repository.claimStudyOwner("case-a", "owner-a"));
+        assertTrue(repository.claimStudyOwner("case-b", "owner-b"));
+
+        assertDoesNotThrow(() -> authorization.requireResourceBelongsToStudy(request("owner-a"), "input-a", "case-a", true));
+        assertThrows(org.springframework.web.server.ResponseStatusException.class,
+            () -> authorization.requireResourceBelongsToStudy(request("owner-a"), "input-b", "case-a", true));
+        assertThrows(org.springframework.web.server.ResponseStatusException.class,
+            () -> authorization.requireResourceBelongsToStudy(request("owner-a"), "unknown-input", "case-a", true));
+    }
+
+    @Test
+    void onlyOwnerCanManageExplicitStudyGrants() {
+        Instant now = Instant.now();
+        repository.saveStudy(new Study("study-owned", "case-owned", "registered", now, now));
+        assertTrue(repository.claimStudyOwner("case-owned", "owner"));
+        authorization.grantStudyAccess(request("owner"), "case-owned", "writer", "WRITE");
+
+        assertThrows(org.springframework.web.server.ResponseStatusException.class,
+            () -> authorization.grantStudyAccess(request("writer"), "case-owned", "reader", "READ"));
+        assertFalse(repository.hasStudyAccess("case-owned", "reader", false));
+    }
+
+    @Test
     void indirectImageAndResultRoutesResolveBackToTheOwningStudy() {
         Instant now = Instant.now();
         repository.saveStudy(new Study("study-images", "case-images", "registered", now, now));

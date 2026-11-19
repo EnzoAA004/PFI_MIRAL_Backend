@@ -66,22 +66,23 @@ public class PostgresDurableObjectAssetRepository implements DurableObjectAssetR
             PreparedStatement statement = connection.prepareStatement(
                 """
                 INSERT INTO domain_durable_object_assets(
-                    asset_id, study_id, run_id, report_id, object_key, content_type,
+                    asset_id, study_id, case_id, run_id, report_id, object_key, content_type,
                     size_bytes, sha256, artifact_type, storage_provider, original_filename, created_at
-                ) VALUES (?::uuid, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?::uuid, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """)) {
             statement.setString(1, asset.assetId());
             statement.setString(2, asset.studyId());
-            statement.setString(3, asset.runId());
-            statement.setString(4, asset.reportId());
-            statement.setString(5, asset.objectKey());
-            statement.setString(6, asset.contentType());
-            statement.setLong(7, asset.sizeBytes());
-            statement.setString(8, asset.sha256());
-            statement.setString(9, asset.artifactType());
-            statement.setString(10, asset.storageProvider());
-            statement.setString(11, asset.originalFilename());
-            statement.setTimestamp(12, Timestamp.from(asset.createdAt()));
+            statement.setString(3, asset.caseId());
+            statement.setString(4, asset.runId());
+            statement.setString(5, asset.reportId());
+            statement.setString(6, asset.objectKey());
+            statement.setString(7, asset.contentType());
+            statement.setLong(8, asset.sizeBytes());
+            statement.setString(9, asset.sha256());
+            statement.setString(10, asset.artifactType());
+            statement.setString(11, asset.storageProvider());
+            statement.setString(12, asset.originalFilename());
+            statement.setTimestamp(13, Timestamp.from(asset.createdAt()));
             statement.executeUpdate();
             return asset;
         } catch (Exception ex) {
@@ -104,13 +105,14 @@ public class PostgresDurableObjectAssetRepository implements DurableObjectAssetR
     }
 
     @Override
-    public Optional<DurableObjectAsset> findLatestStudyInput(String studyId) {
+    public Optional<DurableObjectAsset> findLatestStudyInput(String studyId, String caseId) {
         try (Connection connection = connection();
             PreparedStatement statement = connection.prepareStatement(
                 SELECT_COLUMNS
-                    + " WHERE study_id = ? AND artifact_type = 'study_input'"
+                    + " WHERE study_id = ? AND case_id = ? AND artifact_type = 'study_input'"
                     + " ORDER BY created_at DESC LIMIT 1")) {
             statement.setString(1, studyId);
+            statement.setString(2, caseId);
             try (ResultSet rs = statement.executeQuery()) {
                 return rs.next() ? Optional.of(readRow(rs)) : Optional.empty();
             }
@@ -139,7 +141,7 @@ public class PostgresDurableObjectAssetRepository implements DurableObjectAssetR
 
     private static final String SELECT_COLUMNS =
         """
-        SELECT asset_id, study_id, run_id, report_id, object_key, content_type,
+        SELECT asset_id, study_id, case_id, run_id, report_id, object_key, content_type,
                size_bytes, sha256, artifact_type, storage_provider, original_filename, created_at
         FROM domain_durable_object_assets
         """;
@@ -148,6 +150,7 @@ public class PostgresDurableObjectAssetRepository implements DurableObjectAssetR
         return new DurableObjectAsset(
             rs.getObject("asset_id", UUID.class).toString(),
             rs.getString("study_id"),
+            rs.getString("case_id"),
             rs.getString("run_id"),
             rs.getString("report_id"),
             rs.getString("object_key"),

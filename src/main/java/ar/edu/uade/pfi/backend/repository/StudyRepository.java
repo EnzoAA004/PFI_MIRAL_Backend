@@ -41,6 +41,8 @@ public interface StudyRepository {
 
     default boolean hasStudyAccess(String caseId, String principalId, boolean write) { return false; }
 
+    default boolean isStudyOwner(String caseId, String principalId) { return false; }
+
     default void grantStudyAccess(String caseId, String principalId, String permission, String grantedBy) { throw new UnsupportedOperationException("Study access grants are not supported"); }
 
     default List<String> findAccessibleCaseIds(String principalId) { return List.of(); }

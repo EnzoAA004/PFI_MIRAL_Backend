@@ -11,6 +11,7 @@ import java.util.Objects;
 public record DurableObjectAsset(
     String assetId,
     String studyId,
+    String caseId,
     String runId,
     String reportId,
     String objectKey,

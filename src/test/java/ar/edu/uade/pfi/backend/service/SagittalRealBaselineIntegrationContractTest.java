@@ -177,7 +177,7 @@ class SagittalRealBaselineIntegrationContractTest {
     void strictValidResponseIsSanitizedAndKeepsClinicalSafetyFlags() throws Exception {
         AiServiceOperations ai = mock(AiServiceOperations.class);
         ReviewStoreService reviews = mockReviewStore();
-        when(ai.runPipeline(any())).thenReturn(validPipelineResponse());
+        when(ai.runPipeline(any())).thenReturn(validPipelineResponseForInputId());
 
         strictMockMvc(ai, reviews).perform(post("/api/ai/pipeline/run")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -186,7 +186,7 @@ class SagittalRealBaselineIntegrationContractTest {
                       "caseId": "case-001",
                       "plane": "sagittal",
                       "modelKey": "sagittal-spider-final-v1",
-                      "inputPath": "input-sag-001",
+                      "inputId": "inp_test_sagittal_001",
                       "metadata": {"inferenceMode": "real_baseline"}
                     }
                     """))
@@ -533,7 +533,7 @@ class SagittalRealBaselineIntegrationContractTest {
               "caseId": "case-001",
               "plane": "sagittal",
               "modelKey": "sagittal_spider",
-              "inputPath": "input-sag-001",
+              "inputId": "inp_test_sagittal_001",
               "metadata": {"inferenceMode": "real_baseline", "allowContractFallback": false}
             }
             """;

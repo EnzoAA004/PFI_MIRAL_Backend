@@ -51,8 +51,9 @@ class AiBackendServiceDurableStudyPersistenceTest {
 
         service.uploadStudy(file, "CASE-001");
 
-        DurableObjectAsset stored = repo.findLatestStudyInput("study-durable-1").orElseThrow();
+        DurableObjectAsset stored = repo.findLatestStudyInput("study-durable-1", "CASE-001").orElseThrow();
         assertEquals("study_input", stored.artifactType());
+        assertEquals("CASE-001", stored.caseId());
         assertEquals("filesystem", stored.storageProvider());
         assertTrue(storage.exists(stored.objectKey()));
     }
@@ -140,9 +141,9 @@ class AiBackendServiceDurableStudyPersistenceTest {
         }
 
         @Override
-        public Optional<DurableObjectAsset> findLatestStudyInput(String studyId) {
+        public Optional<DurableObjectAsset> findLatestStudyInput(String studyId, String caseId) {
             return assets.stream()
-                .filter(a -> a.studyId().equals(studyId) && "study_input".equals(a.artifactType()))
+                .filter(a -> a.studyId().equals(studyId) && caseId.equals(a.caseId()) && "study_input".equals(a.artifactType()))
                 .max(java.util.Comparator.comparing(DurableObjectAsset::createdAt));
         }
 

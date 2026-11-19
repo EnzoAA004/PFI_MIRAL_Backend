@@ -90,7 +90,7 @@ class StudyPatientControllerTest {
     mockMvc
         .perform(assign("CASE-MISSING", patient.id(), null, "INITIAL_ASSIGNMENT"))
         .andExpect(status().isNotFound())
-        .andExpect(jsonPath("$.code").value("STUDY_NOT_FOUND"));
+        .andExpect(jsonPath("$.code").value("NOT_FOUND"));
     mockMvc
         .perform(assign(study.caseId(), "invalid", null, "INITIAL_ASSIGNMENT"))
         .andExpect(status().isBadRequest())
@@ -212,7 +212,9 @@ class StudyPatientControllerTest {
 
   private Patient patient(String reference) {
     Instant now = Instant.now();
-    return patients.save(new Patient(UUID.randomUUID().toString(), reference, now, now));
+    Patient patient = patients.save(new Patient(UUID.randomUUID().toString(), reference, now, now));
+    assertTrue(patients.claimPatientOwner(patient.id(), "reviewer-id"));
+    return patient;
   }
 
   private Study study(String caseId, String patientId, String subjectRef) {

@@ -38,6 +38,15 @@ public class RoleAuthorizationService {
     requireStudyWrite(request, caseId);
   }
 
+  /** Requires a secondary resource to belong to the already-authorized study in the route/body. */
+  public void requireResourceBelongsToStudy(HttpServletRequest request, String resourceId, String expectedCaseId, boolean write) {
+    if (resourceId == null || resourceId.isBlank()) return;
+    if (studyRepository == null) return;
+    String resolvedCaseId = studyRepository.resolveStudyCaseId(resourceId).orElse(null);
+    if (resolvedCaseId == null || !resolvedCaseId.equals(expectedCaseId)) denyStudy(request, expectedCaseId);
+    requireStudy(request, expectedCaseId, write);
+  }
+
   public void claimOrRequireStudyWrite(HttpServletRequest request, String caseId) {
     if (studyRepository == null) return;
     String principal = principal(request);
@@ -71,12 +80,20 @@ public class RoleAuthorizationService {
   public void grantStudyAccess(HttpServletRequest request, String caseId, String principalId, String permission) {
     if (studyRepository == null) return;
     String principal = principal(request);
-    if (!studyRepository.hasStudyAccess(caseId, principal, true)) denyStudy(request, caseId);
+    if (studyRepository.findStudyByCaseId(caseId).isEmpty() || !studyRepository.isStudyOwner(caseId, principal)) denyStudy(request, caseId);
     studyRepository.grantStudyAccess(caseId, principalId, permission, principal);
   }
 
   private void requireStudy(HttpServletRequest request, String caseId, boolean write) {
-    if (studyRepository == null || studyRepository.findStudyByCaseId(caseId).isEmpty()) return;
+    if (studyRepository == null) return;
+    if (caseId == null || caseId.isBlank()) denyStudy(request, "");
+    if (studyRepository.findStudyByCaseId(caseId).isEmpty()) {
+      // Initial uploads reserve a new case by creating an OWNER grant before the study
+      // catalogue row exists. That one scoped owner may continue the upload workflow;
+      // absent/unassigned historical studies and arbitrary callers still fail closed.
+      if (studyRepository.hasStudyAccess(caseId, principal(request), write)) return;
+      denyStudy(request, caseId);
+    }
     if (!studyRepository.hasStudyAccess(caseId, principal(request), write)) denyStudy(request, caseId);
   }
 

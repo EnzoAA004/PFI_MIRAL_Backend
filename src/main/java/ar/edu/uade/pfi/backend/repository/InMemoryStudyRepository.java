@@ -109,6 +109,11 @@ public class InMemoryStudyRepository implements StudyRepository {
     }
 
     @Override
+    public boolean isStudyOwner(String caseId, String principalId) {
+        return caseId != null && principalId != null && principalId.equals(studyOwnersByCaseId.get(caseId));
+    }
+
+    @Override
     public void grantStudyAccess(String caseId, String principalId, String permission, String grantedBy) {
         if (!grantedBy.equals(studyOwnersByCaseId.get(caseId))) throw new IllegalStateException("Only the study owner can grant access");
         if ("OWNER".equals(permission) || !List.of("READ", "WRITE").contains(permission)) throw new IllegalArgumentException("Invalid study permission");

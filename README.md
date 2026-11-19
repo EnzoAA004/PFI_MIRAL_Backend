@@ -12,6 +12,11 @@ Frontend React → Backend Spring Boot → AI Module FastAPI
 
 El frontend consume exclusivamente este backend. La salida de IA es técnica, revisable y mantiene `humanReviewRequired=true`.
 
+## Autores académicos
+
+- Enzo Andrea Asplanatti.
+- Francisco Ezequiel Fabrello.
+
 ## Arquitectura
 
 El backend es la frontera HTTP del sistema: autentica usuarios, aplica permisos, valida contratos, coordina el AI Module, persiste estudios/corridas/revisiones y sirve los assets permitidos al navegador.
@@ -32,7 +37,7 @@ Para el Quick Start con imágenes publicadas sólo se necesita:
 Para trabajar desde código fuente:
 
 - Java 21;
-- Maven 3.8.3 o superior;
+- Maven 3.9.15 (la imagen de build usa la misma versión);
 - Python 3.12 recomendado para el AI Module;
 - Node.js 24 y npm para el frontend;
 - los tres repositorios clonados como carpetas hermanas.

@@ -14,6 +14,7 @@ import ar.edu.uade.pfi.backend.dto.ReviewUpdateRequestDto;
 import ar.edu.uade.pfi.backend.dto.StudyUploadResponseDto;
 import ar.edu.uade.pfi.backend.auth.RoleAuthorizationService;
 import ar.edu.uade.pfi.backend.service.AiBackendService;
+import ar.edu.uade.pfi.backend.service.StudyRunService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -37,11 +38,17 @@ import org.springframework.web.multipart.MultipartFile;
 public class AiBackendController {
     private final AiBackendService aiBackendService;
     private final RoleAuthorizationService authorizationService;
+    private final StudyRunService studyRunService;
+
+    public AiBackendController(AiBackendService aiBackendService, RoleAuthorizationService authorizationService) {
+        this(aiBackendService, authorizationService, null);
+    }
 
     @Autowired
-    public AiBackendController(AiBackendService aiBackendService, RoleAuthorizationService authorizationService) {
+    public AiBackendController(AiBackendService aiBackendService, RoleAuthorizationService authorizationService, StudyRunService studyRunService) {
         this.aiBackendService = aiBackendService;
         this.authorizationService = authorizationService;
+        this.studyRunService = studyRunService;
     }
 
     /**
@@ -83,8 +90,20 @@ public class AiBackendController {
 
     @PostMapping("/pipeline/run")
     public Map<String, Object> runPipeline(@Valid @RequestBody PipelineRunRequestDto request, HttpServletRequest httpRequest) {
+        requireSafeInputReference(request.caseId(), request.inputId(), request.inputPath());
         authorizationService.requireStudyWrite(httpRequest, request.caseId());
+        authorizationService.requireResourceBelongsToStudy(httpRequest, request.inputId(), request.caseId(), true);
         return aiBackendService.runPipeline(request);
+    }
+
+    private void requireSafeInputReference(String caseId, String inputId, String inputPath) {
+        if (inputId != null && !inputId.isBlank()) return;
+        String demoAlias = "demo/" + caseId;
+        if (caseId != null && caseId.matches("[A-Za-z0-9][A-Za-z0-9_-]{0,127}")
+            && inputPath != null && inputPath.equals(demoAlias)) return;
+        throw new org.springframework.web.server.ResponseStatusException(
+            org.springframework.http.HttpStatus.BAD_REQUEST,
+            "inputId es obligatorio; las rutas del filesystem solo se admiten dentro del flujo interno.");
     }
 
     @PostMapping(value = "/inputs", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -115,7 +134,9 @@ public class AiBackendController {
         HttpServletRequest httpRequest
     ) {
         authorizationService.claimOrRequireStudyWrite(httpRequest, caseId);
-        return aiBackendService.uploadStudy(file, caseId);
+        StudyUploadResponseDto uploaded = aiBackendService.uploadStudy(file, caseId);
+        if (studyRunService != null) studyRunService.registerUploadedStudy(uploaded);
+        return uploaded;
     }
 
     /**
@@ -129,7 +150,9 @@ public class AiBackendController {
         HttpServletRequest httpRequest
     ) {
         authorizationService.requireStudyWrite(httpRequest, caseId);
-        return aiBackendService.reprocessStudy(studyId, caseId);
+        StudyUploadResponseDto uploaded = aiBackendService.reprocessStudy(studyId, caseId);
+        if (studyRunService != null) studyRunService.registerUploadedStudy(uploaded);
+        return uploaded;
     }
 
     @GetMapping("/assets/{runId}/{plane}/{assetName}")

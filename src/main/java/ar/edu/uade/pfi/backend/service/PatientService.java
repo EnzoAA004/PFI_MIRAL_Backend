@@ -151,6 +151,9 @@ public class PatientService {
     if (databaseCall(() -> patientRepository.findById(targetPatientId)).isEmpty()) {
       throw patientNotFound();
     }
+    if (actor == null || actor.isBlank() || !patientRepository.isPatientOwner(targetPatientId, actor)) {
+      throw patientNotFound();
+    }
 
     Study current =
         databaseCall(() -> studyRepository.findStudyByCaseId(caseId))

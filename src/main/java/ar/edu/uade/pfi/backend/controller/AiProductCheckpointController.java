@@ -4,7 +4,6 @@ import ar.edu.uade.pfi.backend.client.AiProductCheckpointClient;
 import ar.edu.uade.pfi.backend.auth.RoleAuthorizationService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.lang.Nullable;
 import ar.edu.uade.pfi.backend.dto.DiscDegenerativeProductRequestDto;
 import ar.edu.uade.pfi.backend.dto.DiscSegmentationSourceDto;
 import ar.edu.uade.pfi.backend.dto.FullSeriesSegmentationRequestDto;
@@ -48,7 +47,7 @@ public class AiProductCheckpointController {
   @Autowired
   public AiProductCheckpointController(
       AiProductCheckpointClient aiClient, DiscDegenerativeFindingsPersistenceService persistence,
-      @Nullable RoleAuthorizationService authorization) {
+      RoleAuthorizationService authorization) {
     this.aiClient = aiClient;
     this.persistence = persistence;
     this.authorization = authorization;
@@ -56,7 +55,7 @@ public class AiProductCheckpointController {
 
   @GetMapping("/checkpoint")
   public Map<String, Object> checkpoint(HttpServletRequest request) {
-    if (authorization != null) authorization.requireAdmin(request, "ai.product.checkpoint");
+    authorization.requireAdmin(request, "ai.product.checkpoint");
     Map<String, Object> result = new LinkedHashMap<>(aiClient.productCheckpoint());
     result.put(
         "backendContract",
@@ -73,10 +72,8 @@ public class AiProductCheckpointController {
   @PostMapping("/series-segmentation")
   public Map<String, Object> runFullSeries(@RequestBody FullSeriesSegmentationRequestDto request, HttpServletRequest httpRequest) {
     requireFullSeriesRequest(request);
-    if (authorization != null) {
-      authorization.requireStudyWrite(httpRequest, request.caseId());
-      authorization.requireStudyResourceWrite(httpRequest, request.inputId());
-    }
+    authorization.requireStudyWrite(httpRequest, request.caseId());
+    authorization.requireResourceBelongsToStudy(httpRequest, request.inputId(), request.caseId(), true);
     Map<String, Object> response = aiClient.runFullSeriesSegmentation(request);
     requireFullSeriesResponse(response);
     return response;
@@ -100,9 +97,14 @@ public class AiProductCheckpointController {
   public Map<String, Object> predictDiscDegenerative(
       @RequestBody DiscDegenerativeProductRequestDto request, HttpServletRequest httpRequest) {
     requireDiscRequest(request);
-    if (authorization != null) {
-      authorization.requireStudyWrite(httpRequest, request.caseId());
-      authorization.requireStudyResourceWrite(httpRequest, request.multiplanarRunId());
+    authorization.requireStudyWrite(httpRequest, request.caseId());
+    authorization.requireResourceBelongsToStudy(
+        httpRequest, request.multiplanarRunId(), request.caseId(), true);
+    for (DiscSegmentationSourceDto source : request.sources()) {
+      authorization.requireResourceBelongsToStudy(
+          httpRequest, source.inputId(), request.caseId(), true);
+      authorization.requireResourceBelongsToStudy(
+          httpRequest, source.segmentationRunId(), request.caseId(), true);
     }
     return predictDiscDegenerativeInternal(request);
   }

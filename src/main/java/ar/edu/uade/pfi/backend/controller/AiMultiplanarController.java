@@ -195,7 +195,12 @@ public class AiMultiplanarController {
       content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
   @PostMapping("/run")
   public MultiplanarRunResponseDto run(@Valid @RequestBody MultiplanarRunApiRequestDto request, HttpServletRequest httpRequest) {
+    requireSafePublicInputReferences(request);
     if (authorizationService != null) authorizationService.claimOrRequireStudyWrite(httpRequest, request.caseId());
+    if (authorizationService != null) {
+      authorizationService.requireResourceBelongsToStudy(httpRequest, request.sagittalInputId(), request.caseId(), true);
+      authorizationService.requireResourceBelongsToStudy(httpRequest, request.axialInputId(), request.caseId(), true);
+    }
     PreparedStudyMetadata preparedMetadata =
         persistenceService == null
             ? null
@@ -218,6 +223,32 @@ public class AiMultiplanarController {
     }
     auditSuccess(normalized, canonical);
     return presented;
+  }
+
+  /** Public callers identify uploaded files by opaque registry IDs, never by container paths. */
+  private void requireSafePublicInputReferences(MultiplanarRunApiRequestDto request) {
+    boolean strictReal = "real_baseline".equalsIgnoreCase(
+        request.metadata() == null ? "" : String.valueOf(request.metadata().get("inferenceMode")))
+        && Boolean.FALSE.equals(request.allowContractFallback());
+    requireSafePlaneReference(request.caseId(), "sagittal", request.sagittalInputId(), request.sagittalInputPath(), strictReal);
+    requireSafePlaneReference(request.caseId(), "axial", request.axialInputId(), request.axialInputPath(), strictReal);
+  }
+
+  private void requireSafePlaneReference(String caseId, String plane, String inputId, String inputPath, boolean strictReal) {
+    String normalizedId = valueOrNull(inputId);
+    String normalizedPath = valueOrNull(inputPath);
+    if (normalizedId != null && normalizedPath == null) return;
+    if (normalizedId != null && normalizedPath != null) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Enviar solamente inputId o inputPath, no ambos.");
+    }
+    // Keep the fixed local demo fixture alias working; it is not a filesystem path. All real
+    // inputs, including strict real_baseline, must be registered and addressed by inputId.
+    String safeDemoAlias = "demo/" + caseId + "/" + plane;
+    if (!strictReal && safeDemoAlias.equals(normalizedPath)) return;
+    if (normalizedId == null && normalizedPath == null && "axial".equals(plane)) return;
+    throw new ResponseStatusException(
+        HttpStatus.BAD_REQUEST,
+        "inputId es obligatorio; las rutas del filesystem solo se admiten dentro del flujo interno.");
   }
 
   private MultiplanarRunRequestDto normalizedRequest(

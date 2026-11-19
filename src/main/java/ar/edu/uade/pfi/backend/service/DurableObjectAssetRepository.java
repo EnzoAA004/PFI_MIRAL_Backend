@@ -11,7 +11,7 @@ public interface DurableObjectAssetRepository {
     Optional<DurableObjectAsset> findById(String assetId);
 
     /** Most recent {@code study_input} asset for a study -- used to reprocess without re-upload. */
-    Optional<DurableObjectAsset> findLatestStudyInput(String studyId);
+    Optional<DurableObjectAsset> findLatestStudyInput(String studyId, String caseId);
 
     List<DurableObjectAsset> findByStudyId(String studyId);
 }

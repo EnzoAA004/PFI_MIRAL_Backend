@@ -15,7 +15,7 @@ public record PipelineRunRequestDto(
     String normalizedPlane = plane == null ? "" : plane.trim().toLowerCase();
     modelKey = normalizeModelKey(modelKey, normalizedPlane);
     inputId = inputId == null ? null : inputId.trim();
-    inputPath = normalizeInputPath(inputPath, caseId, metadata);
+    inputPath = normalizeInputPath(inputPath, caseId, inputId, metadata);
     metadata = metadata == null ? Map.of("source", "backend-default-contract") : metadata;
   }
 
@@ -47,10 +47,11 @@ public record PipelineRunRequestDto(
   }
 
   private static String normalizeInputPath(
-      String inputPath, String caseId, Map<String, Object> metadata) {
+      String inputPath, String caseId, String inputId, Map<String, Object> metadata) {
     if (inputPath != null && !inputPath.isBlank()) {
       return inputPath;
     }
+    if (inputId != null && !inputId.isBlank()) return null;
     Object inferenceMode = metadata == null ? null : metadata.get("inferenceMode");
     if (inferenceMode != null
         && "real_baseline".equals(inferenceMode.toString().trim().toLowerCase(Locale.ROOT))) {

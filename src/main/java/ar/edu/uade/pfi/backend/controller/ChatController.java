@@ -42,6 +42,9 @@ public class ChatController {
     public ChatResponseDto chat(@PathVariable String caseId, @RequestBody(required = false) ChatRequestDto request, HttpServletRequest httpRequest) {
         if (authorizationService != null) authorizationService.requireStudyWrite(httpRequest, caseId);
         ChatRequestDto body = request == null ? new ChatRequestDto(null, null, null, null) : request;
+        if (authorizationService != null && body.baselineCaseId() != null && !body.baselineCaseId().isBlank()) {
+            authorizationService.requireStudyRead(httpRequest, body.baselineCaseId());
+        }
         return chatService.chat(caseId, body, traceId(httpRequest));
     }
 

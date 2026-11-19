@@ -7,6 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import ar.edu.uade.pfi.backend.domain.InputResource;
 import ar.edu.uade.pfi.backend.domain.Study;
 import ar.edu.uade.pfi.backend.domain.StudyRun;
+import ar.edu.uade.pfi.backend.dto.StudyUploadResponseDto;
+import ar.edu.uade.pfi.backend.dto.StudyUploadSeriesDto;
 import ar.edu.uade.pfi.backend.repository.InMemoryStudyRepository;
 import java.time.Clock;
 import java.time.Instant;
@@ -16,6 +18,26 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class StudyRunServiceTest {
+  @Test
+  void registersUploadedStudyAndEverySeriesBeforeReturningInputIds() {
+    InMemoryStudyRepository repository = new InMemoryStudyRepository();
+    StudyRunService service = new StudyRunService(repository);
+    StudyUploadResponseDto upload = new StudyUploadResponseDto(
+        "CASE-UPLOAD-9002",
+        "ai-study-9002",
+        List.of(
+            new StudyUploadSeriesDto("input-sag-9002", "sagittal", "T2 sagittal", "T2", 8, false, false, true),
+            new StudyUploadSeriesDto("input-ax-9002", "axial", "T2 axial", "T2", 6, false, false, true)),
+        null, null, null, null, List.of(), true, true);
+
+    Study study = service.registerUploadedStudy(upload);
+
+    assertEquals("uploaded", study.status());
+    assertEquals("CASE-UPLOAD-9002", repository.findStudyByCaseId("CASE-UPLOAD-9002").orElseThrow().caseId());
+    assertEquals(2, repository.findInputsByStudyId(study.id()).size());
+    assertTrue(repository.resolveStudyCaseId("input-sag-9002").orElseThrow().equals("CASE-UPLOAD-9002"));
+  }
+
   @Test
   void persistsAndRecoversStudyInputsAndRunTraceability() {
     StudyRunService service =

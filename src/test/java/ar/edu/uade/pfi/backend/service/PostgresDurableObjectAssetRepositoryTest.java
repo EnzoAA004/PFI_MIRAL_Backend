@@ -33,8 +33,9 @@ class PostgresDurableObjectAssetRepositoryTest {
     void savesAndFindsByAssetIdAndByStudyId() {
         PostgresDurableObjectAssetRepository repo = repository();
         String studyId = "study-" + UUID.randomUUID();
+        String caseId = "case-" + UUID.randomUUID();
         DurableObjectAsset asset = new DurableObjectAsset(
-            UUID.randomUUID().toString(), studyId, null, null,
+            UUID.randomUUID().toString(), studyId, caseId, null, null,
             "studies/" + studyId + "/inputs/a1/study.zip", "application/zip", 42L, "deadbeef",
             "study_input", "filesystem", "study.zip", Instant.now());
 
@@ -52,18 +53,20 @@ class PostgresDurableObjectAssetRepositoryTest {
     void findsLatestStudyInputAmongMultipleUploadsForSameStudy() throws InterruptedException {
         PostgresDurableObjectAssetRepository repo = repository();
         String studyId = "study-" + UUID.randomUUID();
+        String caseId = "case-" + UUID.randomUUID();
         DurableObjectAsset first = new DurableObjectAsset(
-            UUID.randomUUID().toString(), studyId, null, null,
+            UUID.randomUUID().toString(), studyId, caseId, null, null,
             "studies/" + studyId + "/inputs/a1/study.zip", "application/zip", 10L, "aaaa",
             "study_input", "filesystem", "study.zip", Instant.now().minusSeconds(60));
         DurableObjectAsset second = new DurableObjectAsset(
-            UUID.randomUUID().toString(), studyId, null, null,
+            UUID.randomUUID().toString(), studyId, caseId, null, null,
             "studies/" + studyId + "/inputs/a2/study.zip", "application/zip", 20L, "bbbb",
             "study_input", "filesystem", "study.zip", Instant.now());
         repo.save(first);
         repo.save(second);
 
-        DurableObjectAsset latest = repo.findLatestStudyInput(studyId).orElseThrow();
+        DurableObjectAsset latest = repo.findLatestStudyInput(studyId, caseId).orElseThrow();
+        assertTrue(repo.findLatestStudyInput(studyId, "other-case").isEmpty());
 
         assertEquals(second.assetId(), latest.assetId());
         assertTrue(latest.createdAt().isAfter(first.createdAt()));
@@ -73,6 +76,7 @@ class PostgresDurableObjectAssetRepositoryTest {
     void repeatedRepositoryOperationsReuseThePoolInsteadOfOpeningANewConnectionEachTime() {
         PostgresDurableObjectAssetRepository repo = repository();
         String studyId = "study-pool-" + UUID.randomUUID();
+        String caseId = "case-pool-" + UUID.randomUUID();
 
         // Cloud P0B/4B: this is the exact pattern (one DriverManager.getConnection()
         // per call) that made every real request to Cloud Run's active revision
@@ -82,7 +86,7 @@ class PostgresDurableObjectAssetRepositoryTest {
         // bookkeeping assertions.
         for (int i = 0; i < 30; i++) {
             DurableObjectAsset asset = new DurableObjectAsset(
-                UUID.randomUUID().toString(), studyId, null, null,
+                UUID.randomUUID().toString(), studyId, caseId, null, null,
                 "studies/" + studyId + "/inputs/a" + i + "/study.zip", "application/zip",
                 (long) (i + 1), "hash-" + i, "study_input", "filesystem", "study.zip", Instant.now());
             repo.save(asset);

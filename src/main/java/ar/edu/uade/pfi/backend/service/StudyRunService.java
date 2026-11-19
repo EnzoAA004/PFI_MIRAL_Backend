@@ -8,6 +8,8 @@ import ar.edu.uade.pfi.backend.domain.RunArtifact;
 import ar.edu.uade.pfi.backend.domain.Study;
 import ar.edu.uade.pfi.backend.domain.StudyRun;
 import ar.edu.uade.pfi.backend.dto.StudyMetadataDto;
+import ar.edu.uade.pfi.backend.dto.StudyUploadResponseDto;
+import ar.edu.uade.pfi.backend.dto.StudyUploadSeriesDto;
 import ar.edu.uade.pfi.backend.repository.StudyRepository;
 import java.time.Clock;
 import java.time.Instant;
@@ -50,6 +52,43 @@ public class StudyRunService {
             now,
             now
         ));
+    }
+
+    /** Registers the trusted AI Module catalogue before returning uploaded input IDs to a client. */
+    public Study registerUploadedStudy(StudyUploadResponseDto upload) {
+        if (upload == null || upload.caseId() == null || upload.caseId().isBlank()) {
+            throw new IllegalArgumentException("caseId de la carga es obligatorio");
+        }
+        Study study = upsertStudyMetadata(upload.caseId(), "uploaded", null);
+        List<StudyUploadSeriesDto> series = upload.seriesFound();
+        if (series != null && !series.isEmpty()) {
+            for (StudyUploadSeriesDto item : series) {
+                if (item == null || item.inputId() == null || item.inputId().isBlank()) continue;
+                createInput(
+                    study,
+                    valueOrDefault(item.plane(), "unknown"),
+                    item.inputId(),
+                    "ai-module-input",
+                    0,
+                    valueOrDefault(item.description(), ""),
+                    valueOrDefault(item.weighting(), ""),
+                    item.sliceCount() == null ? 0 : item.sliceCount(),
+                    item.multiplanar(),
+                    item.derived(),
+                    item.analyzable());
+            }
+        } else {
+            registerUploadedPlane(study, "sagittal", upload.sagittal());
+            registerUploadedPlane(study, "axial", upload.axial());
+            registerUploadedPlane(study, "sagittal", upload.sagittalT1());
+            registerUploadedPlane(study, "sagittal", upload.sagittalT2());
+        }
+        return study;
+    }
+
+    private void registerUploadedPlane(Study study, String plane, ar.edu.uade.pfi.backend.dto.StudyUploadInputDto input) {
+        if (input == null || input.inputId() == null || input.inputId().isBlank()) return;
+        createInput(study, plane, input.inputId(), "ai-module-input", input.size());
     }
 
     public PreparedStudyMetadata prepareStudyMetadata(String caseId, StudyMetadataDto metadata) {

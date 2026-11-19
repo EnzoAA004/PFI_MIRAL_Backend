@@ -373,6 +373,21 @@ public class PostgresStudyRepository implements StudyRepository {
     }
 
     @Override
+    public boolean isStudyOwner(String caseId, String principalId) {
+        if (caseId == null || principalId == null) return false;
+        try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
+            SELECT 1 FROM domain_study_access_grants
+            WHERE case_id = ? AND principal_id = ? AND permission = 'OWNER'
+            """)) {
+            statement.setString(1, caseId);
+            statement.setString(2, principalId);
+            try (ResultSet rs = statement.executeQuery()) { return rs.next(); }
+        } catch (Exception ex) {
+            throw new IllegalStateException("Could not verify study owner", ex);
+        }
+    }
+
+    @Override
     public void grantStudyAccess(String caseId, String principalId, String permission, String grantedBy) {
         try (Connection connection = connection(); PreparedStatement ownerCheck = connection.prepareStatement("SELECT 1 FROM domain_study_access_grants WHERE case_id = ? AND principal_id = ? AND permission = 'OWNER'")) {
             ownerCheck.setString(1, caseId);
