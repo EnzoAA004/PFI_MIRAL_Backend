@@ -25,6 +25,9 @@ import ar.edu.uade.pfi.backend.repository.StudyRepository;
 import ar.edu.uade.pfi.backend.util.ResponseNormalizer;
 import ar.edu.uade.pfi.backend.domain.RunArtifact;
 import ar.edu.uade.pfi.backend.domain.RunAssetContent;
+import ar.edu.uade.pfi.backend.domain.InputResource;
+import ar.edu.uade.pfi.backend.domain.Study;
+import java.time.Instant;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -429,6 +432,7 @@ public class AiBackendService {
         String normalizedPlane = normalized(plane);
         validateInputUpload(file, normalizedCaseId, normalizedPlane);
         AiInputResponseDto response = aiServiceClient.uploadInput(file, normalizedCaseId, normalizedPlane);
+        persistInputResource(response, normalizedCaseId, normalizedPlane, file.getOriginalFilename());
         audit("backend", "upload.input.completed", response.inputId(), "", Map.of(
             "caseId", response.caseId(),
             "plane", response.plane(),
@@ -458,6 +462,7 @@ public class AiBackendService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "sourceKey incompatible con plane");
         }
         AiInputResponseDto response = aiServiceClient.registerServerSideInput(normalizedCaseId, normalizedPlane, normalizedSourceKey);
+        persistInputResource(response, normalizedCaseId, normalizedPlane, normalizedPlane + ".npy");
         audit("backend", "upload.input.server_side.completed", response.inputId(), "", Map.of(
             "caseId", response.caseId(),
             "plane", response.plane(),
@@ -466,6 +471,26 @@ public class AiBackendService {
             "sourceKey", normalizedSourceKey
         ));
         return response;
+    }
+
+    private void persistInputResource(AiInputResponseDto response, String expectedCaseId, String expectedPlane, String filename) {
+        if (studyRepository == null) return;
+        if (response == null || trimmed(response.inputId()).isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "El AI Module no devolvió un inputId válido.");
+        }
+        if (!expectedCaseId.equals(trimmed(response.caseId())) || !expectedPlane.equals(normalized(response.plane()))) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "El AI Module devolvió un input fuera del caso o plano solicitado.");
+        }
+        Study study = studyRepository.findStudyByCaseId(expectedCaseId).orElseGet(() -> {
+            Instant now = Instant.now();
+            studyRepository.saveStudy(new Study(UUID.randomUUID().toString(), expectedCaseId, "uploaded", now, now));
+            return studyRepository.findStudyByCaseId(expectedCaseId)
+                .orElseThrow(() -> new IllegalStateException("Could not persist study for uploaded AI input"));
+        });
+        String format = trimmed(response.format());
+        if (format.isBlank()) format = inputExtension(filename);
+        studyRepository.saveInput(new InputResource(
+            UUID.randomUUID().toString(), study.id(), expectedPlane, response.inputId(), format, response.size(), Instant.now()));
     }
     public StudyUploadResponseDto uploadStudy(MultipartFile file, String caseId) {
         String normalizedCaseId = trimmed(caseId);
