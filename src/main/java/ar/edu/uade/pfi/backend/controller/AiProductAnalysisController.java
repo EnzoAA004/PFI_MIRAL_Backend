@@ -48,20 +48,33 @@ public class AiProductAnalysisController {
      * accepted on the wire (deprecated) but have no effect.
      */
     @PostMapping("/product-analysis")
-    public AiProductAnalysisResultDto analyze(@PathVariable String caseId, @RequestBody(required = false) AiProductAnalysisApiRequestDto request) {
+    public AiProductAnalysisResultDto analyze(@PathVariable String caseId, @RequestBody(required = false) AiProductAnalysisApiRequestDto request, HttpServletRequest httpRequest) {
+        authorizationService.requireStudyWrite(httpRequest, caseId);
+        AiProductAnalysisApiRequestDto body = request == null ? new AiProductAnalysisApiRequestDto(null, null, null) : request;
+        return persistenceService.analyze(caseId, body.metadata());
+    }
+
+    // Package-local service harness retained for the controller's focused unit tests; HTTP uses the secured overload above.
+    AiProductAnalysisResultDto analyze(String caseId, AiProductAnalysisApiRequestDto request) {
         AiProductAnalysisApiRequestDto body = request == null ? new AiProductAnalysisApiRequestDto(null, null, null) : request;
         return persistenceService.analyze(caseId, body.metadata());
     }
 
     @GetMapping("/product-analyses")
-    public AiProductAnalysisHistoryResponseDto history(@PathVariable String caseId) {
+    public AiProductAnalysisHistoryResponseDto history(@PathVariable String caseId, HttpServletRequest httpRequest) {
+        authorizationService.requireStudyRead(httpRequest, caseId);
         return new AiProductAnalysisHistoryResponseDto(caseId, persistenceService.history(caseId));
     }
 
+    AiProductAnalysisHistoryResponseDto history(String caseId) { return new AiProductAnalysisHistoryResponseDto(caseId, persistenceService.history(caseId)); }
+
     @GetMapping("/product-analyses/{analysisId}")
-    public AiProductAnalysisResultDto detail(@PathVariable String caseId, @PathVariable String analysisId) {
+    public AiProductAnalysisResultDto detail(@PathVariable String caseId, @PathVariable String analysisId, HttpServletRequest httpRequest) {
+        authorizationService.requireStudyRead(httpRequest, caseId);
         return persistenceService.detail(caseId, analysisId);
     }
+
+    AiProductAnalysisResultDto detail(String caseId, String analysisId) { return persistenceService.detail(caseId, analysisId); }
 
     /** Stage 78-B: accept/observe/reject the run as a whole. */
     @PatchMapping("/product-analyses/{analysisId}/review")
@@ -72,6 +85,7 @@ public class AiProductAnalysisController {
         HttpServletRequest httpRequest
     ) {
         authorizationService.requireProfessional(httpRequest, analysisId);
+        authorizationService.requireStudyWrite(httpRequest, caseId);
         return reviewService.reviewRun(caseId, analysisId, request, reviewedBy(httpRequest), traceId(httpRequest));
     }
 
@@ -85,6 +99,7 @@ public class AiProductAnalysisController {
         HttpServletRequest httpRequest
     ) {
         authorizationService.requireProfessional(httpRequest, analysisId);
+        authorizationService.requireStudyWrite(httpRequest, caseId);
         return reviewService.reviewDiscLevel(caseId, analysisId, discLevelId, request, reviewedBy(httpRequest), traceId(httpRequest));
     }
 
@@ -98,6 +113,7 @@ public class AiProductAnalysisController {
         HttpServletRequest httpRequest
     ) {
         authorizationService.requireProfessional(httpRequest, analysisId);
+        authorizationService.requireStudyWrite(httpRequest, caseId);
         return reviewService.correctMeasurement(caseId, analysisId, measurementId, request, reviewedBy(httpRequest), traceId(httpRequest));
     }
 

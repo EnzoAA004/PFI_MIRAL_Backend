@@ -1,6 +1,7 @@
 package ar.edu.uade.pfi.backend.controller;
 
 import ar.edu.uade.pfi.backend.client.AiServiceOperations;
+import ar.edu.uade.pfi.backend.auth.RoleAuthorizationService;
 import ar.edu.uade.pfi.backend.domain.CanonicalMultiplanarRun;
 import ar.edu.uade.pfi.backend.domain.CanonicalPlaneRun;
 import ar.edu.uade.pfi.backend.dto.MultiplanarRunApiRequestDto;
@@ -19,6 +20,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +45,7 @@ public class AiMultiplanarController {
   private final MultiplanarRunResponsePresenter presenter;
   private final CanonicalMultiplanarRunLegacyPresenter legacyPresenter;
   private final MultiplanarRealBaselineContractValidator strictnessClassifier;
+  private final RoleAuthorizationService authorizationService;
 
   public AiMultiplanarController(AiServiceOperations aiServiceClient) {
     this(
@@ -51,7 +54,7 @@ public class AiMultiplanarController {
         null,
         new MultiplanarRunResponsePresenter(),
         new CanonicalMultiplanarRunLegacyPresenter(),
-        new MultiplanarRealBaselineContractValidator());
+        new MultiplanarRealBaselineContractValidator(), null);
   }
 
   public AiMultiplanarController(
@@ -62,21 +65,47 @@ public class AiMultiplanarController {
         null,
         new MultiplanarRunResponsePresenter(),
         new CanonicalMultiplanarRunLegacyPresenter(),
-        new MultiplanarRealBaselineContractValidator());
+        new MultiplanarRealBaselineContractValidator(), null);
+  }
+
+  public AiMultiplanarController(
+      AiServiceOperations aiServiceClient,
+      MultiplanarRunPersistenceService persistenceService,
+      AuditService auditService) {
+    this(aiServiceClient, persistenceService, auditService, null);
   }
 
   @Autowired
   public AiMultiplanarController(
       AiServiceOperations aiServiceClient,
       MultiplanarRunPersistenceService persistenceService,
-      AuditService auditService) {
+      AuditService auditService,
+      RoleAuthorizationService authorizationService) {
     this(
         aiServiceClient,
         persistenceService,
         auditService,
         new MultiplanarRunResponsePresenter(),
         new CanonicalMultiplanarRunLegacyPresenter(),
-        new MultiplanarRealBaselineContractValidator());
+        new MultiplanarRealBaselineContractValidator(),
+        authorizationService);
+  }
+
+  AiMultiplanarController(
+      AiServiceOperations aiServiceClient,
+      MultiplanarRunPersistenceService persistenceService,
+      AuditService auditService,
+      MultiplanarRunResponsePresenter presenter,
+      CanonicalMultiplanarRunLegacyPresenter legacyPresenter,
+      MultiplanarRealBaselineContractValidator strictnessClassifier,
+      RoleAuthorizationService authorizationService) {
+    this.aiServiceClient = aiServiceClient;
+    this.persistenceService = persistenceService;
+    this.auditService = auditService;
+    this.presenter = presenter;
+    this.legacyPresenter = legacyPresenter;
+    this.strictnessClassifier = strictnessClassifier;
+    this.authorizationService = authorizationService;
   }
 
   AiMultiplanarController(
@@ -86,12 +115,7 @@ public class AiMultiplanarController {
       MultiplanarRunResponsePresenter presenter,
       CanonicalMultiplanarRunLegacyPresenter legacyPresenter,
       MultiplanarRealBaselineContractValidator strictnessClassifier) {
-    this.aiServiceClient = aiServiceClient;
-    this.persistenceService = persistenceService;
-    this.auditService = auditService;
-    this.presenter = presenter;
-    this.legacyPresenter = legacyPresenter;
-    this.strictnessClassifier = strictnessClassifier;
+    this(aiServiceClient, persistenceService, auditService, presenter, legacyPresenter, strictnessClassifier, null);
   }
 
   @GetMapping("/contract")
@@ -170,7 +194,8 @@ public class AiMultiplanarController {
       description = "`AI_TIMEOUT`: el modulo de IA excedio `PFI_AI_TIMEOUT_SECONDS`.",
       content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
   @PostMapping("/run")
-  public MultiplanarRunResponseDto run(@Valid @RequestBody MultiplanarRunApiRequestDto request) {
+  public MultiplanarRunResponseDto run(@Valid @RequestBody MultiplanarRunApiRequestDto request, HttpServletRequest httpRequest) {
+    if (authorizationService != null) authorizationService.claimOrRequireStudyWrite(httpRequest, request.caseId());
     PreparedStudyMetadata preparedMetadata =
         persistenceService == null
             ? null

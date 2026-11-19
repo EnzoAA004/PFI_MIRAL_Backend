@@ -1,24 +1,37 @@
 package ar.edu.uade.pfi.backend.controller;
 
 import ar.edu.uade.pfi.backend.client.AiServiceOperations;
+import ar.edu.uade.pfi.backend.auth.RoleAuthorizationService;
+import jakarta.servlet.http.HttpServletRequest;
 import ar.edu.uade.pfi.backend.util.AiReportEvidence;
 import java.util.List;
 import java.util.Map;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.lang.Nullable;
 
 @RestController
 @RequestMapping("/api/ai/evaluation")
 public class AiEvaluationController {
   private final AiServiceOperations aiServiceClient;
+  private final RoleAuthorizationService authorization;
 
   public AiEvaluationController(AiServiceOperations aiServiceClient) {
     this.aiServiceClient = aiServiceClient;
+    this.authorization = null;
+  }
+
+  @Autowired
+  public AiEvaluationController(AiServiceOperations aiServiceClient, @Nullable RoleAuthorizationService authorization) {
+    this.aiServiceClient = aiServiceClient;
+    this.authorization = authorization;
   }
 
   @GetMapping("/contract")
-  public Map<String, Object> contract() {
+  public Map<String, Object> contract(HttpServletRequest request) {
+    requireAdmin(request, "ai.evaluation.contract");
     return Map.of(
         "status",
         "evaluation_contract_ready",
@@ -47,7 +60,8 @@ public class AiEvaluationController {
   }
 
   @GetMapping("/summary")
-  public Map<String, Object> summary() {
+  public Map<String, Object> summary(HttpServletRequest request) {
+    requireAdmin(request, "ai.evaluation.summary");
     Map<String, Object> reports = safeReports();
     return Map.of(
         "status",
@@ -69,7 +83,8 @@ public class AiEvaluationController {
   }
 
   @GetMapping("/evidence")
-  public Map<String, Object> evidence() {
+  public Map<String, Object> evidence(HttpServletRequest request) {
+    requireAdmin(request, "ai.evaluation.evidence");
     Map<String, Object> reports = safeReports();
     return Map.of(
         "status", "evaluation_evidence_ready",
@@ -86,6 +101,10 @@ public class AiEvaluationController {
                 "professional_review"),
         "humanReviewRequired", true,
         "notClinicalDiagnosis", true);
+  }
+
+  private void requireAdmin(HttpServletRequest request, String entityId) {
+    if (authorization != null) authorization.requireAdmin(request, entityId);
   }
 
   private Map<String, Object> metric(String key, String category, String direction) {

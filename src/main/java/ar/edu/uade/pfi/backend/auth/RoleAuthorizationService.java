@@ -1,20 +1,97 @@
 package ar.edu.uade.pfi.backend.auth;
 
 import ar.edu.uade.pfi.backend.service.AuditService;
+import ar.edu.uade.pfi.backend.repository.StudyRepository;
 import ar.edu.uade.pfi.backend.web.filter.TraceIdFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class RoleAuthorizationService {
   private final AuditService auditService;
+  private final StudyRepository studyRepository;
 
   public RoleAuthorizationService(AuditService auditService) {
     this.auditService = auditService;
+    this.studyRepository = null;
+  }
+
+  @Autowired
+  public RoleAuthorizationService(AuditService auditService, StudyRepository studyRepository) {
+    this.auditService = auditService;
+    this.studyRepository = studyRepository;
+  }
+
+  public void requireStudyRead(HttpServletRequest request, String caseId) { requireStudy(request, caseId, false); }
+
+  public void requireStudyWrite(HttpServletRequest request, String caseId) { requireStudy(request, caseId, true); }
+
+  public void requireStudyResourceWrite(HttpServletRequest request, String resourceId) {
+    if (studyRepository == null) return;
+    String caseId = studyRepository.resolveStudyCaseId(resourceId).orElse(null);
+    if (caseId == null) denyStudy(request, resourceId);
+    requireStudyWrite(request, caseId);
+  }
+
+  public void claimOrRequireStudyWrite(HttpServletRequest request, String caseId) {
+    if (studyRepository == null) return;
+    String principal = principal(request);
+    if (studyRepository.hasStudyAccess(caseId, principal, true)) return;
+    // Legacy rows must be assigned through an explicit administrative/owner workflow; an upload
+    // endpoint can only claim a case before the first durable Study row exists.
+    if (studyRepository.findStudyByCaseId(caseId).isPresent()
+        || !studyRepository.claimStudyOwner(caseId, principal)) denyStudy(request, caseId);
+  }
+
+  public List<String> accessibleStudyCaseIds(HttpServletRequest request) {
+    return studyRepository == null ? List.of() : studyRepository.findAccessibleCaseIds(principal(request));
+  }
+
+  public void requireSubjectAccess(HttpServletRequest request, String subjectRef) {
+    if (studyRepository == null) return;
+    String actor = principal(request);
+    boolean allowed = studyRepository.findStudiesBySubjectRef(subjectRef).stream()
+        .anyMatch(study -> studyRepository.hasStudyAccess(study.caseId(), actor, false));
+    if (!allowed) denyStudy(request, subjectRef);
+  }
+
+  public List<String> accessibleSubjectRefs(HttpServletRequest request) {
+    if (studyRepository == null) return List.of();
+    String actor = principal(request);
+    return studyRepository.findAllStudies().stream()
+        .filter(study -> study.subjectRef() != null && studyRepository.hasStudyAccess(study.caseId(), actor, false))
+        .map(study -> study.subjectRef().toLowerCase(java.util.Locale.ROOT)).distinct().toList();
+  }
+
+  public void grantStudyAccess(HttpServletRequest request, String caseId, String principalId, String permission) {
+    if (studyRepository == null) return;
+    String principal = principal(request);
+    if (!studyRepository.hasStudyAccess(caseId, principal, true)) denyStudy(request, caseId);
+    studyRepository.grantStudyAccess(caseId, principalId, permission, principal);
+  }
+
+  private void requireStudy(HttpServletRequest request, String caseId, boolean write) {
+    if (studyRepository == null || studyRepository.findStudyByCaseId(caseId).isEmpty()) return;
+    if (!studyRepository.hasStudyAccess(caseId, principal(request), write)) denyStudy(request, caseId);
+  }
+
+  private String principal(HttpServletRequest request) {
+    TokenService.Claims claims = claims(request);
+    if (claims != null && claims.subject() != null && !claims.subject().isBlank()) return claims.subject();
+    Object actor = request.getAttribute(AuthFilter.ACTOR_ID_ATTRIBUTE);
+    if (actor instanceof String value && !value.isBlank()) return value;
+    throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Autenticacion requerida.");
+  }
+
+  private void denyStudy(HttpServletRequest request, String caseId) {
+    TokenService.Claims claims = claims(request);
+    auditDenied(request, claims, caseId, "STUDY_ACCESS", claims == null ? List.of() : claims.roles());
+    throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Estudio inexistente.");
   }
 
   public void requireAdmin(HttpServletRequest request, String entityId) {

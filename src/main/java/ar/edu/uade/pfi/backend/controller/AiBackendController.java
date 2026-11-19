@@ -82,7 +82,8 @@ public class AiBackendController {
     }
 
     @PostMapping("/pipeline/run")
-    public Map<String, Object> runPipeline(@Valid @RequestBody PipelineRunRequestDto request) {
+    public Map<String, Object> runPipeline(@Valid @RequestBody PipelineRunRequestDto request, HttpServletRequest httpRequest) {
+        authorizationService.requireStudyWrite(httpRequest, request.caseId());
         return aiBackendService.runPipeline(request);
     }
 
@@ -90,15 +91,19 @@ public class AiBackendController {
     public AiInputResponseDto uploadInput(
         @RequestParam("file") MultipartFile file,
         @RequestParam String caseId,
-        @RequestParam String plane
+        @RequestParam String plane,
+        HttpServletRequest httpRequest
     ) {
+        authorizationService.claimOrRequireStudyWrite(httpRequest, caseId);
         return aiBackendService.uploadInput(file, caseId, plane);
     }
 
     @PostMapping("/inputs/server-side")
-    public AiInputResponseDto registerServerSideInput(@RequestBody Map<String, String> request) {
+    public AiInputResponseDto registerServerSideInput(@RequestBody Map<String, String> request, HttpServletRequest httpRequest) {
+        String caseId = request == null ? null : request.get("caseId");
+        authorizationService.claimOrRequireStudyWrite(httpRequest, caseId);
         return aiBackendService.registerServerSideInput(
-            request == null ? null : request.get("caseId"),
+            caseId,
             request == null ? null : request.get("plane"),
             request == null ? null : request.get("sourceKey")
         );
@@ -106,8 +111,10 @@ public class AiBackendController {
     @PostMapping(value = "/studies", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public StudyUploadResponseDto uploadStudy(
         @RequestParam("file") MultipartFile file,
-        @RequestParam String caseId
+        @RequestParam String caseId,
+        HttpServletRequest httpRequest
     ) {
+        authorizationService.claimOrRequireStudyWrite(httpRequest, caseId);
         return aiBackendService.uploadStudy(file, caseId);
     }
 
@@ -118,8 +125,10 @@ public class AiBackendController {
     @PostMapping("/studies/{studyId}/reprocess")
     public StudyUploadResponseDto reprocessStudy(
         @PathVariable String studyId,
-        @RequestParam String caseId
+        @RequestParam String caseId,
+        HttpServletRequest httpRequest
     ) {
+        authorizationService.requireStudyWrite(httpRequest, caseId);
         return aiBackendService.reprocessStudy(studyId, caseId);
     }
 
@@ -165,7 +174,8 @@ public class AiBackendController {
     }
 
     @GetMapping("/agent/reports")
-    public Map<String, Object> getRecentAgentReports(@RequestParam(defaultValue = "20") int limit) {
+    public Map<String, Object> getRecentAgentReports(@RequestParam(defaultValue = "20") int limit, HttpServletRequest request) {
+        authorizationService.requireAdmin(request, "ai.agent.reports");
         return aiBackendService.getRecentAgentReports(limit);
     }
 
@@ -188,7 +198,8 @@ public class AiBackendController {
     }
 
     @GetMapping("/review/history")
-    public ReviewSnapshotDto reviewHistory() {
+    public ReviewSnapshotDto reviewHistory(HttpServletRequest request) {
+        authorizationService.requireAdmin(request, "ai.review.history");
         return aiBackendService.reviewHistory();
     }
 

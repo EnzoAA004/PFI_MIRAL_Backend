@@ -51,7 +51,7 @@ class PatientControllerTest {
     service = new PatientService(patients, studies, audit);
     mockMvc =
         MockMvcBuilders.standaloneSetup(
-                new PatientController(service, accessAudit, new RoleAuthorizationService(audit)))
+                new PatientController(service, accessAudit, new RoleAuthorizationService(audit, studies)))
             .setControllerAdvice(new ApiExceptionHandler(audit))
             .build();
   }
@@ -111,20 +111,20 @@ class PatientControllerTest {
     Patient patient = create("PAC-GET");
 
     mockMvc
-        .perform(get("/api/patients/{id}", patient.id()))
+        .perform(get("/api/patients/{id}", patient.id()).with(professional()))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.id").value(patient.id()))
         .andExpect(jsonPath("$.patientReference").value("PAC-GET"));
     mockMvc
-        .perform(get("/api/patients/{id}", UUID.randomUUID()))
+        .perform(get("/api/patients/{id}", UUID.randomUUID()).with(professional()))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.code").value("PATIENT_NOT_FOUND"));
     mockMvc
-        .perform(get("/api/patients/not-a-uuid"))
+        .perform(get("/api/patients/not-a-uuid").with(professional()))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value("INVALID_PATIENT_ID"));
     mockMvc
-        .perform(get("/api/patients/1-1-1-1-1"))
+        .perform(get("/api/patients/1-1-1-1-1").with(professional()))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value("INVALID_PATIENT_ID"));
   }
@@ -137,7 +137,7 @@ class PatientControllerTest {
     create("pac-002");
 
     mockMvc
-        .perform(get("/api/patients?query=PaC&limit=2"))
+        .perform(get("/api/patients?query=PaC&limit=2").with(professional()))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.length()").value(2))
         .andExpect(jsonPath("$[0].patientReference").value("PAC-001"))
@@ -148,9 +148,9 @@ class PatientControllerTest {
   void readEndpointsRecordDeidentifiedProfessionalAccess() throws Exception {
     Patient patient = create("PAC-ACCESS-AUDIT");
 
-    mockMvc.perform(get("/api/patients?query=PAC-SECRET")).andExpect(status().isOk());
-    mockMvc.perform(get("/api/patients/{id}", patient.id())).andExpect(status().isOk());
-    mockMvc.perform(get("/api/patients/{id}/studies", patient.id())).andExpect(status().isOk());
+    mockMvc.perform(get("/api/patients?query=PAC-SECRET").with(professional())).andExpect(status().isOk());
+    mockMvc.perform(get("/api/patients/{id}", patient.id()).with(professional())).andExpect(status().isOk());
+    mockMvc.perform(get("/api/patients/{id}/studies", patient.id()).with(professional())).andExpect(status().isOk());
 
     verify(accessAudit)
         .record(
@@ -221,7 +221,9 @@ class PatientControllerTest {
 
   private Patient create(String reference) {
     Instant now = Instant.now();
-    return patients.save(new Patient(UUID.randomUUID().toString(), reference, now, now));
+    Patient patient = patients.save(new Patient(UUID.randomUUID().toString(), reference, now, now));
+    patients.claimPatientOwner(patient.id(), "reviewer-id");
+    return patient;
   }
 
   private static RequestPostProcessor professional() {

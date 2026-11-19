@@ -12,8 +12,8 @@ import ar.edu.uade.pfi.backend.service.AuditService;
 import ar.edu.uade.pfi.backend.service.DegenerativeFindingsV1Validator;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Import;
@@ -41,9 +41,9 @@ import org.springframework.test.web.servlet.MockMvc;
 class AiDegenerativeFindingsRealObjectMapperTest {
   @Autowired private MockMvc mockMvc;
 
-  @MockBean private AiServiceOperations aiServiceClient;
+  @MockitoBean private AiServiceOperations aiServiceClient;
 
-  @MockBean private AuditService auditService;
+  @MockitoBean private AuditService auditService;
 
   private static final String VALID_REQUEST =
       """

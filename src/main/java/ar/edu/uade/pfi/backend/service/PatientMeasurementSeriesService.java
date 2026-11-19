@@ -43,10 +43,14 @@ public class PatientMeasurementSeriesService {
      * show a single Study's own measurements directly, no series needed).
      */
     public List<MeasurementSeriesKeyDto> availableSeriesKeys(String subjectRef) {
+        return availableSeriesKeys(subjectRef, null);
+    }
+
+    public List<MeasurementSeriesKeyDto> availableSeriesKeys(String subjectRef, List<String> accessibleCaseIds) {
         String normalized = SubjectReferenceValidator.normalize(subjectRef);
         Map<EffectiveMeasurementResolver.MatchKey, Long> countByKey = new LinkedHashMap<>();
         Map<EffectiveMeasurementResolver.MatchKey, String> unitByKey = new LinkedHashMap<>();
-        for (Study study : repository.findStudiesBySubjectRef(normalized)) {
+        for (Study study : accessibleStudies(normalized, accessibleCaseIds)) {
             for (EffectiveMeasurementResolver.EffectiveMeasurement measurement : effectiveMeasurementsFor(study)) {
                 if (measurement.level() == null) continue; // 84-K: null level never joins a series.
                 EffectiveMeasurementResolver.MatchKey key = measurementResolver.matchKey(measurement);
@@ -66,10 +70,14 @@ public class PatientMeasurementSeriesService {
      * distinction ("Para la lista: studyDate DESC. Para timeline visual: ASC cronológico").
      */
     public MeasurementSeriesDto series(String subjectRef, String level, String plane, String structure, String metric) {
+        return series(subjectRef, level, plane, structure, metric, null);
+    }
+
+    public MeasurementSeriesDto series(String subjectRef, String level, String plane, String structure, String metric, List<String> accessibleCaseIds) {
         String normalized = SubjectReferenceValidator.normalize(subjectRef);
         EffectiveMeasurementResolver.MatchKey targetKey = new EffectiveMeasurementResolver.MatchKey(level, plane, structure, metric);
 
-        List<Study> studies = new ArrayList<>(repository.findStudiesBySubjectRef(normalized));
+        List<Study> studies = new ArrayList<>(accessibleStudies(normalized, accessibleCaseIds));
         studies.sort(studyDateAscendingThenCaseId());
 
         List<Point> points = new ArrayList<>();
@@ -87,6 +95,13 @@ public class PatientMeasurementSeriesService {
             }
         }
         return new MeasurementSeriesDto(new MeasurementSeriesKeyDto(level, plane, structure, metric, unit), points);
+    }
+
+    private List<Study> accessibleStudies(String subjectRef, List<String> accessibleCaseIds) {
+        List<Study> studies = repository.findStudiesBySubjectRef(subjectRef);
+        if (accessibleCaseIds == null) return studies;
+        java.util.Set<String> allowed = java.util.Set.copyOf(accessibleCaseIds);
+        return studies.stream().filter(study -> allowed.contains(study.caseId())).toList();
     }
 
     private List<EffectiveMeasurementResolver.EffectiveMeasurement> effectiveMeasurementsFor(Study study) {

@@ -13,4 +13,8 @@ public interface PatientRepository {
   List<Patient> searchByReferencePrefix(String query, int limit);
 
   Optional<Patient> updateReference(String patientId, String patientReference, Instant updatedAt);
+
+  default boolean claimPatientOwner(String patientId, String principalId) { return false; }
+
+  default boolean isPatientOwner(String patientId, String principalId) { return false; }
 }

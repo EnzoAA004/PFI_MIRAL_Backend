@@ -1,6 +1,10 @@
 package ar.edu.uade.pfi.backend.controller;
 
 import ar.edu.uade.pfi.backend.client.AiProductCheckpointClient;
+import ar.edu.uade.pfi.backend.auth.RoleAuthorizationService;
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.lang.Nullable;
 import ar.edu.uade.pfi.backend.dto.DiscDegenerativeProductRequestDto;
 import ar.edu.uade.pfi.backend.dto.DiscSegmentationSourceDto;
 import ar.edu.uade.pfi.backend.dto.FullSeriesSegmentationRequestDto;
@@ -32,15 +36,27 @@ public class AiProductCheckpointController {
 
   private final AiProductCheckpointClient aiClient;
   private final DiscDegenerativeFindingsPersistenceService persistence;
+  private final RoleAuthorizationService authorization;
 
   public AiProductCheckpointController(
       AiProductCheckpointClient aiClient, DiscDegenerativeFindingsPersistenceService persistence) {
     this.aiClient = aiClient;
     this.persistence = persistence;
+    this.authorization = null;
+  }
+
+  @Autowired
+  public AiProductCheckpointController(
+      AiProductCheckpointClient aiClient, DiscDegenerativeFindingsPersistenceService persistence,
+      @Nullable RoleAuthorizationService authorization) {
+    this.aiClient = aiClient;
+    this.persistence = persistence;
+    this.authorization = authorization;
   }
 
   @GetMapping("/checkpoint")
-  public Map<String, Object> checkpoint() {
+  public Map<String, Object> checkpoint(HttpServletRequest request) {
+    if (authorization != null) authorization.requireAdmin(request, "ai.product.checkpoint");
     Map<String, Object> result = new LinkedHashMap<>(aiClient.productCheckpoint());
     result.put(
         "backendContract",
@@ -55,8 +71,12 @@ public class AiProductCheckpointController {
   }
 
   @PostMapping("/series-segmentation")
-  public Map<String, Object> runFullSeries(@RequestBody FullSeriesSegmentationRequestDto request) {
+  public Map<String, Object> runFullSeries(@RequestBody FullSeriesSegmentationRequestDto request, HttpServletRequest httpRequest) {
     requireFullSeriesRequest(request);
+    if (authorization != null) {
+      authorization.requireStudyWrite(httpRequest, request.caseId());
+      authorization.requireStudyResourceWrite(httpRequest, request.inputId());
+    }
     Map<String, Object> response = aiClient.runFullSeriesSegmentation(request);
     requireFullSeriesResponse(response);
     return response;
@@ -76,11 +96,24 @@ public class AiProductCheckpointController {
         .body(body);
   }
 
-  @SuppressWarnings("unchecked")
   @PostMapping("/disc-degenerative-findings")
   public Map<String, Object> predictDiscDegenerative(
-      @RequestBody DiscDegenerativeProductRequestDto request) {
+      @RequestBody DiscDegenerativeProductRequestDto request, HttpServletRequest httpRequest) {
     requireDiscRequest(request);
+    if (authorization != null) {
+      authorization.requireStudyWrite(httpRequest, request.caseId());
+      authorization.requireStudyResourceWrite(httpRequest, request.multiplanarRunId());
+    }
+    return predictDiscDegenerativeInternal(request);
+  }
+
+  Map<String, Object> predictDiscDegenerative(DiscDegenerativeProductRequestDto request) {
+    requireDiscRequest(request);
+    return predictDiscDegenerativeInternal(request);
+  }
+
+  @SuppressWarnings("unchecked")
+  private Map<String, Object> predictDiscDegenerativeInternal(DiscDegenerativeProductRequestDto request) {
     Map<String, Object> prediction = aiClient.predictDiscDegenerativeFromSegmentation(request);
     // Persist the full upstream prediction, probabilities included: validation,
     // traceability, and audit need them. Only the public response below is

@@ -52,9 +52,17 @@ public class StudyWorklistService {
   }
 
   public StudyListResponseDto listStudies() {
+    return listStudies(null);
+  }
+
+  public StudyListResponseDto listStudies(List<String> accessibleCaseIds) {
     return databaseCall(
         () -> {
           List<Study> studies = repository.findAllStudies();
+          if (accessibleCaseIds != null) {
+            Set<String> allowed = Set.copyOf(accessibleCaseIds);
+            studies = studies.stream().filter(study -> allowed.contains(study.caseId())).toList();
+          }
           List<StudyRowDto> rows = new ArrayList<>();
           for (Study study : studies) {
             List<InputResource> inputs = repository.findInputsByStudyId(study.id());

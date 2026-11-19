@@ -1,6 +1,9 @@
 package ar.edu.uade.pfi.backend.controller;
 
 import ar.edu.uade.pfi.backend.dto.LongitudinalComparisonResultDto;
+import ar.edu.uade.pfi.backend.auth.RoleAuthorizationService;
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.annotation.Autowired;
 import ar.edu.uade.pfi.backend.service.LongitudinalComparisonService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -20,13 +23,27 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/studies/{caseId}")
 public class LongitudinalComparisonController {
     private final LongitudinalComparisonService service;
+    private final RoleAuthorizationService authorizationService;
 
     public LongitudinalComparisonController(LongitudinalComparisonService service) {
         this.service = service;
+        this.authorizationService = null;
+    }
+
+    @Autowired
+    public LongitudinalComparisonController(LongitudinalComparisonService service, RoleAuthorizationService authorizationService) {
+        this.service = service;
+        this.authorizationService = authorizationService;
     }
 
     @GetMapping("/longitudinal-comparison")
-    public LongitudinalComparisonResultDto compare(@PathVariable String caseId, @RequestParam String baselineCaseId) {
+    public LongitudinalComparisonResultDto compare(@PathVariable String caseId, @RequestParam String baselineCaseId, HttpServletRequest request) {
+        if (authorizationService != null) {
+            authorizationService.requireStudyRead(request, caseId);
+            authorizationService.requireStudyRead(request, baselineCaseId);
+        }
         return service.compare(caseId, baselineCaseId);
     }
+
+    LongitudinalComparisonResultDto compare(String caseId, String baselineCaseId) { return service.compare(caseId, baselineCaseId); }
 }

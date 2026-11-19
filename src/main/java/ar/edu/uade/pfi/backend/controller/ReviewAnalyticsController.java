@@ -25,7 +25,11 @@ public class ReviewAnalyticsController {
     /** {@code caseId} optional — omitted, this aggregates across every study; present, it scopes to one. */
     @GetMapping("/api/analytics/review-feedback")
     public ReviewAnalyticsReport reviewFeedback(@RequestParam(required = false) String caseId, HttpServletRequest request) {
-        authorizationService.requireProfessional(request, caseId == null ? "global-review-analytics" : caseId);
+        if (caseId == null || caseId.isBlank()) authorizationService.requireAdmin(request, "global-review-analytics");
+        else {
+            authorizationService.requireProfessional(request, caseId);
+            authorizationService.requireStudyRead(request, caseId);
+        }
         return analyticsService.computeReport(caseId);
     }
 }

@@ -36,6 +36,17 @@ public interface StudyRepository {
 
     Optional<Study> findStudyByCaseId(String caseId);
 
+    /** Atomically assigns the owner once. Existing/legacy studies are never claimed by a later caller. */
+    default boolean claimStudyOwner(String caseId, String principalId) { return false; }
+
+    default boolean hasStudyAccess(String caseId, String principalId, boolean write) { return false; }
+
+    default void grantStudyAccess(String caseId, String principalId, String permission, String grantedBy) { throw new UnsupportedOperationException("Study access grants are not supported"); }
+
+    default List<String> findAccessibleCaseIds(String principalId) { return List.of(); }
+
+    default Optional<String> resolveStudyCaseId(String resourceId) { return Optional.empty(); }
+
     List<Study> findStudiesBySubjectRef(String subjectRef);
 
     List<Study> findStudiesByPatientId(String patientId);

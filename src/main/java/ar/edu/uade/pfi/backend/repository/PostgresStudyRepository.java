@@ -329,6 +329,113 @@ public class PostgresStudyRepository implements StudyRepository {
     }
 
     @Override
+    public boolean claimStudyOwner(String caseId, String principalId) {
+        if (caseId == null || principalId == null || principalId.isBlank()) return false;
+        try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
+            INSERT INTO domain_study_access_grants(case_id, principal_id, permission, granted_by)
+            VALUES (?, ?, 'OWNER', ?)
+            ON CONFLICT (case_id, principal_id) DO NOTHING
+            """)) {
+            statement.setString(1, caseId);
+            statement.setString(2, principalId);
+            statement.setString(3, principalId);
+            statement.executeUpdate();
+        } catch (Exception ex) {
+            // A different owner may already exist (the partial unique index protects races).
+        }
+        try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
+            SELECT 1 FROM domain_study_access_grants
+            WHERE case_id = ? AND principal_id = ? AND permission = 'OWNER'
+            """)) {
+            statement.setString(1, caseId);
+            statement.setString(2, principalId);
+            try (ResultSet rs = statement.executeQuery()) { return rs.next(); }
+        } catch (Exception ex) {
+            throw new IllegalStateException("Could not verify study ownership", ex);
+        }
+    }
+
+    @Override
+    public boolean hasStudyAccess(String caseId, String principalId, boolean write) {
+        if (caseId == null || principalId == null) return false;
+        try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
+            SELECT 1 FROM domain_study_access_grants
+            WHERE case_id = ? AND principal_id = ?
+              AND (permission = 'OWNER' OR permission = 'WRITE' OR (? = FALSE AND permission = 'READ'))
+            """)) {
+            statement.setString(1, caseId);
+            statement.setString(2, principalId);
+            statement.setBoolean(3, write);
+            try (ResultSet rs = statement.executeQuery()) { return rs.next(); }
+        } catch (Exception ex) {
+            throw new IllegalStateException("Could not verify study access", ex);
+        }
+    }
+
+    @Override
+    public void grantStudyAccess(String caseId, String principalId, String permission, String grantedBy) {
+        try (Connection connection = connection(); PreparedStatement ownerCheck = connection.prepareStatement("SELECT 1 FROM domain_study_access_grants WHERE case_id = ? AND principal_id = ? AND permission = 'OWNER'")) {
+            ownerCheck.setString(1, caseId);
+            ownerCheck.setString(2, grantedBy);
+            try (ResultSet rs = ownerCheck.executeQuery()) { if (!rs.next()) throw new IllegalStateException("Only the study owner can grant access"); }
+        } catch (IllegalStateException ex) { throw ex; }
+        catch (Exception ex) { throw new IllegalStateException("Could not verify study owner", ex); }
+        if ("OWNER".equals(permission) || !List.of("READ", "WRITE").contains(permission)) throw new IllegalArgumentException("Invalid study permission");
+        try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
+            INSERT INTO domain_study_access_grants(case_id, principal_id, permission, granted_by)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT (case_id, principal_id) DO UPDATE SET permission = EXCLUDED.permission, granted_by = EXCLUDED.granted_by, created_at = NOW()
+            WHERE domain_study_access_grants.permission <> 'OWNER'
+            """)) {
+            statement.setString(1, caseId);
+            statement.setString(2, principalId);
+            statement.setString(3, permission);
+            statement.setString(4, grantedBy);
+            statement.executeUpdate();
+        } catch (Exception ex) {
+            throw new IllegalStateException("Could not grant study access", ex);
+        }
+    }
+
+    @Override
+    public List<String> findAccessibleCaseIds(String principalId) {
+        try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
+            SELECT case_id FROM domain_study_access_grants WHERE principal_id = ?
+            """)) {
+            statement.setString(1, principalId);
+            try (ResultSet rs = statement.executeQuery()) {
+                List<String> caseIds = new ArrayList<>();
+                while (rs.next()) caseIds.add(rs.getString(1));
+                return List.copyOf(caseIds);
+            }
+        } catch (Exception ex) {
+            throw new IllegalStateException("Could not list accessible studies", ex);
+        }
+    }
+
+    @Override
+    public Optional<String> resolveStudyCaseId(String resourceId) {
+        if (resourceId == null || resourceId.isBlank()) return Optional.empty();
+        try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
+            SELECT s.case_id
+            FROM domain_studies s
+            WHERE EXISTS (SELECT 1 FROM domain_input_resources i WHERE i.study_id = s.id AND i.input_id = ?)
+               OR EXISTS (SELECT 1 FROM domain_study_runs r WHERE r.study_id = s.id
+                   AND (r.multiplanar_run_id = ? OR r.sagittal_run_id = ? OR r.axial_run_id = ?))
+               OR EXISTS (SELECT 1 FROM domain_run_artifacts a JOIN domain_study_runs r ON r.id = a.study_run_id
+                   WHERE r.study_id = s.id AND a.run_id = ?)
+               OR EXISTS (SELECT 1 FROM domain_ai_analysis_runs ar WHERE ar.study_id = s.id AND ar.id::text = ?)
+               OR EXISTS (SELECT 1 FROM domain_professional_feedback_candidates fc WHERE fc.study_id = s.id AND fc.id::text = ?)
+            LIMIT 1
+            """)) {
+            for (int i = 1; i <= 7; i++) statement.setString(i, resourceId);
+            try (ResultSet rs = statement.executeQuery()) { return rs.next() ? Optional.of(rs.getString(1)) : Optional.empty(); }
+        } catch (Exception ex) {
+            throw new IllegalStateException("Could not resolve study for resource", ex);
+        }
+    }
+
+    @Override
     public List<Study> findStudiesBySubjectRef(String subjectRef) {
         try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
             SELECT id, case_id, status, patient_id, subject_ref, study_date, modality, description, review_priority, created_at, updated_at

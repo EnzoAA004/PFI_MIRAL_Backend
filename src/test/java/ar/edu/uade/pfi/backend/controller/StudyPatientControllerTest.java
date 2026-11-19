@@ -47,7 +47,7 @@ class StudyPatientControllerTest {
     studies = new InMemoryStudyRepository();
     audit = new AuditService(studies);
     service = new PatientService(patients, studies, audit);
-    RoleAuthorizationService authorization = new RoleAuthorizationService(audit);
+    RoleAuthorizationService authorization = new RoleAuthorizationService(audit, studies);
     mockMvc =
         MockMvcBuilders.standaloneSetup(
                 new StudyPatientController(service, authorization),
@@ -70,7 +70,7 @@ class StudyPatientControllerTest {
         .andExpect(jsonPath("$.changed").value(true))
         .andExpect(jsonPath("$.patientId").value(patient.id()));
     mockMvc
-        .perform(get("/api/patients/{id}/studies", patient.id()))
+        .perform(get("/api/patients/{id}/studies", patient.id()).with(professional()))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$[0].caseId").value(study.caseId()))
         .andExpect(jsonPath("$[0].reviewPriority").value("high"));
@@ -217,7 +217,7 @@ class StudyPatientControllerTest {
 
   private Study study(String caseId, String patientId, String subjectRef) {
     Instant now = Instant.now();
-    return studies.saveStudy(
+    Study study = studies.saveStudy(
         new Study(
             UUID.randomUUID().toString(),
             caseId,
@@ -230,6 +230,8 @@ class StudyPatientControllerTest {
             "high",
             now,
             now));
+    studies.claimStudyOwner(caseId, "reviewer-id");
+    return study;
   }
 
   private StudyRun run(String studyId) {

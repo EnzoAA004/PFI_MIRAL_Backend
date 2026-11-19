@@ -36,7 +36,7 @@ class InputResourceColumnsStayInSyncTest {
   @DisplayName("readInput solo lee columnas que findInputsByStudyId trae")
   void selectedColumnsCoverEveryColumnReadBack() throws IOException {
     String source = Files.readString(SOURCE, StandardCharsets.UTF_8);
-    Set<String> selected = selectedColumns(source);
+    Set<String> selected = selectedColumns(methodBody(source, "public List<InputResource> findInputsByStudyId"));
     Set<String> read = columnsReadIn(methodBody(source, "private InputResource readInput"));
 
     assertTrue(selected.size() > 5, "no se pudo leer la lista de columnas del SELECT: " + selected);

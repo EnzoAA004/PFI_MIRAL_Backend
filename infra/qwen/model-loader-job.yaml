@@ -18,7 +18,8 @@ spec:
               command: ["sh", "-c"]
               args:
                 - |-
-                  pip install --no-cache-dir requests==2.32.4 google-cloud-storage==2.19.0
+                  pip install --no-cache-dir --target /tmp/python-packages requests==2.32.4 google-cloud-storage==2.19.0
+                  export PYTHONPATH=/tmp/python-packages
                   python - <<'PY'
                   import hashlib
                   import json
@@ -105,7 +106,32 @@ spec:
                   print(json.dumps({"status": "uploaded", "model": model, "revision": revision,
                                     "fileCount": len(manifest_files), "totalBytes": total_bytes}))
                   PY
+              env:
+                - name: HOME
+                  value: /tmp
+                - name: PIP_CACHE_DIR
+                  value: /tmp/pip-cache
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+              securityContext:
+                runAsNonRoot: true
+                runAsUser: 10001
+                runAsGroup: 10001
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
               resources:
                 limits:
                   cpu: "8"
                   memory: 32Gi
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+            - name: tmp
+              emptyDir: {}

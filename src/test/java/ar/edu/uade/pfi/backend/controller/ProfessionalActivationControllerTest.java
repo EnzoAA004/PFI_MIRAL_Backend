@@ -53,6 +53,7 @@ class ProfessionalActivationControllerTest {
     mockMvc =
         MockMvcBuilders.standaloneSetup(controller)
             .setMessageConverters(
+                new org.springframework.http.converter.StringHttpMessageConverter(),
                 new org.springframework.http.converter.json.MappingJackson2HttpMessageConverter(
                     objectMapper))
             .addFilter(

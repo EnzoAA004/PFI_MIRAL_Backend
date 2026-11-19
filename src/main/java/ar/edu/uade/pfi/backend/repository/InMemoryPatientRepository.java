@@ -16,6 +16,7 @@ import org.springframework.stereotype.Repository;
 public class InMemoryPatientRepository implements PatientRepository {
   private final ConcurrentMap<String, Patient> patientsById = new ConcurrentHashMap<>();
   private final ConcurrentMap<String, String> idsByNormalizedReference = new ConcurrentHashMap<>();
+  private final ConcurrentMap<String, String> patientOwners = new ConcurrentHashMap<>();
 
   @Override
   public synchronized Patient save(Patient patient) {
@@ -61,6 +62,18 @@ public class InMemoryPatientRepository implements PatientRepository {
     idsByNormalizedReference.remove(oldNormalized);
     idsByNormalizedReference.put(newNormalized, patientId);
     return Optional.of(updated);
+  }
+
+  @Override
+  public boolean claimPatientOwner(String patientId, String principalId) {
+    if (patientId == null || principalId == null || principalId.isBlank()) return false;
+    String existing = patientOwners.putIfAbsent(patientId, principalId);
+    return existing == null || existing.equals(principalId);
+  }
+
+  @Override
+  public boolean isPatientOwner(String patientId, String principalId) {
+    return principalId != null && principalId.equals(patientOwners.get(patientId));
   }
 
   private String normalize(String value) {

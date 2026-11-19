@@ -56,6 +56,7 @@ public class StudyPatientController {
       @RequestBody(required = false) StudyPatientAssignmentRequestDto request,
       HttpServletRequest httpRequest) {
     authorizationService.requireProfessional(httpRequest, caseId);
+    authorizationService.requireStudyWrite(httpRequest, caseId);
     return patientService.assignStudy(caseId, request, actor(httpRequest), traceId(httpRequest));
   }
 

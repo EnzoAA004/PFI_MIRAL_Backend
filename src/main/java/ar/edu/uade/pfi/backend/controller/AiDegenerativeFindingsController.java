@@ -1,6 +1,7 @@
 package ar.edu.uade.pfi.backend.controller;
 
 import ar.edu.uade.pfi.backend.client.AiServiceOperations;
+import ar.edu.uade.pfi.backend.auth.RoleAuthorizationService;
 import ar.edu.uade.pfi.backend.web.error.ApiErrorCode;
 import ar.edu.uade.pfi.backend.dto.AiSubarticularExplainRequestDto;
 import ar.edu.uade.pfi.backend.dto.AiSubarticularPredictRequestDto;
@@ -11,6 +12,8 @@ import ar.edu.uade.pfi.backend.dto.SubarticularPredictionRequestDto;
 import ar.edu.uade.pfi.backend.dto.SubarticularPredictionResponseDto;
 import ar.edu.uade.pfi.backend.service.AuditService;
 import ar.edu.uade.pfi.backend.service.DegenerativeFindingsV1Validator;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -24,6 +27,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+import jakarta.servlet.http.HttpServletRequest;
 
 /**
  * Puente entre el visor y el clasificador subarticular del modulo de IA.
@@ -50,22 +54,45 @@ import org.springframework.web.server.ResponseStatusException;
 public class AiDegenerativeFindingsController {
     private final AiServiceOperations aiServiceClient;
     private final DegenerativeFindingsV1Validator validator;
+    private final ObjectMapper objectMapper;
     @Nullable
     private final AuditService auditService;
+    @Nullable private final RoleAuthorizationService authorizationService;
 
     public AiDegenerativeFindingsController(AiServiceOperations aiServiceClient) {
-        this(aiServiceClient, new DegenerativeFindingsV1Validator(), null);
+        this(aiServiceClient, new DegenerativeFindingsV1Validator(), null, null, new ObjectMapper());
+    }
+
+    public AiDegenerativeFindingsController(
+        AiServiceOperations aiServiceClient,
+        DegenerativeFindingsV1Validator validator,
+        @Nullable AuditService auditService
+    ) {
+        this(aiServiceClient, validator, auditService, null, new ObjectMapper());
+    }
+
+    public AiDegenerativeFindingsController(
+        AiServiceOperations aiServiceClient,
+        DegenerativeFindingsV1Validator validator,
+        @Nullable AuditService auditService,
+        @Nullable RoleAuthorizationService authorizationService
+    ) {
+        this(aiServiceClient, validator, auditService, authorizationService, new ObjectMapper());
     }
 
     @Autowired
     public AiDegenerativeFindingsController(
         AiServiceOperations aiServiceClient,
         DegenerativeFindingsV1Validator validator,
-        @Nullable AuditService auditService
+        @Nullable AuditService auditService,
+        @Nullable RoleAuthorizationService authorizationService,
+        ObjectMapper objectMapper
     ) {
         this.aiServiceClient = aiServiceClient;
         this.validator = validator;
         this.auditService = auditService;
+        this.authorizationService = authorizationService;
+        this.objectMapper = objectMapper;
     }
 
     private static final Set<String> ALLOWED_FIELDS = Set.of("inputId", "instanceNumber", "x", "y", "side", "level");
@@ -85,8 +112,10 @@ public class AiDegenerativeFindingsController {
      * aguas arriba, dos saltos despues y con un codigo que no explica nada.
      */
     @PostMapping("/subarticular")
-    public SubarticularPredictionResponseDto predictSubarticular(@RequestBody JsonNode body) {
+    public SubarticularPredictionResponseDto predictSubarticular(@RequestBody String rawBody, HttpServletRequest httpRequest) {
+        JsonNode body = parseJsonBody(rawBody);
         SubarticularPredictionRequestDto request = strictRequest(body);
+        if (authorizationService != null) authorizationService.requireStudyResourceWrite(httpRequest, request.inputId().trim());
         String level = request.level().trim();
         requireValidLevel(level);
         requireFiniteCoordinate(request.x(), "x");
@@ -125,8 +154,10 @@ public class AiDegenerativeFindingsController {
      * que la predicción, es puntual y de alcance de investigación.
      */
     @PostMapping("/subarticular/explain")
-    public SubarticularExplainResponseDto explainSubarticular(@RequestBody JsonNode body) {
+    public SubarticularExplainResponseDto explainSubarticular(@RequestBody String rawBody, HttpServletRequest httpRequest) {
+        JsonNode body = parseJsonBody(rawBody);
         SubarticularPredictionRequestDto request = strictExplainRequest(body);
+        if (authorizationService != null) authorizationService.requireStudyResourceWrite(httpRequest, request.inputId().trim());
         String level = request.level().trim();
         requireValidLevel(level);
         requireFiniteCoordinate(request.x(), "x");
@@ -161,6 +192,14 @@ public class AiDegenerativeFindingsController {
     private SubarticularPredictionRequestDto strictExplainRequest(JsonNode body) {
         requireOnlyAllowedFields(body, ALLOWED_EXPLAIN_FIELDS);
         return parseRoiFields(body);
+    }
+
+    private JsonNode parseJsonBody(String rawBody) {
+        try {
+            return rawBody == null ? null : objectMapper.readTree(rawBody);
+        } catch (JsonProcessingException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Solicitud invalida.");
+        }
     }
 
     /** Un mapa mal formado no se muestra a medias: si falta el PNG, es un 502, no una imagen rota. */

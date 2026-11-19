@@ -679,13 +679,13 @@ public class AiServiceClient implements AiServiceOperations {
             });
         }
         HttpStatus status = HttpStatus.resolve(response.statusCode().value());
-        if (status == HttpStatus.BAD_REQUEST) {
+        if (status != null && status.value() == 400) {
             return response.releaseBody().then(Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST, "El estudio enviado al modulo de IA es invalido.")));
         }
-        if (status == HttpStatus.PAYLOAD_TOO_LARGE) {
+        if (status != null && status.value() == 413) {
             return response.releaseBody().then(Mono.error(new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE, "El estudio supera el tamano maximo permitido.")));
         }
-        if (status == HttpStatus.UNPROCESSABLE_ENTITY) {
+        if (status != null && status.value() == 422) {
             return response.releaseBody().then(Mono.error(new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "El estudio no contiene planos utilizables.")));
         }
         return response.releaseBody().then(Mono.error(upstreamUnavailable()));

@@ -67,6 +67,9 @@ public class PatientService {
             () ->
                 patientRepository.save(
                     new Patient(UUID.randomUUID().toString(), reference, now, now)));
+    if (actor == null || actor.isBlank() || !patientRepository.claimPatientOwner(patient.id(), actor)) {
+      throw new IllegalStateException("Could not assign patient owner");
+    }
     auditService.record(
         actor,
         "PATIENT_CREATED",
@@ -101,6 +104,10 @@ public class PatientService {
     String validId = validateUuid(patientId, "patientId");
     return detail(
         databaseCall(() -> patientRepository.findById(validId)).orElseThrow(this::patientNotFound));
+  }
+
+  public boolean isOwner(String patientId, String principalId) {
+    return patientRepository.isPatientOwner(patientId, principalId);
   }
 
   public PatientDetailDto update(

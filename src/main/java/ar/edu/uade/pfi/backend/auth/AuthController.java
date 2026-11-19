@@ -13,6 +13,8 @@ import ar.edu.uade.pfi.backend.auth.dto.AuthDtos.UserResponse;
 import ar.edu.uade.pfi.backend.auth.dto.AuthDtos.VerifyRequest;
 import ar.edu.uade.pfi.backend.service.AuditService;
 import ar.edu.uade.pfi.backend.web.error.ApiErrorResponse;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -28,6 +30,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -45,14 +48,25 @@ public class AuthController {
   private final AuthService authService;
   private final AuditService auditService;
   private final RoleAuthorizationService authorizationService;
+  private final ObjectMapper objectMapper;
 
   public AuthController(
       AuthService authService,
       AuditService auditService,
       RoleAuthorizationService authorizationService) {
+    this(authService, auditService, authorizationService, new ObjectMapper());
+  }
+
+  @Autowired
+  public AuthController(
+      AuthService authService,
+      AuditService auditService,
+      RoleAuthorizationService authorizationService,
+      ObjectMapper objectMapper) {
     this.authService = authService;
     this.auditService = auditService;
     this.authorizationService = authorizationService;
+    this.objectMapper = objectMapper;
   }
 
   @Operation(
@@ -277,12 +291,21 @@ public class AuthController {
    */
   @PatchMapping("/admin/professionals/activation")
   public ProfessionalActivationResponse updateProfessionalActivation(
-      HttpServletRequest request, @RequestBody JsonNode body) {
+      HttpServletRequest request, @RequestBody String rawBody) {
     authorizationService.requireAdmin(request, "professional.activation");
+    JsonNode body = parseJsonBody(rawBody);
     ProfessionalActivationRequest activation = strictActivationRequest(body);
     TokenService.Claims claims =
         (TokenService.Claims) request.getAttribute(AuthFilter.AUTH_CLAIMS_ATTRIBUTE);
     return authService.activateProfessional(claims, activation.email(), activation.activated());
+  }
+
+  private JsonNode parseJsonBody(String rawBody) {
+    try {
+      return rawBody == null ? null : objectMapper.readTree(rawBody);
+    } catch (JsonProcessingException ex) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Solicitud invalida");
+    }
   }
 
   private ProfessionalActivationRequest strictActivationRequest(JsonNode body) {

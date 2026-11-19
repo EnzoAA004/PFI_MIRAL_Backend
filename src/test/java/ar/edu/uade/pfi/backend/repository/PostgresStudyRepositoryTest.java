@@ -30,6 +30,26 @@ class PostgresStudyRepositoryTest {
           .withPassword("pfi");
 
   @Test
+  void persistsExclusiveOwnershipAndExplicitReadWriteGrants() {
+    PostgresStudyRepository repository = new PostgresStudyRepository(
+        new ObjectMapper(), postgres.getJdbcUrl() + "&user=" + postgres.getUsername() + "&password=" + postgres.getPassword(), true);
+    Instant now = Instant.now();
+    repository.saveStudy(new Study(UUID.randomUUID().toString(), "CASE-ACCESS-024", "ready", now, now));
+
+    assertTrue(repository.claimStudyOwner("CASE-ACCESS-024", "owner-1"));
+    assertFalse(repository.claimStudyOwner("CASE-ACCESS-024", "owner-2"));
+    assertTrue(repository.hasStudyAccess("CASE-ACCESS-024", "owner-1", true));
+    assertFalse(repository.hasStudyAccess("CASE-ACCESS-024", "owner-2", false));
+
+    repository.grantStudyAccess("CASE-ACCESS-024", "reader-1", "READ", "owner-1");
+    repository.grantStudyAccess("CASE-ACCESS-024", "editor-1", "WRITE", "owner-1");
+    assertTrue(repository.hasStudyAccess("CASE-ACCESS-024", "reader-1", false));
+    assertFalse(repository.hasStudyAccess("CASE-ACCESS-024", "reader-1", true));
+    assertTrue(repository.hasStudyAccess("CASE-ACCESS-024", "editor-1", true));
+    assertEquals(List.of("CASE-ACCESS-024"), repository.findAccessibleCaseIds("reader-1"));
+  }
+
+  @Test
   void appliesMigrationAndPersistsStudyInputsRunArtifactsMetricsAndReview() throws Exception {
     PostgresStudyRepository repository =
         new PostgresStudyRepository(

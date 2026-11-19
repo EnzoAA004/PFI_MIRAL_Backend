@@ -149,6 +149,38 @@ public class PostgresPatientRepository implements PatientRepository {
     }
   }
 
+  @Override
+  public boolean claimPatientOwner(String patientId, String principalId) {
+    if (patientId == null || principalId == null || principalId.isBlank()) return false;
+    try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
+        INSERT INTO domain_patient_access_grants(patient_id, principal_id, permission)
+        VALUES (?::uuid, ?, 'OWNER')
+        ON CONFLICT (patient_id, principal_id) DO NOTHING
+        """)) {
+      statement.setString(1, patientId);
+      statement.setString(2, principalId);
+      statement.executeUpdate();
+    } catch (Exception ex) {
+      // A different owner may already exist; verify below without changing ownership.
+    }
+    return isPatientOwner(patientId, principalId);
+  }
+
+  @Override
+  public boolean isPatientOwner(String patientId, String principalId) {
+    if (patientId == null || principalId == null) return false;
+    try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
+        SELECT 1 FROM domain_patient_access_grants
+        WHERE patient_id = ?::uuid AND principal_id = ? AND permission = 'OWNER'
+        """)) {
+      statement.setString(1, patientId);
+      statement.setString(2, principalId);
+      try (ResultSet rs = statement.executeQuery()) { return rs.next(); }
+    } catch (Exception ex) {
+      throw new IllegalStateException("Could not verify patient ownership", ex);
+    }
+  }
+
   private Patient readPatient(ResultSet rs) throws Exception {
     return new Patient(
         rs.getObject("id", UUID.class).toString(),

@@ -37,6 +37,8 @@ import org.springframework.stereotype.Repository;
 public class InMemoryStudyRepository implements StudyRepository {
     private final ConcurrentMap<String, Study> studiesById = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, String> studyIdsByCaseId = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, String> studyOwnersByCaseId = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, String> studyGrants = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, InputResource> inputsById = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, StudyRun> runsById = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, String> runIdsByMultiplanarRunId = new ConcurrentHashMap<>();
@@ -88,6 +90,67 @@ public class InMemoryStudyRepository implements StudyRepository {
     @Override
     public Optional<Study> findStudyByCaseId(String caseId) {
         return Optional.ofNullable(studyIdsByCaseId.get(caseId)).map(studiesById::get);
+    }
+
+    @Override
+    public boolean claimStudyOwner(String caseId, String principalId) {
+        if (caseId == null || principalId == null || principalId.isBlank()) return false;
+        String owner = studyOwnersByCaseId.putIfAbsent(caseId, principalId);
+        return owner == null || owner.equals(principalId);
+    }
+
+    @Override
+    public boolean hasStudyAccess(String caseId, String principalId, boolean write) {
+        if (caseId == null || principalId == null) return false;
+        String owner = studyOwnersByCaseId.get(caseId);
+        if (principalId.equals(owner)) return true;
+        String permission = studyGrants.get(caseId + "\u0000" + principalId);
+        return "WRITE".equals(permission) || (!write && "READ".equals(permission));
+    }
+
+    @Override
+    public void grantStudyAccess(String caseId, String principalId, String permission, String grantedBy) {
+        if (!grantedBy.equals(studyOwnersByCaseId.get(caseId))) throw new IllegalStateException("Only the study owner can grant access");
+        if ("OWNER".equals(permission) || !List.of("READ", "WRITE").contains(permission)) throw new IllegalArgumentException("Invalid study permission");
+        studyGrants.put(caseId + "\u0000" + principalId, permission);
+    }
+
+    @Override
+    public List<String> findAccessibleCaseIds(String principalId) {
+        List<String> caseIds = new ArrayList<>();
+        studyOwnersByCaseId.forEach((caseId, owner) -> {
+            if (principalId.equals(owner) || studyGrants.containsKey(caseId + "\u0000" + principalId)) caseIds.add(caseId);
+        });
+        return List.copyOf(caseIds);
+    }
+
+    @Override
+    public Optional<String> resolveStudyCaseId(String resourceId) {
+        if (resourceId == null) return Optional.empty();
+        AiProductAnalysisRun analysis = aiAnalysisRunsById.get(resourceId);
+        if (analysis != null) {
+            Study study = studiesById.get(analysis.studyId());
+            if (study != null) return Optional.of(study.caseId());
+        }
+        ProfessionalFeedbackCandidate candidate = professionalFeedbackCandidatesById.get(resourceId);
+        if (candidate != null) return Optional.of(candidate.caseId());
+        for (InputResource input : inputsById.values()) {
+            if (resourceId.equals(input.inputId())) {
+                Study study = studiesById.get(input.studyId());
+                if (study != null) return Optional.of(study.caseId());
+            }
+        }
+        for (StudyRun run : runsById.values()) {
+            if (resourceId.equals(run.multiplanarRunId()) || resourceId.equals(run.sagittalRunId()) || resourceId.equals(run.axialRunId())) {
+                Study study = studiesById.get(run.studyId());
+                if (study != null) return Optional.of(study.caseId());
+            }
+            if (run.artifacts().stream().anyMatch(artifact -> resourceId.equals(artifact.runId()))) {
+                Study study = studiesById.get(run.studyId());
+                if (study != null) return Optional.of(study.caseId());
+            }
+        }
+        return Optional.empty();
     }
 
     @Override

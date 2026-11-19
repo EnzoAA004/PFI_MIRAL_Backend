@@ -80,7 +80,12 @@ public class PatientController {
       HttpServletRequest request) {
     accessAuditService.record(
         request, "access_patient_worklist", "Lista de pacientes de-identificados consultada");
-    return patientService.search(query, limit);
+    List<String> accessible = authorizationService.accessibleStudyCaseIds(request);
+    java.util.Set<String> allowedCases = java.util.Set.copyOf(accessible);
+    return patientService.search(query, limit).stream()
+        .filter(patient -> patientService.isOwner(patient.id(), actor(request))
+            || patientService.studies(patient.id()).stream().anyMatch(study -> allowedCases.contains(study.caseId())))
+        .toList();
   }
 
   @Operation(summary = "Obtiene un paciente de-identificado")
@@ -95,6 +100,7 @@ public class PatientController {
       content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
   @GetMapping("/{patientId}")
   public PatientDetailDto get(@PathVariable String patientId, HttpServletRequest request) {
+    requirePatientAccess(patientId, request, false);
     accessAuditService.record(
         request,
         "access_patient_detail",
@@ -122,6 +128,7 @@ public class PatientController {
       @RequestBody(required = false) UpdatePatientRequestDto request,
       HttpServletRequest httpRequest) {
     authorizationService.requireProfessional(httpRequest, patientId);
+    requirePatientAccess(patientId, httpRequest, true);
     return patientService.update(patientId, request, actor(httpRequest), traceId(httpRequest));
   }
 
@@ -138,11 +145,32 @@ public class PatientController {
   @GetMapping("/{patientId}/studies")
   public List<PatientStudySummaryDto> studies(
       @PathVariable String patientId, HttpServletRequest request) {
+    List<String> accessible = authorizationService.accessibleStudyCaseIds(request);
+    java.util.Set<String> allowedCases = java.util.Set.copyOf(accessible);
+    List<PatientStudySummaryDto> visible = patientService.studies(patientId).stream()
+        .filter(study -> allowedCases.contains(study.caseId())).toList();
+    if (visible.isEmpty() && !patientService.isOwner(patientId, actor(request))) throw new org.springframework.web.server.ResponseStatusException(HttpStatus.NOT_FOUND, "Paciente inexistente.");
     accessAuditService.record(
         request,
         "access_patient_studies",
         "Estudios de paciente de-identificado consultados patientId=" + patientId);
-    return patientService.studies(patientId);
+    return visible;
+  }
+
+  private void requirePatientAccess(String patientId, HttpServletRequest request, boolean write) {
+    List<String> accessible = authorizationService.accessibleStudyCaseIds(request);
+    if (patientService.isOwner(patientId, actor(request))) return;
+    List<PatientStudySummaryDto> linkedStudies = patientService.studies(patientId);
+    boolean allowed = !linkedStudies.isEmpty() && (write
+        ? linkedStudies.stream().allMatch(study -> accessible.contains(study.caseId())
+            && hasWriteAccess(request, study.caseId()))
+        : linkedStudies.stream().anyMatch(study -> accessible.contains(study.caseId())));
+    if (!allowed) throw new org.springframework.web.server.ResponseStatusException(HttpStatus.NOT_FOUND, "Paciente inexistente.");
+  }
+
+  private boolean hasWriteAccess(HttpServletRequest request, String caseId) {
+    try { authorizationService.requireStudyWrite(request, caseId); return true; }
+    catch (org.springframework.web.server.ResponseStatusException denied) { return false; }
   }
 
   private String actor(HttpServletRequest request) {

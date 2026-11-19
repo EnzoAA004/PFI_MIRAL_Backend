@@ -14,6 +14,7 @@ import ar.edu.uade.pfi.backend.dto.StudyReviewResponseDto.MeasurementDto;
 import ar.edu.uade.pfi.backend.dto.StudyReviewResponseDto.PointDto;
 import ar.edu.uade.pfi.backend.dto.StudyReviewResponseDto.SeriesDto;
 import ar.edu.uade.pfi.backend.dto.StudyRunsResponseDto;
+import ar.edu.uade.pfi.backend.dto.StudyAccessGrantRequestDto;
 import ar.edu.uade.pfi.backend.service.ProfessionalAccessAuditService;
 import ar.edu.uade.pfi.backend.service.StudyRunService;
 import ar.edu.uade.pfi.backend.service.StudyWorklistService;
@@ -79,8 +80,10 @@ public class StudyController {
       content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
   @GetMapping
   public StudyListResponseDto listStudies(HttpServletRequest request) {
+    authorizationService.requireProfessional(request, "studies");
+    List<String> accessibleCaseIds = authorizationService.accessibleStudyCaseIds(request);
     accessAuditService.record(request, "access_worklist", "Worklist de-identificada consultada");
-    return studyWorklistService.listStudies();
+    return studyWorklistService.listStudies(accessibleCaseIds);
   }
 
   @Operation(
@@ -95,6 +98,7 @@ public class StudyController {
       content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
   @GetMapping("/{caseId}")
   public StudyDetailResponseDto getStudy(@PathVariable String caseId, HttpServletRequest request) {
+    authorizationService.requireStudyRead(request, caseId);
     accessAuditService.record(
         request,
         "access_study_detail",
@@ -105,6 +109,7 @@ public class StudyController {
   @GetMapping("/{caseId}/runs")
   public StudyRunsResponseDto getStudyRuns(
       @PathVariable String caseId, HttpServletRequest request) {
+    authorizationService.requireStudyRead(request, caseId);
     accessAuditService.record(
         request, "access_study_runs", "Corridas de estudio consultadas caseId=" + caseId);
     return studyWorklistService.getStudyRuns(caseId);
@@ -116,6 +121,7 @@ public class StudyController {
       @RequestBody(required = false) StudyMetadataDto metadata,
       HttpServletRequest request) {
     authorizationService.requireProfessional(request, caseId);
+    authorizationService.requireStudyWrite(request, caseId);
     accessAuditService.record(
         request,
         "update_study_metadata",
@@ -141,6 +147,19 @@ public class StudyController {
     response.put("humanReviewRequired", true);
     response.put("notClinicalDiagnosis", true);
     return response;
+  }
+
+  @PostMapping("/{caseId}/access")
+  public Map<String, Object> grantAccess(
+      @PathVariable String caseId,
+      @RequestBody StudyAccessGrantRequestDto grant,
+      HttpServletRequest request) {
+    if (grant == null || grant.principalId() == null || grant.principalId().isBlank()) {
+      throw new org.springframework.web.server.ResponseStatusException(
+          org.springframework.http.HttpStatus.BAD_REQUEST, "principalId es obligatorio.");
+    }
+    authorizationService.grantStudyAccess(request, caseId, grant.principalId().trim(), grant.permission());
+    return Map.of("status", "ok", "caseId", caseId, "permission", grant.permission());
   }
 
   @PostMapping("/demo")

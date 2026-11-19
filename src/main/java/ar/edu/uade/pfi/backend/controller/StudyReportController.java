@@ -29,12 +29,16 @@ public class StudyReportController {
     @GetMapping("/report")
     public StudyReportDto report(@PathVariable String caseId, @RequestParam(required = false) String baselineCaseId, HttpServletRequest request) {
         authorizationService.requireProfessional(request, caseId);
+        authorizationService.requireStudyRead(request, caseId);
+        if (baselineCaseId != null && !baselineCaseId.isBlank()) authorizationService.requireStudyRead(request, baselineCaseId);
         return reportService.report(caseId, baselineCaseId);
     }
 
     @GetMapping("/report.json")
     public ResponseEntity<StudyReportDto> reportJson(@PathVariable String caseId, @RequestParam(required = false) String baselineCaseId, HttpServletRequest request) {
         authorizationService.requireProfessional(request, caseId);
+        authorizationService.requireStudyRead(request, caseId);
+        if (baselineCaseId != null && !baselineCaseId.isBlank()) authorizationService.requireStudyRead(request, baselineCaseId);
         return ResponseEntity.ok()
             .header(HttpHeaders.CONTENT_DISPOSITION, attachment("study-report-" + safeFilename(caseId) + ".json"))
             .contentType(MediaType.APPLICATION_JSON)
@@ -44,6 +48,8 @@ public class StudyReportController {
     @GetMapping("/report.pdf")
     public ResponseEntity<byte[]> reportPdf(@PathVariable String caseId, @RequestParam(required = false) String baselineCaseId, HttpServletRequest request) {
         authorizationService.requireProfessional(request, caseId);
+        authorizationService.requireStudyRead(request, caseId);
+        if (baselineCaseId != null && !baselineCaseId.isBlank()) authorizationService.requireStudyRead(request, baselineCaseId);
         return ResponseEntity.ok()
             .header(HttpHeaders.CONTENT_DISPOSITION, attachment("study-report-" + safeFilename(caseId) + ".pdf"))
             .contentType(MediaType.APPLICATION_PDF)

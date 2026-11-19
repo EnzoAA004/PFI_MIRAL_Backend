@@ -49,8 +49,14 @@ public class SubjectListService {
      * {@code GET /api/subjects/{subjectRef}/history} always uses a real, existing casing.
      */
     public List<SubjectSummaryDto> list() {
+        return list(null);
+    }
+
+    public List<SubjectSummaryDto> list(List<String> accessibleCaseIds) {
+        java.util.Set<String> allowed = accessibleCaseIds == null ? null : java.util.Set.copyOf(accessibleCaseIds);
         Map<String, List<Study>> bySubject = new LinkedHashMap<>();
         for (Study study : repository.findAllStudies()) {
+            if (allowed != null && !allowed.contains(study.caseId())) continue;
             String key = normalizeKey(study.subjectRef());
             if (key == null) continue;
             bySubject.computeIfAbsent(key, ignored -> new ArrayList<>()).add(study);

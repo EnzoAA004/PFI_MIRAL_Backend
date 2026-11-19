@@ -28,9 +28,17 @@ public class PatientHistoryService {
     }
 
     public Map<String, Object> history(String subjectRef) {
+        return history(subjectRef, null);
+    }
+
+    public Map<String, Object> history(String subjectRef, List<String> accessibleCaseIds) {
         String normalizedSubjectRef = normalizeSubjectRef(subjectRef);
         try {
             List<Study> studies = repository.findStudiesBySubjectRef(normalizedSubjectRef);
+            if (accessibleCaseIds != null) {
+                java.util.Set<String> allowed = java.util.Set.copyOf(accessibleCaseIds);
+                studies = studies.stream().filter(study -> allowed.contains(study.caseId())).toList();
+            }
             List<Map<String, Object>> items = studies.stream()
                 .map(this::toHistoryStudy)
                 .toList();
