@@ -50,6 +50,24 @@ class PostgresStudyRepositoryTest {
   }
 
   @Test
+  void scopesDirectAiPipelineRunIdsToTheirExistingStudy() {
+    PostgresStudyRepository repository = new PostgresStudyRepository(
+        new ObjectMapper(), postgres.getJdbcUrl() + "&user=" + postgres.getUsername() + "&password=" + postgres.getPassword(), true);
+    Instant now = Instant.now();
+    repository.saveStudy(new Study(UUID.randomUUID().toString(), "CASE-PIPELINE-SCOPE-A-" + UUID.randomUUID(), "ready", now, now));
+    repository.saveStudy(new Study(UUID.randomUUID().toString(), "CASE-PIPELINE-SCOPE-B-" + UUID.randomUUID(), "ready", now, now));
+    String runId = "pipeline-" + UUID.randomUUID();
+
+    assertFalse(repository.registerAiPipelineRunResource(runId, "case-does-not-exist"));
+    String caseA = repository.findAllStudies().stream().filter(s -> s.caseId().startsWith("CASE-PIPELINE-SCOPE-A-")).findFirst().orElseThrow().caseId();
+    String caseB = repository.findAllStudies().stream().filter(s -> s.caseId().startsWith("CASE-PIPELINE-SCOPE-B-")).findFirst().orElseThrow().caseId();
+    assertTrue(repository.registerAiPipelineRunResource(runId, caseA));
+    assertEquals(caseA, repository.resolveStudyCaseId(runId).orElseThrow());
+    assertThrows(IllegalStateException.class, () -> repository.registerAiPipelineRunResource(runId, caseB));
+    assertEquals(caseA, repository.resolveStudyCaseId(runId).orElseThrow());
+  }
+
+  @Test
   void appliesMigrationAndPersistsStudyInputsRunArtifactsMetricsAndReview() throws Exception {
     PostgresStudyRepository repository =
         new PostgresStudyRepository(

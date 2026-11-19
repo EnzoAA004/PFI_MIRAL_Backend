@@ -441,12 +441,45 @@ public class PostgresStudyRepository implements StudyRepository {
                    WHERE r.study_id = s.id AND a.run_id = ?)
                OR EXISTS (SELECT 1 FROM domain_ai_analysis_runs ar WHERE ar.study_id = s.id AND ar.id::text = ?)
                OR EXISTS (SELECT 1 FROM domain_professional_feedback_candidates fc WHERE fc.study_id = s.id AND fc.id::text = ?)
+               OR EXISTS (SELECT 1 FROM domain_ai_pipeline_run_resources pr WHERE pr.study_id = s.id AND pr.run_id = ?)
             LIMIT 1
             """)) {
-            for (int i = 1; i <= 7; i++) statement.setString(i, resourceId);
+            for (int i = 1; i <= 8; i++) statement.setString(i, resourceId);
             try (ResultSet rs = statement.executeQuery()) { return rs.next() ? Optional.of(rs.getString(1)) : Optional.empty(); }
         } catch (Exception ex) {
             throw new IllegalStateException("Could not resolve study for resource", ex);
+        }
+    }
+
+    @Override
+    public boolean registerAiPipelineRunResource(String runId, String caseId) {
+        if (runId == null || runId.isBlank() || caseId == null || caseId.isBlank()) return false;
+        try (Connection connection = connection()) {
+            try (PreparedStatement insert = connection.prepareStatement("""
+                INSERT INTO domain_ai_pipeline_run_resources(run_id, study_id)
+                SELECT ?, id FROM domain_studies WHERE case_id = ?
+                ON CONFLICT (run_id) DO NOTHING
+                """)) {
+                insert.setString(1, runId);
+                insert.setString(2, caseId);
+                if (insert.executeUpdate() == 0) {
+                    try (PreparedStatement verify = connection.prepareStatement("""
+                        SELECT s.case_id FROM domain_ai_pipeline_run_resources pr
+                        JOIN domain_studies s ON s.id = pr.study_id WHERE pr.run_id = ?
+                        """)) {
+                        verify.setString(1, runId);
+                        try (ResultSet rs = verify.executeQuery()) {
+                            if (!rs.next()) return false;
+                            if (!caseId.equals(rs.getString(1))) throw new IllegalStateException("AI pipeline run is already bound to another study");
+                        }
+                    }
+                }
+                return true;
+            }
+        } catch (IllegalStateException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new IllegalStateException("Could not register AI pipeline run resource", ex);
         }
     }
 

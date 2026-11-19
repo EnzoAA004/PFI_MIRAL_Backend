@@ -49,6 +49,9 @@ public interface StudyRepository {
 
     default Optional<String> resolveStudyCaseId(String resourceId) { return Optional.empty(); }
 
+    /** Registers a pipeline result against an already persisted case without reassigning existing IDs. */
+    default boolean registerAiPipelineRunResource(String runId, String caseId) { return false; }
+
     List<Study> findStudiesBySubjectRef(String subjectRef);
 
     List<Study> findStudiesByPatientId(String patientId);

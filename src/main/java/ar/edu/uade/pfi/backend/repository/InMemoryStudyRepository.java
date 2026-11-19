@@ -43,6 +43,7 @@ public class InMemoryStudyRepository implements StudyRepository {
     private final ConcurrentMap<String, StudyRun> runsById = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, String> runIdsByMultiplanarRunId = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, String> runIdsByTraceId = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, String> caseIdsByAiPipelineRunId = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, List<MeasurementCorrection>> correctionsByRunId = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, List<ReviewerAnnotation>> annotationsByRunId = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, DomainAuditEvent> auditEventsById = new ConcurrentHashMap<>();
@@ -132,6 +133,8 @@ public class InMemoryStudyRepository implements StudyRepository {
     @Override
     public Optional<String> resolveStudyCaseId(String resourceId) {
         if (resourceId == null) return Optional.empty();
+        String pipelineCaseId = caseIdsByAiPipelineRunId.get(resourceId);
+        if (pipelineCaseId != null) return Optional.of(pipelineCaseId);
         AiProductAnalysisRun analysis = aiAnalysisRunsById.get(resourceId);
         if (analysis != null) {
             Study study = studiesById.get(analysis.studyId());
@@ -156,6 +159,16 @@ public class InMemoryStudyRepository implements StudyRepository {
             }
         }
         return Optional.empty();
+    }
+
+    @Override
+    public boolean registerAiPipelineRunResource(String runId, String caseId) {
+        if (runId == null || runId.isBlank() || caseId == null || caseId.isBlank() || findStudyByCaseId(caseId).isEmpty()) return false;
+        String existing = caseIdsByAiPipelineRunId.putIfAbsent(runId, caseId);
+        if (existing != null && !existing.equals(caseId)) {
+            throw new IllegalStateException("AI pipeline run is already bound to another study");
+        }
+        return true;
     }
 
     @Override

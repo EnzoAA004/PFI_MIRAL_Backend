@@ -381,6 +381,7 @@ public class AiBackendService {
             }
             String runId = extractRunId(response);
             if (runId != null) {
+                if (studyRepository != null) studyRepository.registerAiPipelineRunResource(runId, normalizedRequest.caseId());
                 response.put("review", reviewStoreService.findOrDefault(runId));
             }
             response.put("aiModuleAvailable", true);
