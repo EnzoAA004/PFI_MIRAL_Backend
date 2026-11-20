@@ -17,7 +17,13 @@ public record StudyRowDto(
     String priority,
     String createdAt,
     String updatedAt,
-    String dataOrigin) {
+    String dataOrigin,
+    String patientCode,
+    String patientName,
+    Integer ageAtStudy) {
+  public StudyRowDto(String caseId, String subjectRef, String studyDate, String status, List<String> planes, String primaryPlane, String latestRunId, String modelKey, String modelStatus, String reviewStatus, String priority, String createdAt, String updatedAt, String dataOrigin) {
+    this(caseId, subjectRef, studyDate, status, planes, primaryPlane, latestRunId, modelKey, modelStatus, reviewStatus, priority, createdAt, updatedAt, dataOrigin, null, null, null);
+  }
   public StudyRowDto(
       String caseId,
       String subjectRef,
@@ -42,7 +48,7 @@ public record StudyRowDto(
         priority,
         null,
         null,
-        "demo");
+        "demo", null, null, null);
   }
 
   @JsonGetter("plane")

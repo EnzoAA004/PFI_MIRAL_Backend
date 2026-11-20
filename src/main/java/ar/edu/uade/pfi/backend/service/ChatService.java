@@ -114,12 +114,12 @@ public class ChatService {
         ChatConversation conversationToCreate = existingConversation != null ? null : new ChatConversation(conversationId, study.id(), now);
         ChatMessage userMessage = new ChatMessage(
             UUID.randomUUID().toString(), conversationId, "USER", question, now, null, null,
-            ChatSystemPrompts.CURRENT_VERSION, request.analysisId(), baselineStudyId
+            ChatSystemPrompts.CURRENT_VERSION, request.analysisId(), baselineStudyId, context.study() == null ? null : context.study().contextVersion()
         );
         String assistantMessageId = UUID.randomUUID().toString();
         ChatMessage assistantMessage = new ChatMessage(
             assistantMessageId, conversationId, "ASSISTANT", result.content(), now, result.model(), result.provider(),
-            ChatSystemPrompts.CURRENT_VERSION, request.analysisId(), baselineStudyId
+            ChatSystemPrompts.CURRENT_VERSION, request.analysisId(), baselineStudyId, context.study() == null ? null : context.study().contextVersion()
         );
         // 81-M: both messages (and the conversation row, if new) are written in one transaction --
         // a Stage-80 gap where three independent writes could leave an orphan user-only turn.
@@ -138,7 +138,9 @@ public class ChatService {
             context.analysis() == null ? List.of() : context.analysis().warnings(),
             true,
             true,
-            context.contextSources()
+            context.contextSources(),
+            context.study() == null ? null : context.study().contextVersion(),
+            "DRAFT_PENDING_REVIEW"
         );
     }
 
@@ -159,10 +161,18 @@ public class ChatService {
             .orElseThrow(this::conversationNotFound);
         List<ChatConversationDetailDto.Message> messages = repository.findChatMessagesByConversationId(conversation.id()).stream()
             .map(message -> new ChatConversationDetailDto.Message(
-                message.id(), message.role(), message.content(), message.createdAt(), message.model(), message.provider(), message.promptVersion()
+                message.id(), message.role(), message.content(), message.createdAt(), message.model(), message.provider(), message.promptVersion(), message.contextVersion(), isOutdated(message, study),
+                "ASSISTANT".equals(message.role()) ? (isOutdated(message, study) ? "DRAFT_OUTDATED" : "DRAFT_PENDING_REVIEW") : null
             ))
             .toList();
         return new ChatConversationDetailDto(conversation.id(), caseId, conversation.createdAt(), messages);
+    }
+
+    private boolean isOutdated(ChatMessage message, Study study) {
+        return "ASSISTANT".equals(message.role())
+            && message.contextVersion() != null
+            && study.contextVersion() != null
+            && !message.contextVersion().equals(study.contextVersion());
     }
 
     /**

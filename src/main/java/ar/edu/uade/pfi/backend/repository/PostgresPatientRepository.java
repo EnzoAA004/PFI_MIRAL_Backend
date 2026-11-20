@@ -47,13 +47,16 @@ public class PostgresPatientRepository implements PatientRepository {
         PreparedStatement statement =
             connection.prepareStatement(
                 """
-                INSERT INTO domain_patients(id, patient_reference, created_at, updated_at)
-                VALUES (?::uuid, ?, ?, ?)
+                INSERT INTO domain_patients(id, patient_reference, first_name, last_name, date_of_birth, created_at, updated_at)
+                VALUES (?::uuid, ?, ?, ?, ?, ?, ?)
                 """)) {
       statement.setString(1, patient.id());
       statement.setString(2, patient.patientReference());
-      statement.setTimestamp(3, Timestamp.from(patient.createdAt()));
-      statement.setTimestamp(4, Timestamp.from(patient.updatedAt()));
+      statement.setString(3, patient.firstName());
+      statement.setString(4, patient.lastName());
+      statement.setObject(5, patient.dateOfBirth());
+      statement.setTimestamp(6, Timestamp.from(patient.createdAt()));
+      statement.setTimestamp(7, Timestamp.from(patient.updatedAt()));
       statement.executeUpdate();
       return patient;
     } catch (Exception ex) {
@@ -68,7 +71,7 @@ public class PostgresPatientRepository implements PatientRepository {
         PreparedStatement statement =
             connection.prepareStatement(
                 """
-                SELECT id, patient_reference, created_at, updated_at
+                SELECT id, patient_reference, first_name, last_name, date_of_birth, created_at, updated_at
                 FROM domain_patients
                 WHERE id = ?::uuid
                 """)) {
@@ -88,7 +91,7 @@ public class PostgresPatientRepository implements PatientRepository {
         PreparedStatement statement =
             connection.prepareStatement(
                 """
-                SELECT id, patient_reference, created_at, updated_at
+                SELECT id, patient_reference, first_name, last_name, date_of_birth, created_at, updated_at
                 FROM domain_patients
                 WHERE lower(btrim(patient_reference)) LIKE lower(?) ESCAPE '\\'
                 ORDER BY lower(btrim(patient_reference)), id
@@ -96,6 +99,38 @@ public class PostgresPatientRepository implements PatientRepository {
                 """)) {
       statement.setString(1, escapeLike(query.trim()) + "%");
       statement.setInt(2, limit);
+      try (ResultSet rs = statement.executeQuery()) {
+        List<Patient> patients = new ArrayList<>();
+        while (rs.next()) patients.add(readPatient(rs));
+        return patients;
+      }
+    } catch (Exception ex) {
+      throw new IllegalStateException("Could not search patients", ex);
+    }
+  }
+
+  @Override
+  public List<Patient> search(String query, int limit) {
+    try (Connection connection = connection();
+        PreparedStatement statement =
+            connection.prepareStatement(
+                """
+                SELECT id, patient_reference, first_name, last_name, date_of_birth, created_at, updated_at
+                FROM domain_patients
+                WHERE lower(btrim(patient_reference)) LIKE lower(?) ESCAPE '\\'
+                   OR lower(coalesce(first_name, '')) LIKE lower(?) ESCAPE '\\'
+                   OR lower(coalesce(last_name, '')) LIKE lower(?) ESCAPE '\\'
+                   OR lower(btrim(coalesce(first_name, '') || ' ' || coalesce(last_name, ''))) LIKE lower(?) ESCAPE '\\'
+                ORDER BY lower(btrim(patient_reference)), id
+                LIMIT ?
+                """)) {
+      String prefix = escapeLike(query.trim()) + "%";
+      String contains = "%" + escapeLike(query.trim()) + "%";
+      statement.setString(1, prefix);
+      statement.setString(2, contains);
+      statement.setString(3, contains);
+      statement.setString(4, contains);
+      statement.setInt(5, limit);
       try (ResultSet rs = statement.executeQuery()) {
         List<Patient> patients = new ArrayList<>();
         while (rs.next()) patients.add(readPatient(rs));
@@ -131,10 +166,34 @@ public class PostgresPatientRepository implements PatientRepository {
     }
   }
 
+  @Override
+  public Optional<Patient> updateProfile(String patientId, String patientReference, String firstName, String lastName, java.time.LocalDate dateOfBirth, Instant updatedAt) {
+    try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
+        UPDATE domain_patients
+        SET patient_reference = ?, first_name = ?, last_name = ?, date_of_birth = ?, updated_at = ?
+        WHERE id = ?::uuid
+        RETURNING id, patient_reference, first_name, last_name, date_of_birth, created_at, updated_at
+        """)) {
+      statement.setString(1, patientReference);
+      statement.setString(2, firstName);
+      statement.setString(3, lastName);
+      statement.setObject(4, dateOfBirth);
+      statement.setTimestamp(5, Timestamp.from(updatedAt));
+      statement.setString(6, patientId);
+      try (ResultSet rs = statement.executeQuery()) { return rs.next() ? Optional.of(readPatient(rs)) : Optional.empty(); }
+    } catch (Exception ex) {
+      if (hasSqlState(ex, "23505")) throw new DuplicatePatientReferenceException(ex);
+      throw new IllegalStateException("Could not update patient", ex);
+    }
+  }
+
   private Patient readPatient(ResultSet rs) throws Exception {
     return new Patient(
         rs.getObject("id", UUID.class).toString(),
         rs.getString("patient_reference"),
+        rs.getString("first_name"),
+        rs.getString("last_name"),
+        rs.getObject("date_of_birth", java.time.LocalDate.class),
         rs.getTimestamp("created_at").toInstant(),
         rs.getTimestamp("updated_at").toInstant());
   }

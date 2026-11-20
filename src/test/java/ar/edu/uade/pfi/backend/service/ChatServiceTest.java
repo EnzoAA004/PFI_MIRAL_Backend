@@ -122,7 +122,7 @@ class ChatServiceTest {
         Study study = seedStudy("case-1");
         seedRun(study);
         ChatResponseDto response = serviceWith(new FakeLlmProvider(), true).chat("case-1", new ChatRequestDto("hola", null, null, null), "trace-1");
-        assertEquals("pfi.chat-system-prompt.v1", response.promptVersion());
+        assertEquals("pfi.chat-system-prompt.v2-clinical-context", response.promptVersion());
     }
 
     // ---- 12-13: provider invocation ----
@@ -273,6 +273,31 @@ class ChatServiceTest {
 
         ChatConversationDetailDto detail = service.detail("case-1", response.conversationId());
         assertEquals(2, detail.messages().size());
+    }
+
+    @Test
+    void persistedAssistantDraftIsMarkedOutdatedWhenStudyContextVersionChanges() {
+        Study study = seedStudy("case-1");
+        seedRun(study);
+        ChatService service = serviceWith(new FakeLlmProvider(), true);
+        ChatResponseDto response = service.chat("case-1", new ChatRequestDto("hola", null, null, null), "trace-1");
+
+        Study changedContext = new Study(
+            study.id(), study.caseId(), study.status(), study.patientId(), study.subjectRef(), study.studyDate(),
+            study.modality(), study.description(), study.reviewPriority(), study.ageAtStudy(), study.ageProvenance(),
+            "nuevo motivo", study.symptoms(), study.symptomDuration(), study.relevantHistory(), "pfi.study-context.v2",
+            study.createdAt(), study.updatedAt()
+        );
+        repository.saveStudy(changedContext);
+
+        ChatConversationDetailDto detail = service.detail("case-1", response.conversationId());
+        ChatConversationDetailDto.Message assistant = detail.messages().stream()
+            .filter(message -> "ASSISTANT".equals(message.role()))
+            .findFirst()
+            .orElseThrow();
+        assertTrue(assistant.outdated());
+        assertEquals("DRAFT_OUTDATED", assistant.draftStatus());
+        assertEquals("pfi.study-context.v1", assistant.contextVersion());
     }
 
     @Test

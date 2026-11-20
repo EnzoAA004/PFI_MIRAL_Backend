@@ -77,9 +77,9 @@ public class PostgresStudyRepository implements StudyRepository {
     public Study saveStudy(Study study) {
         try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
             INSERT INTO domain_studies(
-                id, case_id, status, patient_id, subject_ref, study_date, modality, description, review_priority, created_at, updated_at
+                id, case_id, status, patient_id, subject_ref, study_date, modality, description, review_priority, age_at_study, age_provenance, clinical_reason, symptoms, symptom_duration, relevant_history, context_version, created_at, updated_at
             )
-            VALUES (?::uuid, ?, ?, ?::uuid, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?::uuid, ?, ?, ?::uuid, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT (case_id) DO UPDATE SET
               status = EXCLUDED.status,
               patient_id = COALESCE(EXCLUDED.patient_id, domain_studies.patient_id),
@@ -88,6 +88,13 @@ public class PostgresStudyRepository implements StudyRepository {
               modality = EXCLUDED.modality,
               description = EXCLUDED.description,
               review_priority = EXCLUDED.review_priority,
+              age_at_study = EXCLUDED.age_at_study,
+              age_provenance = EXCLUDED.age_provenance,
+              clinical_reason = EXCLUDED.clinical_reason,
+              symptoms = EXCLUDED.symptoms,
+              symptom_duration = EXCLUDED.symptom_duration,
+              relevant_history = EXCLUDED.relevant_history,
+              context_version = EXCLUDED.context_version,
               updated_at = EXCLUDED.updated_at
             """)) {
             statement.setString(1, study.id());
@@ -99,8 +106,9 @@ public class PostgresStudyRepository implements StudyRepository {
             statement.setString(7, study.modality());
             statement.setString(8, study.description());
             statement.setString(9, study.reviewPriority());
-            statement.setTimestamp(10, Timestamp.from(study.createdAt()));
-            statement.setTimestamp(11, Timestamp.from(study.updatedAt()));
+            statement.setObject(10, study.ageAtStudy()); statement.setString(11, study.ageProvenance()); statement.setString(12, study.clinicalReason()); statement.setString(13, study.symptoms()); statement.setString(14, study.symptomDuration()); statement.setString(15, study.relevantHistory()); statement.setString(16, study.contextVersion());
+            statement.setTimestamp(17, Timestamp.from(study.createdAt()));
+            statement.setTimestamp(18, Timestamp.from(study.updatedAt()));
             statement.executeUpdate();
             return study;
         } catch (Exception ex) {
@@ -282,7 +290,7 @@ public class PostgresStudyRepository implements StudyRepository {
     @Override
     public List<Study> findAllStudies() {
         try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
-            SELECT id, case_id, status, patient_id, subject_ref, study_date, modality, description, review_priority, created_at, updated_at
+            SELECT id, case_id, status, patient_id, subject_ref, study_date, modality, description, review_priority, age_at_study, age_provenance, clinical_reason, symptoms, symptom_duration, relevant_history, context_version, created_at, updated_at
             FROM domain_studies
             ORDER BY updated_at DESC, created_at DESC
             """)) {
@@ -299,7 +307,7 @@ public class PostgresStudyRepository implements StudyRepository {
     @Override
     public Optional<Study> findStudyByCaseId(String caseId) {
         try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
-            SELECT id, case_id, status, patient_id, subject_ref, study_date, modality, description, review_priority, created_at, updated_at
+            SELECT id, case_id, status, patient_id, subject_ref, study_date, modality, description, review_priority, age_at_study, age_provenance, clinical_reason, symptoms, symptom_duration, relevant_history, context_version, created_at, updated_at
             FROM domain_studies
             WHERE case_id = ?
             """)) {
@@ -316,7 +324,7 @@ public class PostgresStudyRepository implements StudyRepository {
     @Override
     public List<Study> findStudiesBySubjectRef(String subjectRef) {
         try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
-            SELECT id, case_id, status, patient_id, subject_ref, study_date, modality, description, review_priority, created_at, updated_at
+            SELECT id, case_id, status, patient_id, subject_ref, study_date, modality, description, review_priority, age_at_study, age_provenance, clinical_reason, symptoms, symptom_duration, relevant_history, context_version, created_at, updated_at
             FROM domain_studies
             WHERE subject_ref IS NOT NULL AND lower(subject_ref) = lower(?)
             ORDER BY study_date DESC NULLS LAST, created_at DESC
@@ -335,7 +343,7 @@ public class PostgresStudyRepository implements StudyRepository {
     @Override
     public List<Study> findStudiesByPatientId(String patientId) {
         try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
-            SELECT id, case_id, status, patient_id, subject_ref, study_date, modality, description, review_priority, created_at, updated_at
+            SELECT id, case_id, status, patient_id, subject_ref, study_date, modality, description, review_priority, age_at_study, age_provenance, clinical_reason, symptoms, symptom_duration, relevant_history, context_version, created_at, updated_at
             FROM domain_studies
             WHERE patient_id = ?::uuid
             ORDER BY study_date DESC NULLS LAST, created_at DESC, id
@@ -893,6 +901,13 @@ public class PostgresStudyRepository implements StudyRepository {
             rs.getString("modality"),
             rs.getString("description"),
             rs.getString("review_priority"),
+            rs.getObject("age_at_study", Integer.class),
+            rs.getString("age_provenance"),
+            rs.getString("clinical_reason"),
+            rs.getString("symptoms"),
+            rs.getString("symptom_duration"),
+            rs.getString("relevant_history"),
+            rs.getString("context_version"),
             rs.getTimestamp("created_at").toInstant(),
             rs.getTimestamp("updated_at").toInstant()
         );
@@ -1514,8 +1529,8 @@ public class PostgresStudyRepository implements StudyRepository {
     private void insertChatMessage(Connection connection, ChatMessage message) throws Exception {
         try (PreparedStatement statement = connection.prepareStatement("""
             INSERT INTO domain_chat_messages(
-                id, conversation_id, role, content, created_at, model, provider, prompt_version, analysis_run_id, baseline_study_id
-            ) VALUES (?::uuid, ?::uuid, ?, ?, ?, ?, ?, ?, ?::uuid, ?::uuid)
+                id, conversation_id, role, content, created_at, model, provider, prompt_version, analysis_run_id, baseline_study_id, context_version
+            ) VALUES (?::uuid, ?::uuid, ?, ?, ?, ?, ?, ?, ?::uuid, ?::uuid, ?)
             """)) {
             statement.setString(1, message.id());
             statement.setString(2, message.conversationId());
@@ -1527,6 +1542,7 @@ public class PostgresStudyRepository implements StudyRepository {
             statement.setString(8, message.promptVersion());
             statement.setString(9, message.analysisRunId());
             statement.setString(10, message.baselineStudyId());
+            statement.setString(11, message.contextVersion());
             statement.executeUpdate();
         }
     }
@@ -1573,7 +1589,7 @@ public class PostgresStudyRepository implements StudyRepository {
     @Override
     public List<ChatMessage> findChatMessagesByConversationId(String conversationId) {
         try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
-            SELECT id, conversation_id, role, content, created_at, model, provider, prompt_version, analysis_run_id, baseline_study_id
+            SELECT id, conversation_id, role, content, created_at, model, provider, prompt_version, analysis_run_id, baseline_study_id, context_version
             FROM domain_chat_messages WHERE conversation_id = ?::uuid ORDER BY created_at ASC
             """)) {
             statement.setString(1, conversationId);
@@ -1590,7 +1606,8 @@ public class PostgresStudyRepository implements StudyRepository {
                         rs.getString("provider"),
                         rs.getString("prompt_version"),
                         rs.getString("analysis_run_id"),
-                        rs.getString("baseline_study_id")
+                        rs.getString("baseline_study_id"),
+                        rs.getString("context_version")
                     ));
                 }
                 return messages;

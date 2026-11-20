@@ -13,6 +13,7 @@ import ar.edu.uade.pfi.backend.dto.StudyRunDetailDto;
 import ar.edu.uade.pfi.backend.dto.StudyRunSummaryDto;
 import ar.edu.uade.pfi.backend.dto.StudyRunsResponseDto;
 import ar.edu.uade.pfi.backend.repository.StudyRepository;
+import ar.edu.uade.pfi.backend.repository.PatientRepository;
 import ar.edu.uade.pfi.backend.service.exception.DatabaseUnavailableException;
 import ar.edu.uade.pfi.backend.service.exception.StudyNotFoundException;
 import ar.edu.uade.pfi.backend.util.DiscDegenerativeFindingsPublicProjection;
@@ -34,19 +35,26 @@ public class StudyWorklistService {
   private static final String DATA_ORIGIN_DATABASE = "database";
 
   private final StudyRepository repository;
+  private final PatientRepository patientRepository;
   private final boolean demoEnabled;
   private final PublicThreeDAssetPublisher threeDAssetPublisher;
 
   public StudyWorklistService(StudyRepository repository, boolean demoEnabled) {
-    this(repository, demoEnabled, new PublicThreeDAssetPublisher());
+    this(repository, null, demoEnabled, new PublicThreeDAssetPublisher());
+  }
+
+  public StudyWorklistService(StudyRepository repository, PatientRepository patientRepository, boolean demoEnabled) {
+    this(repository, patientRepository, demoEnabled, new PublicThreeDAssetPublisher());
   }
 
   @Autowired
   public StudyWorklistService(
       StudyRepository repository,
+      PatientRepository patientRepository,
       @Value("${pfi.demo.enabled:false}") boolean demoEnabled,
       PublicThreeDAssetPublisher threeDAssetPublisher) {
     this.repository = repository;
+    this.patientRepository = patientRepository;
     this.demoEnabled = demoEnabled;
     this.threeDAssetPublisher = threeDAssetPublisher;
   }
@@ -166,7 +174,7 @@ public class StudyWorklistService {
         ReviewStatusMapper.toApiPriority(study.reviewPriority()),
         study.createdAt().toString(),
         study.updatedAt().toString(),
-        DATA_ORIGIN_DATABASE);
+        DATA_ORIGIN_DATABASE, patientRepository == null || study.patientId() == null ? null : patientRepository.findById(study.patientId()).map(p -> p.patientReference()).orElse(null), patientRepository == null || study.patientId() == null ? null : patientRepository.findById(study.patientId()).map(p -> java.util.stream.Stream.of(p.firstName(), p.lastName()).filter(java.util.Objects::nonNull).collect(java.util.stream.Collectors.joining(" "))).filter(name -> !name.isBlank()).orElse(null), study.ageAtStudy());
   }
 
   private StudyRunDetailDto toRunDetail(Study study, StudyRun run) {

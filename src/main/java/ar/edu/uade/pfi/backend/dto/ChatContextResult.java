@@ -23,7 +23,7 @@ public record ChatContextResult(
     List<String> contextSources
 ) {
 
-    public record ChatContextStudy(String caseId, String studyDate) {
+    public record ChatContextStudy(String caseId, String studyDate, Integer ageAtStudy, String ageProvenance, String clinicalReason, String symptoms, String symptomDuration, String relevantHistory, String contextVersion) {
     }
 
     public record ChatContextAnalysis(
