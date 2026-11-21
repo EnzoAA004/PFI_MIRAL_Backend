@@ -52,6 +52,8 @@ public class AuthService {
   private final Environment environment;
   private final boolean demoEnabled;
   private final AuditService auditService;
+  private final Map<String, java.util.ArrayDeque<Instant>> codeSends = new ConcurrentHashMap<>();
+  private EmailDeliveryService emailDelivery;
 
   public AuthService(
       PasswordHasher passwordHasher,
@@ -88,6 +90,12 @@ public class AuthService {
     this.environment = environment;
     this.demoEnabled = demoEnabled;
     this.auditService = auditService;
+  }
+
+  /** Optional: present only when {@code pfi.auth.email-delivery=smtp}. */
+  @Autowired(required = false)
+  void setEmailDelivery(EmailDeliveryService emailDelivery) {
+    this.emailDelivery = emailDelivery;
   }
 
   /**
@@ -548,17 +556,58 @@ public class AuthService {
   }
 
   private PendingAuthResponse createChallenge(String type, String email, String message) {
+    if (emailDelivery != null) {
+      throttleCodeRequests(email);
+    }
     String challengeId = UUID.randomUUID().toString();
     String code = String.format("%06d", random.nextInt(1_000_000));
     challenges.put(
         challengeId,
         new Challenge(challengeId, email, type, code, Instant.now().plus(CHALLENGE_TTL)));
+    if (emailDelivery == null) {
+      return new PendingAuthResponse(
+          challengeId,
+          "email-demo",
+          (int) CHALLENGE_TTL.toSeconds(),
+          message,
+          exposeCodes ? code : null);
+    }
+    challenges.entrySet().removeIf(e -> e.getValue().email().equals(email) && !e.getKey().equals(challengeId));
+    try {
+      emailDelivery.sendVerificationCode(email, type, code, CHALLENGE_TTL);
+    } catch (RuntimeException e) {
+      challenges.remove(challengeId);
+      throw new ResponseStatusException(
+          HttpStatus.SERVICE_UNAVAILABLE,
+          "No pudimos enviar el correo de verificación. Intentá nuevamente en unos minutos.");
+    }
     return new PendingAuthResponse(
         challengeId,
-        "email-demo",
+        "email",
         (int) CHALLENGE_TTL.toSeconds(),
-        message,
+        "REGISTER".equals(type)
+            ? "Enviamos un código de verificación a tu correo. Luego la cuenta queda pendiente de aprobación institucional."
+            : "Enviamos un código de verificación a tu correo.",
         exposeCodes ? code : null);
+  }
+
+  /** At most 1 code per 30 s and 5 per hour per address, so the endpoint cannot be used to spam. */
+  private void throttleCodeRequests(String email) {
+    java.util.ArrayDeque<Instant> sends =
+        codeSends.computeIfAbsent(email, k -> new java.util.ArrayDeque<>());
+    synchronized (sends) {
+      Instant now = Instant.now();
+      while (!sends.isEmpty() && sends.peekFirst().isBefore(now.minus(Duration.ofHours(1)))) {
+        sends.pollFirst();
+      }
+      if ((!sends.isEmpty() && sends.peekLast().isAfter(now.minusSeconds(30)))
+          || sends.size() >= 5) {
+        throw new ResponseStatusException(
+            HttpStatus.TOO_MANY_REQUESTS,
+            "Ya enviamos un código a ese correo. Esperá unos instantes antes de pedir otro.");
+      }
+      sends.addLast(now);
+    }
   }
 
   /**
