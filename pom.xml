@@ -43,7 +43,7 @@
     <wiremock-standalone.version>3.13.2</wiremock-standalone.version>
 
     <!-- 0.8.12 es la linea de JaCoCo que soporta el bytecode de Java 21. -->
-    <jacoco-maven-plugin.version>0.8.12</jacoco-maven-plugin.version>
+    <jacoco-maven-plugin.version>0.8.16</jacoco-maven-plugin.version>
   </properties>
 
   <dependencies>
