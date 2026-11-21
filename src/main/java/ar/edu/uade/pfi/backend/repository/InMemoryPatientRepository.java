@@ -73,7 +73,7 @@ public class InMemoryPatientRepository implements PatientRepository {
     if (owner != null && !owner.equals(patientId)) {
       throw new DuplicatePatientReferenceException(null);
     }
-    Patient updated = new Patient(current.id(), patientReference, current.firstName(), current.lastName(), current.dateOfBirth(), current.createdAt(), updatedAt);
+    Patient updated = new Patient(current.id(), patientReference, current.firstName(), current.lastName(), current.dateOfBirth(), current.createdAt(), updatedAt, current.active());
     patientsById.put(patientId, updated);
     idsByNormalizedReference.remove(oldNormalized);
     idsByNormalizedReference.put(newNormalized, patientId);
@@ -88,10 +88,19 @@ public class InMemoryPatientRepository implements PatientRepository {
     String newNormalized = normalize(patientReference);
     String owner = idsByNormalizedReference.get(newNormalized);
     if (owner != null && !owner.equals(patientId)) throw new DuplicatePatientReferenceException(null);
-    Patient updated = new Patient(current.id(), patientReference, firstName, lastName, dateOfBirth, current.createdAt(), updatedAt);
+    Patient updated = new Patient(current.id(), patientReference, firstName, lastName, dateOfBirth, current.createdAt(), updatedAt, current.active());
     patientsById.put(patientId, updated);
     idsByNormalizedReference.remove(oldNormalized);
     idsByNormalizedReference.put(newNormalized, patientId);
+    return Optional.of(updated);
+  }
+
+  @Override
+  public synchronized Optional<Patient> setActive(String patientId, boolean active, Instant updatedAt) {
+    Patient current = patientsById.get(patientId);
+    if (current == null) return Optional.empty();
+    Patient updated = current.withActive(active, updatedAt);
+    patientsById.put(patientId, updated);
     return Optional.of(updated);
   }
 

@@ -22,7 +22,8 @@ class PatientDomainMigrationCompatibilityTest {
   private static final List<String> CONTEXT_MIGRATIONS = List.of(
       "V20261120_027_patient_profile.sql",
       "V20261120_028_study_clinical_context.sql",
-      "V20261120_029_chat_context_version.sql");
+      "V20261120_029_chat_context_version.sql",
+      "V20261121_031_patient_active.sql");
 
   @Container
   static final PostgreSQLContainer<?> postgres =

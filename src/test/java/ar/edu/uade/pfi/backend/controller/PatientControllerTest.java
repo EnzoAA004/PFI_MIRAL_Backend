@@ -234,4 +234,40 @@ class PatientControllerTest {
       return request;
     };
   }
+
+  @Test
+  void aPatientCanBeDisabledEnabledAndEditedWithoutLosingItsState() throws Exception {
+    Patient patient = create("PAC-ESTADO");
+    String id = patient.id();
+
+    mockMvc.perform(patch("/api/patients/{id}/active", id).with(professional()).contentType(MediaType.APPLICATION_JSON).content("{\"active\":false}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.active").value(false));
+    mockMvc.perform(get("/api/patients").with(professional()).param("query", "PAC-ESTADO"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.length()").value(0));
+    mockMvc.perform(get("/api/patients").with(professional()).param("query", "PAC-ESTADO").param("includeInactive", "true"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].active").value(false));
+
+    mockMvc.perform(patch("/api/patients/{id}", id).with(professional()).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"patientReference\":\"PAC-ESTADO\",\"firstName\":\"Juan\",\"lastName\":\"Perez\",\"dateOfBirth\":\"1980-02-03\"}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.firstName").value("Juan"))
+        .andExpect(jsonPath("$.dateOfBirth").value("1980-02-03"))
+        .andExpect(jsonPath("$.active").value(false));
+
+    mockMvc.perform(patch("/api/patients/{id}/active", id).with(professional()).contentType(MediaType.APPLICATION_JSON).content("{\"active\":true}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.active").value(true));
+    mockMvc.perform(get("/api/patients").with(professional()).param("query", "PAC-ESTADO"))
+        .andExpect(jsonPath("$[0].active").value(true));
+  }
+
+  @Test
+  void theActiveEndpointRejectsAMissingActiveFlag() throws Exception {
+    Patient patient = create("PAC-ESTADO-2");
+    mockMvc.perform(patch("/api/patients/{id}/active", patient.id()).with(professional()).contentType(MediaType.APPLICATION_JSON).content("{}"))
+        .andExpect(status().isBadRequest());
+  }
 }

@@ -284,4 +284,23 @@ class StudyPatientControllerTest {
       return request;
     };
   }
+
+  @Test
+  void aDisabledPatientCannotReceiveStudiesUntilItIsEnabledAgain() throws Exception {
+    Patient patient = patient("PAC-DESHABILITADO");
+    Study study = study("CASE-DESHABILITADO", null, null);
+    mockMvc.perform(
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch("/api/patients/{id}/active", patient.id())
+                .with(professional()).contentType(MediaType.APPLICATION_JSON).content("{\"active\":false}"))
+        .andExpect(status().isOk());
+    mockMvc.perform(assign(study.caseId(), patient.id(), null, "INITIAL_ASSIGNMENT"))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.code").value("PATIENT_INACTIVE"));
+    mockMvc.perform(
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch("/api/patients/{id}/active", patient.id())
+                .with(professional()).contentType(MediaType.APPLICATION_JSON).content("{\"active\":true}"))
+        .andExpect(status().isOk());
+    mockMvc.perform(assign(study.caseId(), patient.id(), null, "INITIAL_ASSIGNMENT"))
+        .andExpect(status().isOk());
+  }
 }

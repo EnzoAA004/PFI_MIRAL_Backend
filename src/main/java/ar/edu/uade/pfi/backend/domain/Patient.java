@@ -5,9 +5,15 @@ import java.time.LocalDate;
 import java.util.Objects;
 
 /** De-identified longitudinal patient identity. Direct patient identifiers are out of scope. */
-public record Patient(String id, String patientReference, String firstName, String lastName, LocalDate dateOfBirth, Instant createdAt, Instant updatedAt) {
+public record Patient(String id, String patientReference, String firstName, String lastName, LocalDate dateOfBirth, Instant createdAt, Instant updatedAt, boolean active) {
   public Patient(String id, String patientReference, Instant createdAt, Instant updatedAt) {
-    this(id, patientReference, null, null, null, createdAt, updatedAt);
+    this(id, patientReference, null, null, null, createdAt, updatedAt, true);
+  }
+  public Patient(String id, String patientReference, String firstName, String lastName, LocalDate dateOfBirth, Instant createdAt, Instant updatedAt) {
+    this(id, patientReference, firstName, lastName, dateOfBirth, createdAt, updatedAt, true);
+  }
+  public Patient withActive(boolean newActive, Instant newUpdatedAt) {
+    return new Patient(id, patientReference, firstName, lastName, dateOfBirth, createdAt, newUpdatedAt, newActive);
   }
   public Patient {
     Objects.requireNonNull(id, "id");

@@ -80,6 +80,10 @@ public class PatientService {
   }
 
   public List<PatientSummaryDto> search(String query, Integer requestedLimit) {
+    return search(query, requestedLimit, true);
+  }
+
+  public List<PatientSummaryDto> search(String query, Integer requestedLimit, boolean includeInactive) {
     String normalizedQuery = query == null ? "" : query.trim();
     if (normalizedQuery.length() > 64) {
       throw invalidReference("query supera el largo maximo permitido.");
@@ -94,7 +98,7 @@ public class PatientService {
           "INVALID_PATIENT_LIMIT",
           "limit debe estar entre 1 y " + MAX_LIMIT + ".");
     }
-    return databaseCall(() -> patientRepository.search(normalizedQuery, limit))
+    return databaseCall(() -> patientRepository.search(normalizedQuery, limit, includeInactive))
         .stream()
         .map(this::summary)
         .toList();
@@ -126,6 +130,24 @@ public class PatientService {
     return detail(updated);
   }
 
+  public PatientDetailDto setActive(String patientId, Boolean active, String actor, String traceId) {
+    String validId = validateUuid(patientId, "patientId");
+    if (active == null) {
+      throw new PatientDomainException(
+          HttpStatus.BAD_REQUEST, "INVALID_PATIENT_STATE", "Indicá si el paciente debe quedar habilitado o deshabilitado.");
+    }
+    Patient updated =
+        databaseCall(() -> patientRepository.setActive(validId, active, clock.instant()))
+            .orElseThrow(this::patientNotFound);
+    auditService.record(
+        actor,
+        active ? "PATIENT_ENABLED" : "PATIENT_DISABLED",
+        updated.id(),
+        traceId,
+        Map.of("patientId", updated.id(), "changedFieldNames", List.of("active")));
+    return detail(updated);
+  }
+
   public List<PatientStudySummaryDto> studies(String patientId) {
     String validId = validateUuid(patientId, "patientId");
     if (databaseCall(() -> patientRepository.findById(validId)).isEmpty()) {
@@ -148,8 +170,10 @@ public class PatientService {
             ? null
             : validateUuid(request.expectedPatientId(), "expectedPatientId");
     AssignmentReason reason = AssignmentReason.parse(request.reason());
-    if (databaseCall(() -> patientRepository.findById(targetPatientId)).isEmpty()) {
-      throw patientNotFound();
+    Patient targetPatient = databaseCall(() -> patientRepository.findById(targetPatientId)).orElseThrow(this::patientNotFound);
+    if (!targetPatient.active()) {
+      throw new PatientDomainException(
+          HttpStatus.CONFLICT, "PATIENT_INACTIVE", "El paciente está deshabilitado. Habilitalo para asociarle estudios.");
     }
     if (actor == null || actor.isBlank() || !patientRepository.isPatientOwner(targetPatientId, actor)) {
       throw patientNotFound();
@@ -213,12 +237,12 @@ public class PatientService {
 
   private PatientSummaryDto summary(Patient patient) {
     return new PatientSummaryDto(
-        patient.id(), patient.patientReference(), patient.firstName(), patient.lastName(), patient.dateOfBirth(), patient.createdAt(), patient.updatedAt());
+        patient.id(), patient.patientReference(), patient.firstName(), patient.lastName(), patient.dateOfBirth(), patient.createdAt(), patient.updatedAt(), patient.active());
   }
 
   private PatientDetailDto detail(Patient patient) {
     return new PatientDetailDto(
-        patient.id(), patient.patientReference(), patient.firstName(), patient.lastName(), patient.dateOfBirth(), patient.createdAt(), patient.updatedAt());
+        patient.id(), patient.patientReference(), patient.firstName(), patient.lastName(), patient.dateOfBirth(), patient.createdAt(), patient.updatedAt(), patient.active());
   }
 
   private PatientStudySummaryDto studySummary(Study study) {

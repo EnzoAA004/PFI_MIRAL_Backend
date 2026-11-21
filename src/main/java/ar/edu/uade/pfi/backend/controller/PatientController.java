@@ -7,6 +7,7 @@ import ar.edu.uade.pfi.backend.dto.CreatePatientRequestDto;
 import ar.edu.uade.pfi.backend.dto.PatientDetailDto;
 import ar.edu.uade.pfi.backend.dto.PatientStudySummaryDto;
 import ar.edu.uade.pfi.backend.dto.PatientSummaryDto;
+import ar.edu.uade.pfi.backend.dto.SetPatientActiveRequestDto;
 import ar.edu.uade.pfi.backend.dto.UpdatePatientRequestDto;
 import ar.edu.uade.pfi.backend.service.PatientService;
 import ar.edu.uade.pfi.backend.service.ProfessionalAccessAuditService;
@@ -77,12 +78,13 @@ public class PatientController {
   public List<PatientSummaryDto> search(
       @RequestParam(required = false, defaultValue = "") String query,
       @RequestParam(required = false) Integer limit,
+      @RequestParam(required = false, defaultValue = "false") boolean includeInactive,
       HttpServletRequest request) {
     accessAuditService.record(
         request, "access_patient_worklist", "Lista de pacientes de-identificados consultada");
     List<String> accessible = authorizationService.accessibleStudyCaseIds(request);
     java.util.Set<String> allowedCases = java.util.Set.copyOf(accessible);
-    return patientService.search(query, limit).stream()
+    return patientService.search(query, limit, includeInactive).stream()
         .filter(patient -> patientService.isOwner(patient.id(), actor(request))
             || patientService.studies(patient.id()).stream().anyMatch(study -> allowedCases.contains(study.caseId())))
         .toList();
@@ -130,6 +132,22 @@ public class PatientController {
     authorizationService.requireProfessional(httpRequest, patientId);
     requirePatientAccess(patientId, httpRequest, true);
     return patientService.update(patientId, request, actor(httpRequest), traceId(httpRequest));
+  }
+
+  @Operation(summary = "Habilita o deshabilita un paciente (no borra su historial)")
+  @ApiResponse(responseCode = "200", description = "Paciente actualizado.")
+  @ApiResponse(
+      responseCode = "404",
+      description = "Paciente inexistente.",
+      content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+  @PatchMapping("/{patientId}/active")
+  public PatientDetailDto setActive(
+      @PathVariable String patientId,
+      @RequestBody(required = false) SetPatientActiveRequestDto request,
+      HttpServletRequest httpRequest) {
+    authorizationService.requireProfessional(httpRequest, patientId);
+    requirePatientAccess(patientId, httpRequest, true);
+    return patientService.setActive(patientId, request == null ? null : request.active(), actor(httpRequest), traceId(httpRequest));
   }
 
   @Operation(summary = "Lista los estudios asociados al paciente")

@@ -89,7 +89,7 @@ public class PostgresPatientRepository implements PatientRepository {
         PreparedStatement statement =
             connection.prepareStatement(
                 """
-                SELECT id, patient_reference, first_name, last_name, date_of_birth, created_at, updated_at
+                SELECT id, patient_reference, first_name, last_name, date_of_birth, created_at, updated_at, active
                 FROM domain_patients
                 WHERE id = ?::uuid
                 """)) {
@@ -109,7 +109,7 @@ public class PostgresPatientRepository implements PatientRepository {
         PreparedStatement statement =
             connection.prepareStatement(
                 """
-                SELECT id, patient_reference, first_name, last_name, date_of_birth, created_at, updated_at
+                SELECT id, patient_reference, first_name, last_name, date_of_birth, created_at, updated_at, active
                 FROM domain_patients
                 WHERE lower(btrim(patient_reference)) LIKE lower(?) ESCAPE '\\'
                 ORDER BY lower(btrim(patient_reference)), id
@@ -129,16 +129,22 @@ public class PostgresPatientRepository implements PatientRepository {
 
   @Override
   public List<Patient> search(String query, int limit) {
+    return search(query, limit, true);
+  }
+
+  @Override
+  public List<Patient> search(String query, int limit, boolean includeInactive) {
     try (Connection connection = connection();
         PreparedStatement statement =
             connection.prepareStatement(
                 """
-                SELECT id, patient_reference, first_name, last_name, date_of_birth, created_at, updated_at
+                SELECT id, patient_reference, first_name, last_name, date_of_birth, created_at, updated_at, active
                 FROM domain_patients
-                WHERE lower(btrim(patient_reference)) LIKE lower(?) ESCAPE '\\'
+                WHERE (lower(btrim(patient_reference)) LIKE lower(?) ESCAPE '\\'
                    OR lower(coalesce(first_name, '')) LIKE lower(?) ESCAPE '\\'
                    OR lower(coalesce(last_name, '')) LIKE lower(?) ESCAPE '\\'
-                   OR lower(btrim(coalesce(first_name, '') || ' ' || coalesce(last_name, ''))) LIKE lower(?) ESCAPE '\\'
+                   OR lower(btrim(coalesce(first_name, '') || ' ' || coalesce(last_name, ''))) LIKE lower(?) ESCAPE '\\')
+                  AND (? OR active)
                 ORDER BY lower(btrim(patient_reference)), id
                 LIMIT ?
                 """)) {
@@ -148,7 +154,8 @@ public class PostgresPatientRepository implements PatientRepository {
       statement.setString(2, contains);
       statement.setString(3, contains);
       statement.setString(4, contains);
-      statement.setInt(5, limit);
+      statement.setBoolean(5, includeInactive);
+      statement.setInt(6, limit);
       try (ResultSet rs = statement.executeQuery()) {
         List<Patient> patients = new ArrayList<>();
         while (rs.next()) patients.add(readPatient(rs));
@@ -169,7 +176,7 @@ public class PostgresPatientRepository implements PatientRepository {
                 UPDATE domain_patients
                 SET patient_reference = ?, updated_at = ?
                 WHERE id = ?::uuid
-                RETURNING id, patient_reference, created_at, updated_at
+                RETURNING id, patient_reference, first_name, last_name, date_of_birth, created_at, updated_at, active
                 """)) {
       statement.setString(1, patientReference);
       statement.setTimestamp(2, Timestamp.from(updatedAt));
@@ -181,6 +188,28 @@ public class PostgresPatientRepository implements PatientRepository {
     } catch (Exception ex) {
       if (hasSqlState(ex, "23505")) throw new DuplicatePatientReferenceException(ex);
       throw new IllegalStateException("Could not update patient", ex);
+    }
+  }
+
+  @Override
+  public Optional<Patient> setActive(String patientId, boolean active, Instant updatedAt) {
+    try (Connection connection = connection();
+        PreparedStatement statement =
+            connection.prepareStatement(
+                """
+                UPDATE domain_patients
+                SET active = ?, updated_at = ?
+                WHERE id = ?::uuid
+                RETURNING id, patient_reference, first_name, last_name, date_of_birth, created_at, updated_at, active
+                """)) {
+      statement.setBoolean(1, active);
+      statement.setTimestamp(2, Timestamp.from(updatedAt));
+      statement.setString(3, patientId);
+      try (ResultSet rs = statement.executeQuery()) {
+        return rs.next() ? Optional.of(readPatient(rs)) : Optional.empty();
+      }
+    } catch (Exception ex) {
+      throw new IllegalStateException("Could not change patient status", ex);
     }
   }
 
@@ -222,7 +251,7 @@ public class PostgresPatientRepository implements PatientRepository {
         UPDATE domain_patients
         SET patient_reference = ?, first_name = ?, last_name = ?, date_of_birth = ?, updated_at = ?
         WHERE id = ?::uuid
-        RETURNING id, patient_reference, first_name, last_name, date_of_birth, created_at, updated_at
+        RETURNING id, patient_reference, first_name, last_name, date_of_birth, created_at, updated_at, active
         """)) {
       statement.setString(1, patientReference);
       statement.setString(2, firstName);
@@ -245,7 +274,8 @@ public class PostgresPatientRepository implements PatientRepository {
         rs.getString("last_name"),
         rs.getObject("date_of_birth", java.time.LocalDate.class),
         rs.getTimestamp("created_at").toInstant(),
-        rs.getTimestamp("updated_at").toInstant());
+        rs.getTimestamp("updated_at").toInstant(),
+        rs.getBoolean("active"));
   }
 
   private String escapeLike(String value) {
