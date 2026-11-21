@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # No service-account JSON key anywhere -- this exchanges the job's own
       # OIDC token for a short-lived GCP access token via Workload Identity
