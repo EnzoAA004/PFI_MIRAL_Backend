@@ -68,6 +68,12 @@ public enum ApiErrorCode {
     LONGITUDINAL_SAME_STUDY(ApiErrorCategory.VALIDATION, false, "No se puede comparar un estudio consigo mismo."),
     LONGITUDINAL_NO_USABLE_ANALYSIS_BASELINE(ApiErrorCategory.VALIDATION, false, "El estudio de referencia no tiene un analisis utilizable."),
     LONGITUDINAL_NO_USABLE_ANALYSIS_CURRENT(ApiErrorCategory.VALIDATION, false, "El estudio actual no tiene un analisis utilizable."),
+    COMPARISON_SAME_STUDY(ApiErrorCategory.VALIDATION, false, "No se puede comparar un estudio consigo mismo."),
+    COMPARISON_RUN_NOT_FOUND(ApiErrorCategory.RESOURCE, false, "La corrida solicitada no está disponible para este estudio."),
+    COMPARISON_NO_ANALYSIS_CURRENT(ApiErrorCategory.VALIDATION, false, "El estudio actual no tiene un análisis inicial."),
+    COMPARISON_NO_ANALYSIS_REFERENCE(ApiErrorCategory.VALIDATION, false, "El estudio de referencia no tiene un análisis inicial."),
+    COMPARISON_NO_USABLE_MEASUREMENTS_CURRENT(ApiErrorCategory.VALIDATION, false, "El análisis inicial del estudio actual no tiene mediciones utilizables."),
+    COMPARISON_NO_USABLE_MEASUREMENTS_REFERENCE(ApiErrorCategory.VALIDATION, false, "El análisis inicial del estudio de referencia no tiene mediciones utilizables."),
 
     // ---- Stage 80: contextual chat / self-hosted LLM ----
     CHAT_QUESTION_REQUIRED(ApiErrorCategory.VALIDATION, false, "La pregunta no puede estar vacia."),
