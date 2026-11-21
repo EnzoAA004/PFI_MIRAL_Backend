@@ -100,6 +100,19 @@ public interface StudyRepository {
 
     List<ReviewerAnnotation> findAnnotationsByRunId(String multiplanarRunId);
 
+    /** Borrador del preinforme de una corrida, si existe. */
+    default java.util.Optional<ar.edu.uade.pfi.backend.domain.ReportDraft> findReportDraft(String studyId, String runId) {
+        throw new UnsupportedOperationException("report drafts");
+    }
+
+    /**
+     * Crea (expectedVersion == null) o actualiza (expectedVersion == version vigente) el borrador de la corrida. Una version
+     * que no coincide es un conflicto: lo resuelve quien llama, nunca se pisa en silencio.
+     */
+    default ar.edu.uade.pfi.backend.domain.ReportDraft saveReportDraft(ar.edu.uade.pfi.backend.domain.ReportDraft draft, Integer expectedVersion) {
+        throw new UnsupportedOperationException("report drafts");
+    }
+
     DomainAuditEvent saveAuditEvent(DomainAuditEvent event);
 
     List<DomainAuditEvent> findAuditEventsByTraceId(String traceId);
