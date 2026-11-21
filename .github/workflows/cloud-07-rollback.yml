@@ -144,7 +144,7 @@ jobs:
           echo "No traffic was changed, regardless of the 'execute' input's value."
 
       - name: Upload rollback record
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pfi-cloud-rollback-record
           path: rollback-record.json
