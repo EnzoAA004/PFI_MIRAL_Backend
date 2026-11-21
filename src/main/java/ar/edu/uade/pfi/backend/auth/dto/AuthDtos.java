@@ -3,6 +3,7 @@ package ar.edu.uade.pfi.backend.auth.dto;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import java.time.Instant;
 import java.util.List;
 
 public final class AuthDtos {
@@ -26,6 +27,39 @@ public final class AuthDtos {
 
   public record ChangePasswordRequest(
       @NotBlank String currentPassword, @NotBlank String newPassword) {}
+
+  public record ProfileChangeRequest(String note) {}
+
+  public record ProfileChangeUnlockRequest(@NotBlank String token) {}
+
+  public record ProfileChangeSubmitRequest(
+      @NotBlank String fullName, String licenseNumber, String institution) {}
+
+  /** status: NONE, REQUESTED, AUTHORIZED, UNLOCKED o PENDING_REVIEW. */
+  public record ProfileChangeResponse(
+      String status,
+      String note,
+      Instant expiresAt,
+      Instant requestedAt,
+      String previousFullName,
+      String previousLicenseNumber,
+      String previousInstitution) {}
+
+  public record AdminProfileChangeItem(
+      String email,
+      String fullName,
+      String licenseNumber,
+      String institution,
+      String status,
+      String note,
+      Instant requestedAt,
+      String previousFullName,
+      String previousLicenseNumber,
+      String previousInstitution) {}
+
+  public record AdminProfileChangeAuthorizeRequest(@Email @NotBlank String email) {}
+
+  public record AdminProfileChangeDecisionRequest(@Email @NotBlank String email, boolean approve) {}
 
   public record ApprovalRequest(@Email @NotBlank String email, boolean approved) {}
 

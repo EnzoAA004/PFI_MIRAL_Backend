@@ -30,7 +30,7 @@ public class AuthFilter extends OncePerRequestFilter {
     public static final String ACTOR_ID_ATTRIBUTE = "pfi.auth.actorId";
     /** Technical, effective roles (post-revalidation) — same rationale as ACTOR_ID_ATTRIBUTE. */
     public static final String ACTOR_ROLES_ATTRIBUTE = "pfi.auth.actorRoles";
-    private static final Set<String> KNOWN_ROLES = Set.of("ADMIN", "DOCTOR", "REVIEWER", "PENDING_APPROVAL");
+    private static final Set<String> KNOWN_ROLES = Set.of("ADMIN", "DOCTOR", "REVIEWER", "PENDING_APPROVAL", "READ_ONLY");
     private static final String DEMO_DOCTOR_PATH = "/api/auth/demo-doctor";
     private static final Set<String> PUBLIC_AUTH_PATHS = Set.of(
         "/api/auth/register",
@@ -132,10 +132,27 @@ public class AuthFilter extends OncePerRequestFilter {
             writeError(request, response, HttpServletResponse.SC_FORBIDDEN, "ACCESS_DENIED", "No tiene permisos para realizar esta operacion.");
             return;
         }
+        if (isReadOnlyViolation(claims, request)) {
+            if (metrics != null) metrics.incrementAuthorizationDenials();
+            writeError(request, response, HttpServletResponse.SC_FORBIDDEN, "PROFILE_REVIEW_PENDING",
+                "Tu perfil está en revisión: por ahora solo podés consultar información.");
+            return;
+        }
         request.setAttribute(AUTH_CLAIMS_ATTRIBUTE, claims);
         request.setAttribute(ACTOR_ID_ATTRIBUTE, claims.subject());
         request.setAttribute(ACTOR_ROLES_ATTRIBUTE, technicalRoles(claims.roles()));
         filterChain.doFilter(request, response);
+    }
+
+    /**
+     * Cuenta con cambios de perfil en revisión: solo lectura. Se bloquea todo lo que no sea una consulta
+     * (pacientes, estudios, revisiones, informes); las rutas de /api/auth (sesión, contraseña, ajustes) siguen disponibles.
+     */
+    private boolean isReadOnlyViolation(TokenService.Claims claims, HttpServletRequest request) {
+        if (claims.roles() == null || !claims.roles().contains("READ_ONLY")) return false;
+        String method = request.getMethod();
+        if ("GET".equalsIgnoreCase(method) || "HEAD".equalsIgnoreCase(method) || "OPTIONS".equalsIgnoreCase(method)) return false;
+        return !request.getRequestURI().startsWith("/api/auth/");
     }
 
     private void incrementAuthenticationFailures() {

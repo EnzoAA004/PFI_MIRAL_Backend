@@ -5,12 +5,12 @@ import java.util.List;
 
 public class DoctorAccount {
   private final String id;
-  private final String fullName;
+  private String fullName;
   private final String email;
   private String passwordHash;
-  private final String licenseNumber;
+  private String licenseNumber;
   private final String specialty;
-  private final String institution;
+  private String institution;
   private List<String> roles;
   private final Instant createdAt;
   private boolean verified;
@@ -61,6 +61,13 @@ public class DoctorAccount {
 
   public String passwordHash() {
     return passwordHash;
+  }
+
+  /** Aplica un cambio de datos de perfil ya autorizado (ver {@link ProfileChange}). */
+  public void updateProfile(String newFullName, String newLicenseNumber, String newInstitution) {
+    this.fullName = newFullName;
+    this.licenseNumber = newLicenseNumber;
+    this.institution = newInstitution;
   }
 
   public void changePasswordHash(String newPasswordHash) {

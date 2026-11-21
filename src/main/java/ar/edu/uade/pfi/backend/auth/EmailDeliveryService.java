@@ -17,6 +17,12 @@ public interface EmailDeliveryService {
    */
   void sendVerificationCode(String toEmail, String purpose, String code, Duration validFor);
 
+  /** Código de un solo uso para habilitar la edición del perfil (lo pidió el profesional y lo autorizó un administrador). */
+  default void sendProfileChangeToken(String toEmail, String token, Duration validFor) {}
+
+  /** Avisa a soporte que un profesional pidió cambiar los datos de su perfil. */
+  default void notifyProfileChangeRequested(String doctorName, String doctorEmail, String note) {}
+
   /** Raised without the code or any credential in its message. */
   class EmailDeliveryException extends RuntimeException {
     public EmailDeliveryException(String message, Throwable cause) {

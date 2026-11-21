@@ -1,6 +1,13 @@
 package ar.edu.uade.pfi.backend.auth;
 
 import ar.edu.uade.pfi.backend.auth.dto.AuthDtos.ApprovalRequest;
+import ar.edu.uade.pfi.backend.auth.dto.AuthDtos.ProfileChangeUnlockRequest;
+import ar.edu.uade.pfi.backend.auth.dto.AuthDtos.ProfileChangeSubmitRequest;
+import ar.edu.uade.pfi.backend.auth.dto.AuthDtos.ProfileChangeResponse;
+import ar.edu.uade.pfi.backend.auth.dto.AuthDtos.ProfileChangeRequest;
+import ar.edu.uade.pfi.backend.auth.dto.AuthDtos.AdminProfileChangeItem;
+import ar.edu.uade.pfi.backend.auth.dto.AuthDtos.AdminProfileChangeDecisionRequest;
+import ar.edu.uade.pfi.backend.auth.dto.AuthDtos.AdminProfileChangeAuthorizeRequest;
 import ar.edu.uade.pfi.backend.auth.dto.AuthDtos.ChangePasswordRequest;
 import ar.edu.uade.pfi.backend.auth.dto.AuthDtos.LoginRequest;
 import ar.edu.uade.pfi.backend.auth.dto.AuthDtos.PendingAuthResponse;
@@ -32,6 +39,7 @@ import java.util.regex.Pattern;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -250,6 +258,65 @@ public class AuthController {
       throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Sesión requerida");
     }
     return authService.changePassword(claims, body.currentPassword(), body.newPassword());
+  }
+
+  private TokenService.Claims requireClaims(HttpServletRequest request) {
+    TokenService.Claims claims =
+        (TokenService.Claims) request.getAttribute(AuthFilter.AUTH_CLAIMS_ATTRIBUTE);
+    if (claims == null) {
+      throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Sesión requerida");
+    }
+    return claims;
+  }
+
+  @GetMapping("/profile-change")
+  public ProfileChangeResponse profileChange(HttpServletRequest request) {
+    return authService.currentProfileChange(requireClaims(request));
+  }
+
+  @PostMapping("/profile-change/request")
+  public ProfileChangeResponse requestProfileChange(
+      HttpServletRequest request, @RequestBody(required = false) ProfileChangeRequest body) {
+    return authService.requestProfileChange(requireClaims(request), body == null ? null : body.note());
+  }
+
+  @PostMapping("/profile-change/unlock")
+  public ProfileChangeResponse unlockProfileChange(
+      HttpServletRequest request, @Valid @RequestBody ProfileChangeUnlockRequest body) {
+    return authService.unlockProfileChange(requireClaims(request), body.token());
+  }
+
+  @PostMapping("/profile-change/submit")
+  public TokenResponse submitProfileChange(
+      HttpServletRequest request, @Valid @RequestBody ProfileChangeSubmitRequest body) {
+    return authService.submitProfileChange(
+        requireClaims(request), body.fullName(), body.licenseNumber(), body.institution());
+  }
+
+  @DeleteMapping("/profile-change")
+  public ProfileChangeResponse cancelProfileChange(HttpServletRequest request) {
+    return authService.cancelProfileChange(requireClaims(request));
+  }
+
+  @GetMapping("/admin/profile-changes")
+  public List<AdminProfileChangeItem> listProfileChanges(HttpServletRequest request) {
+    authorizationService.requireAdmin(request, "professional.profile-changes");
+    return authService.listProfileChanges(requireClaims(request));
+  }
+
+  @PostMapping("/admin/profile-changes/authorize")
+  public ProfileChangeResponse authorizeProfileChange(
+      HttpServletRequest request, @Valid @RequestBody AdminProfileChangeAuthorizeRequest body) {
+    authorizationService.requireAdmin(request, "professional.profile-changes");
+    return authService.authorizeProfileChange(requireClaims(request), body.email());
+  }
+
+  @PostMapping("/admin/profile-changes/decision")
+  public ResponseEntity<Void> decideProfileChange(
+      HttpServletRequest request, @Valid @RequestBody AdminProfileChangeDecisionRequest body) {
+    authorizationService.requireAdmin(request, "professional.profile-changes");
+    authService.decideProfileChange(requireClaims(request), body.email(), body.approve());
+    return ResponseEntity.noContent().build();
   }
 
   /**

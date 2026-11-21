@@ -587,6 +587,131 @@ public class PostgresAuthStoreService {
     }
   }
 
+  // ---- Profile change requests -------------------------------------------------------------
+
+  public Optional<ProfileChange> findProfileChange(String email) {
+    if (!enabled) return Optional.empty();
+    try (Connection connection = connection();
+        PreparedStatement statement =
+            connection.prepareStatement(
+                "SELECT email, status, note, token_hash, expires_at, prev_full_name, prev_license_number, prev_institution, requested_at, updated_at FROM doctor_profile_changes WHERE email = ?")) {
+      statement.setString(1, email);
+      try (ResultSet rs = statement.executeQuery()) {
+        return rs.next() ? Optional.of(readProfileChange(rs)) : Optional.empty();
+      }
+    } catch (Exception ex) {
+      throw new IllegalStateException("Could not read the profile change request", ex);
+    }
+  }
+
+  public List<ProfileChange> listProfileChanges() {
+    if (!enabled) return List.of();
+    List<ProfileChange> items = new ArrayList<>();
+    try (Connection connection = connection();
+        PreparedStatement statement =
+            connection.prepareStatement(
+                "SELECT email, status, note, token_hash, expires_at, prev_full_name, prev_license_number, prev_institution, requested_at, updated_at FROM doctor_profile_changes ORDER BY requested_at");
+        ResultSet rs = statement.executeQuery()) {
+      while (rs.next()) items.add(readProfileChange(rs));
+    } catch (Exception ex) {
+      throw new IllegalStateException("Could not list the profile change requests", ex);
+    }
+    return items;
+  }
+
+  public void saveProfileChange(ProfileChange change) {
+    if (!enabled) return;
+    try (Connection connection = connection();
+        PreparedStatement statement =
+            connection.prepareStatement(
+                """
+            INSERT INTO doctor_profile_changes(email, status, note, token_hash, expires_at, prev_full_name, prev_license_number, prev_institution, requested_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, now())
+            ON CONFLICT (email) DO UPDATE SET
+              status = EXCLUDED.status,
+              note = EXCLUDED.note,
+              token_hash = EXCLUDED.token_hash,
+              expires_at = EXCLUDED.expires_at,
+              prev_full_name = EXCLUDED.prev_full_name,
+              prev_license_number = EXCLUDED.prev_license_number,
+              prev_institution = EXCLUDED.prev_institution,
+              updated_at = now()
+            """)) {
+      statement.setString(1, change.email());
+      statement.setString(2, change.status().name());
+      statement.setString(3, change.note() == null ? "" : change.note());
+      statement.setString(4, change.tokenHash());
+      statement.setTimestamp(5, change.expiresAt() == null ? null : Timestamp.from(change.expiresAt()));
+      statement.setString(6, change.previousFullName());
+      statement.setString(7, change.previousLicenseNumber());
+      statement.setString(8, change.previousInstitution());
+      statement.setTimestamp(9, Timestamp.from(change.requestedAt()));
+      statement.executeUpdate();
+    } catch (Exception ex) {
+      throw new IllegalStateException("Could not persist the profile change request", ex);
+    }
+  }
+
+  public void deleteProfileChange(String email) {
+    if (!enabled) return;
+    try (Connection connection = connection();
+        PreparedStatement statement =
+            connection.prepareStatement("DELETE FROM doctor_profile_changes WHERE email = ?")) {
+      statement.setString(1, email);
+      statement.executeUpdate();
+    } catch (Exception ex) {
+      throw new IllegalStateException("Could not remove the profile change request", ex);
+    }
+  }
+
+  public void updateProfileFields(String email, String fullName, String licenseNumber, String institution) {
+    if (!enabled) return;
+    try (Connection connection = connection();
+        PreparedStatement statement =
+            connection.prepareStatement(
+                "UPDATE doctor_accounts SET full_name = ?, license_number = ?, institution = ?, updated_at = now() WHERE email = ?")) {
+      statement.setString(1, fullName);
+      statement.setString(2, licenseNumber);
+      statement.setString(3, institution);
+      statement.setString(4, email);
+      if (statement.executeUpdate() != 1) {
+        throw new IllegalStateException("Profile row not updated");
+      }
+    } catch (RuntimeException ex) {
+      throw ex;
+    } catch (Exception ex) {
+      throw new IllegalStateException("Could not persist the profile data", ex);
+    }
+  }
+
+  /** Quita una cuenta que nunca llegó a verificarse (por ejemplo, si no se pudo enviar el código). */
+  public void deleteUnverifiedAccount(String email) {
+    if (!enabled) return;
+    try (Connection connection = connection();
+        PreparedStatement statement =
+            connection.prepareStatement("DELETE FROM doctor_accounts WHERE email = ? AND verified = FALSE")) {
+      statement.setString(1, email);
+      statement.executeUpdate();
+    } catch (Exception ignored) {
+      // Si no se pudo borrar, el registro queda sin verificar y se reintenta iniciando sesión.
+    }
+  }
+
+  private ProfileChange readProfileChange(ResultSet rs) throws Exception {
+    Timestamp expires = rs.getTimestamp("expires_at");
+    return new ProfileChange(
+        rs.getString("email"),
+        ProfileChange.Status.valueOf(rs.getString("status")),
+        rs.getString("note"),
+        rs.getString("token_hash"),
+        expires == null ? null : expires.toInstant(),
+        rs.getString("prev_full_name"),
+        rs.getString("prev_license_number"),
+        rs.getString("prev_institution"),
+        rs.getTimestamp("requested_at").toInstant(),
+        rs.getTimestamp("updated_at").toInstant());
+  }
+
   private DoctorAccount readAccount(ResultSet rs) throws Exception {
     List<String> roles =
         Arrays.stream(rs.getString("roles").split(","))
@@ -672,6 +797,23 @@ public class PostgresAuthStoreService {
           .execute(
               """
                 CREATE INDEX IF NOT EXISTS idx_auth_refresh_tokens_email ON auth_refresh_tokens(email)
+                """);
+      connection
+          .createStatement()
+          .execute(
+              """
+                CREATE TABLE IF NOT EXISTS doctor_profile_changes (
+                    email TEXT PRIMARY KEY REFERENCES doctor_accounts(email) ON DELETE CASCADE,
+                    status TEXT NOT NULL,
+                    note TEXT NOT NULL DEFAULT '',
+                    token_hash TEXT NULL,
+                    expires_at TIMESTAMPTZ NULL,
+                    prev_full_name TEXT NULL,
+                    prev_license_number TEXT NULL,
+                    prev_institution TEXT NULL,
+                    requested_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                )
                 """);
     } catch (Exception ignored) {
       // Service stays available with in-memory fallback.

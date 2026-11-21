@@ -46,6 +46,7 @@ public class AuthAccountStateService {
 
   private final PostgresAuthStoreService postgresAuthStore;
   private final Environment environment;
+  private ProfileChangeRegistry profileChanges;
 
   public AuthAccountStateService(
       PostgresAuthStoreService postgresAuthStore, Environment environment) {
@@ -53,9 +54,31 @@ public class AuthAccountStateService {
     this.environment = environment;
   }
 
+  @org.springframework.beans.factory.annotation.Autowired(required = false)
+  void setProfileChanges(ProfileChangeRegistry profileChanges) {
+    this.profileChanges = profileChanges;
+  }
+
+  /**
+   * Mientras los cambios de perfil de un profesional están en revisión, su cuenta funciona en solo
+   * lectura. Se deriva acá, en cada request, para que aprobar o rechazar tenga efecto inmediato sin
+   * esperar a que venza el token de acceso.
+   */
+  private TokenService.Claims withReadOnlyFlag(TokenService.Claims claims) {
+    List<String> roles = claims.roles() == null ? List.of() : claims.roles();
+    List<String> base = roles.stream().filter(role -> !"READ_ONLY".equals(role)).toList();
+    boolean professional = base.contains("DOCTOR") || base.contains("REVIEWER");
+    boolean pending =
+        profileChanges != null && professional && !base.contains("ADMIN") && profileChanges.isReviewPending(claims.email());
+    if (!pending && base.size() == roles.size()) return claims;
+    List<String> effective = new java.util.ArrayList<>(base);
+    if (pending) effective.add("READ_ONLY");
+    return new TokenService.Claims(claims.subject(), claims.email(), claims.name(), effective);
+  }
+
   public Resolution resolve(TokenService.Claims tokenClaims) {
     if (!isProductionProfile()) {
-      return Resolution.ok(tokenClaims, true, true);
+      return Resolution.ok(withReadOnlyFlag(tokenClaims), true, true);
     }
     if (!postgresAuthStore.enabled()) {
       return Resolution.of(Status.STATE_UNAVAILABLE);
@@ -81,7 +104,7 @@ public class AuthAccountStateService {
     List<String> effectiveRoles = active ? account.roles() : List.of("PENDING_APPROVAL");
     TokenService.Claims effectiveClaims =
         new TokenService.Claims(account.id(), account.email(), account.fullName(), effectiveRoles);
-    return Resolution.ok(effectiveClaims, account.verified(), account.approved());
+    return Resolution.ok(active ? withReadOnlyFlag(effectiveClaims) : effectiveClaims, account.verified(), account.approved());
   }
 
   private String normalize(String email) {

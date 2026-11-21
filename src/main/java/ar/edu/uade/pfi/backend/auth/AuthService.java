@@ -1,6 +1,8 @@
 package ar.edu.uade.pfi.backend.auth;
 
 import ar.edu.uade.pfi.backend.auth.dto.AuthDtos.PendingAuthResponse;
+import ar.edu.uade.pfi.backend.auth.dto.AuthDtos.ProfileChangeResponse;
+import ar.edu.uade.pfi.backend.auth.dto.AuthDtos.AdminProfileChangeItem;
 import ar.edu.uade.pfi.backend.auth.dto.AuthDtos.ProfessionalActivationResponse;
 import ar.edu.uade.pfi.backend.auth.dto.AuthDtos.RegisterRequest;
 import ar.edu.uade.pfi.backend.auth.dto.AuthDtos.SettingsRequest;
@@ -54,6 +56,8 @@ public class AuthService {
   private final AuditService auditService;
   private final Map<String, java.util.ArrayDeque<Instant>> codeSends = new ConcurrentHashMap<>();
   private EmailDeliveryService emailDelivery;
+  private ProfileChangeRegistry profileChanges;
+  private final Map<String, java.util.ArrayDeque<Instant>> profileTokenFailures = new ConcurrentHashMap<>();
   private final Map<String, java.util.ArrayDeque<Instant>> passwordFailures = new ConcurrentHashMap<>();
 
   public AuthService(
@@ -91,6 +95,13 @@ public class AuthService {
     this.environment = environment;
     this.demoEnabled = demoEnabled;
     this.auditService = auditService;
+    this.profileChanges = new ProfileChangeRegistry(postgresAuthStore);
+  }
+
+  /** El registro compartido con AuthAccountStateService (en la aplicación lo inyecta Spring). */
+  @Autowired(required = false)
+  void setProfileChanges(ProfileChangeRegistry profileChanges) {
+    this.profileChanges = profileChanges;
   }
 
   /** Optional: present only when {@code pfi.auth.email-delivery=smtp}. */
@@ -136,10 +147,19 @@ public class AuthService {
             false);
     accountsByEmail.put(email, account);
     postgresAuthStore.saveAccount(account);
-    return createChallenge(
-        "REGISTER",
-        email,
-        "Código enviado para verificar el email profesional. Luego la cuenta queda pendiente de aprobación institucional.");
+    try {
+      return createChallenge(
+          "REGISTER",
+          email,
+          "Código enviado para verificar el email profesional. Luego la cuenta queda pendiente de aprobación institucional.");
+    } catch (ResponseStatusException ex) {
+      // Si el correo no pudo salir, la cuenta no queda a medias: se puede volver a registrar con el mismo correo.
+      if (ex.getStatusCode().value() == HttpStatus.SERVICE_UNAVAILABLE.value()) {
+        accountsByEmail.remove(email);
+        postgresAuthStore.deleteUnverifiedAccount(email);
+      }
+      throw ex;
+    }
   }
 
   public Object login(String emailValue, String password) {
@@ -303,6 +323,317 @@ public class AuthService {
         claims.subject(),
         AuditAction.PASSWORD_CHANGED.name(),
         account.id(),
+        MDC.get(TraceIdFilter.TRACE_ID_MDC_KEY),
+        Map.of("entityType", "professional_account", "outcome", "success"));
+  }
+
+  // ---- Cambio de datos del perfil --------------------------------------------------------------
+  //
+  // El profesional pide el cambio, un administrador lo autoriza, el profesional recibe un código por
+  // correo y recién entonces puede editar nombre, matrícula e institución. Al guardar, la cuenta queda
+  // en solo lectura hasta que un administrador revise los cambios. El correo no se modifica: es la
+  // identidad de la cuenta.
+
+  static final Duration PROFILE_TOKEN_TTL = Duration.ofMinutes(30);
+  static final Duration PROFILE_UNLOCK_TTL = Duration.ofMinutes(30);
+  private static final String TOKEN_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+  private DoctorAccount requireProfileEditableAccount(TokenService.Claims claims) {
+    String email = normalizeEmail(claims == null ? null : claims.email());
+    if (isDemoAccountBlocked(email) || DEMO_ACCOUNT_EMAIL.equals(email)) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "La cuenta demo no puede cambiar su perfil.");
+    }
+    DoctorAccount account =
+        findAccount(email)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Cuenta no encontrada"));
+    if (!account.verified() || !account.approved()) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "La cuenta todavía no está habilitada.");
+    }
+    if (account.roles() != null && account.roles().contains("ADMIN")) {
+      throw new ResponseStatusException(
+          HttpStatus.FORBIDDEN, "Los datos de una cuenta de administración se cambian con otro administrador.");
+    }
+    return account;
+  }
+
+  private ProfileChangeResponse toProfileChangeResponse(ProfileChange change) {
+    return new ProfileChangeResponse(
+        change.status().name(),
+        change.note(),
+        change.status() == ProfileChange.Status.AUTHORIZED || change.status() == ProfileChange.Status.UNLOCKED
+            ? change.expiresAt()
+            : null,
+        change.requestedAt(),
+        change.previousFullName(),
+        change.previousLicenseNumber(),
+        change.previousInstitution());
+  }
+
+  public ProfileChangeResponse currentProfileChange(TokenService.Claims claims) {
+    String email = normalizeEmail(claims == null ? null : claims.email());
+    return profileChanges
+        .find(email)
+        .map(this::toProfileChangeResponse)
+        .orElse(new ProfileChangeResponse("NONE", "", null, null, null, null, null));
+  }
+
+  public ProfileChangeResponse requestProfileChange(TokenService.Claims claims, String note) {
+    DoctorAccount account = requireProfileEditableAccount(claims);
+    if (profileChanges.find(account.email()).isPresent()) {
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT, "Ya tenés una solicitud de cambio de perfil en curso.");
+    }
+    String cleanNote = defaultString(note);
+    if (cleanNote.length() > 500) cleanNote = cleanNote.substring(0, 500);
+    Instant now = Instant.now();
+    ProfileChange change =
+        new ProfileChange(
+            account.email(), ProfileChange.Status.REQUESTED, cleanNote, null, null, null, null, null, now, now);
+    profileChanges.save(change);
+    auditProfileChange(claims, AuditAction.PROFILE_CHANGE_REQUESTED, account.id());
+    if (emailDelivery != null) {
+      try {
+        emailDelivery.notifyProfileChangeRequested(account.fullName(), account.email(), cleanNote);
+      } catch (RuntimeException ignored) {
+        // El aviso por correo es una comodidad: la solicitud igual queda visible en la pantalla Profesionales.
+      }
+    }
+    return toProfileChangeResponse(change);
+  }
+
+  public ProfileChangeResponse authorizeProfileChange(TokenService.Claims claims, String emailValue) {
+    requireAdmin(claims);
+    String email = normalizeEmail(emailValue);
+    ProfileChange change =
+        profileChanges
+            .find(email)
+            .orElseThrow(
+                () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No hay una solicitud de cambio para esa cuenta."));
+    if (change.status() != ProfileChange.Status.REQUESTED
+        && change.status() != ProfileChange.Status.AUTHORIZED) {
+      throw new ResponseStatusException(HttpStatus.CONFLICT, "La solicitud no está esperando autorización.");
+    }
+    DoctorAccount account =
+        findAccount(email)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Profesional no encontrado"));
+    Instant now = Instant.now();
+    if (emailDelivery == null) {
+      // Sin envío de correo (instalación local), la autorización del administrador habilita la edición directamente.
+      ProfileChange unlocked = change.withStatus(ProfileChange.Status.UNLOCKED, null, now.plus(PROFILE_UNLOCK_TTL));
+      profileChanges.save(unlocked);
+      auditProfileChange(claims, AuditAction.PROFILE_CHANGE_AUTHORIZED, account.id());
+      return toProfileChangeResponse(unlocked);
+    }
+    String token = newProfileToken();
+    ProfileChange authorized =
+        change.withStatus(ProfileChange.Status.AUTHORIZED, hashToken(token), now.plus(PROFILE_TOKEN_TTL));
+    profileChanges.save(authorized);
+    try {
+      emailDelivery.sendProfileChangeToken(email, token, PROFILE_TOKEN_TTL);
+    } catch (RuntimeException ex) {
+      profileChanges.save(change);
+      throw new ResponseStatusException(
+          HttpStatus.SERVICE_UNAVAILABLE,
+          "No pudimos enviar el código al profesional. Verificá su correo e intentá nuevamente.");
+    }
+    auditProfileChange(claims, AuditAction.PROFILE_CHANGE_AUTHORIZED, account.id());
+    return toProfileChangeResponse(authorized);
+  }
+
+  public ProfileChangeResponse unlockProfileChange(TokenService.Claims claims, String token) {
+    DoctorAccount account = requireProfileEditableAccount(claims);
+    ProfileChange change =
+        profileChanges
+            .find(account.email())
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No hay una solicitud de cambio de perfil."));
+    Instant now = Instant.now();
+    if (change.status() == ProfileChange.Status.UNLOCKED && change.expiresAt() != null && change.expiresAt().isAfter(now)) {
+      return toProfileChangeResponse(change);
+    }
+    if (change.status() != ProfileChange.Status.AUTHORIZED) {
+      throw new ResponseStatusException(HttpStatus.CONFLICT, "Todavía no autorizaron tu solicitud.");
+    }
+    if (change.expiresAt() == null || change.expiresAt().isBefore(now)) {
+      profileChanges.save(change.withStatus(ProfileChange.Status.REQUESTED, null, null));
+      throw new ResponseStatusException(
+          HttpStatus.BAD_REQUEST, "El código venció. Pedí a un administrador que autorice de nuevo la solicitud.");
+    }
+    java.util.ArrayDeque<Instant> failures =
+        profileTokenFailures.computeIfAbsent(account.email(), k -> new java.util.ArrayDeque<>());
+    synchronized (failures) {
+      while (!failures.isEmpty() && failures.peekFirst().isBefore(now.minus(Duration.ofMinutes(15)))) {
+        failures.pollFirst();
+      }
+      if (failures.size() >= 5) {
+        throw new ResponseStatusException(
+            HttpStatus.TOO_MANY_REQUESTS, "Demasiados intentos con el código. Esperá unos minutos.");
+      }
+      String candidate = token == null ? "" : token.trim().toUpperCase(Locale.ROOT);
+      if (change.tokenHash() == null
+          || !java.security.MessageDigest.isEqual(
+              hashToken(candidate).getBytes(java.nio.charset.StandardCharsets.UTF_8),
+              change.tokenHash().getBytes(java.nio.charset.StandardCharsets.UTF_8))) {
+        failures.addLast(now);
+        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "El código no es correcto.");
+      }
+      failures.clear();
+    }
+    ProfileChange unlocked = change.withStatus(ProfileChange.Status.UNLOCKED, null, now.plus(PROFILE_UNLOCK_TTL));
+    profileChanges.save(unlocked);
+    return toProfileChangeResponse(unlocked);
+  }
+
+  public TokenResponse submitProfileChange(
+      TokenService.Claims claims, String fullName, String licenseNumber, String institution) {
+    DoctorAccount account = requireProfileEditableAccount(claims);
+    ProfileChange change =
+        profileChanges
+            .find(account.email())
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No hay una solicitud de cambio de perfil."));
+    Instant now = Instant.now();
+    if (change.status() != ProfileChange.Status.UNLOCKED) {
+      throw new ResponseStatusException(HttpStatus.CONFLICT, "La edición del perfil todavía no está habilitada.");
+    }
+    if (change.expiresAt() == null || change.expiresAt().isBefore(now)) {
+      profileChanges.save(change.withStatus(ProfileChange.Status.REQUESTED, null, null));
+      throw new ResponseStatusException(
+          HttpStatus.BAD_REQUEST, "La habilitación venció. Pedí una nueva autorización.");
+    }
+    String newName = defaultString(fullName);
+    String newLicense = defaultString(licenseNumber);
+    String newInstitution = defaultString(institution);
+    if (newName.isBlank() || newName.length() > 120) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El nombre es obligatorio (hasta 120 caracteres).");
+    }
+    if (newLicense.length() > 40) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La matrícula admite hasta 40 caracteres.");
+    }
+    if (newInstitution.length() > 120) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La institución admite hasta 120 caracteres.");
+    }
+    if (newName.equals(account.fullName())
+        && newLicense.equals(account.licenseNumber())
+        && newInstitution.equals(account.institution())) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No hay cambios para enviar.");
+    }
+    ProfileChange pending =
+        new ProfileChange(
+            account.email(),
+            ProfileChange.Status.PENDING_REVIEW,
+            change.note(),
+            null,
+            null,
+            account.fullName(),
+            account.licenseNumber(),
+            account.institution(),
+            change.requestedAt(),
+            now);
+    profileChanges.save(pending);
+    try {
+      postgresAuthStore.updateProfileFields(account.email(), newName, newLicense, newInstitution);
+    } catch (RuntimeException ex) {
+      profileChanges.save(change);
+      throw ex;
+    }
+    account.updateProfile(newName, newLicense, newInstitution);
+    accountsByEmail.put(account.email(), account);
+    auditProfileChange(claims, AuditAction.PROFILE_CHANGE_SUBMITTED, account.id());
+    return issueTokens(account);
+  }
+
+  public ProfileChangeResponse cancelProfileChange(TokenService.Claims claims) {
+    DoctorAccount account = requireProfileEditableAccount(claims);
+    ProfileChange change = profileChanges.find(account.email()).orElse(null);
+    if (change == null) return new ProfileChangeResponse("NONE", "", null, null, null, null, null);
+    if (change.status() == ProfileChange.Status.PENDING_REVIEW) {
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT, "Los cambios ya están en revisión: los resuelve un administrador.");
+    }
+    profileChanges.remove(account.email());
+    return new ProfileChangeResponse("NONE", "", null, null, null, null, null);
+  }
+
+  public List<AdminProfileChangeItem> listProfileChanges(TokenService.Claims claims) {
+    requireAdmin(claims);
+    List<AdminProfileChangeItem> items = new java.util.ArrayList<>();
+    for (ProfileChange change : profileChanges.list()) {
+      DoctorAccount account = findAccount(normalizeEmail(change.email())).orElse(null);
+      if (account == null) continue;
+      items.add(
+          new AdminProfileChangeItem(
+              account.email(),
+              account.fullName(),
+              account.licenseNumber(),
+              account.institution(),
+              change.status().name(),
+              change.note(),
+              change.requestedAt(),
+              change.previousFullName(),
+              change.previousLicenseNumber(),
+              change.previousInstitution()));
+    }
+    items.sort(java.util.Comparator.comparing(AdminProfileChangeItem::requestedAt));
+    return items;
+  }
+
+  /** Aprueba o rechaza. Rechazar cambios ya guardados los revierte a los datos anteriores. */
+  public void decideProfileChange(TokenService.Claims claims, String emailValue, boolean approve) {
+    requireAdmin(claims);
+    String email = normalizeEmail(emailValue);
+    ProfileChange change =
+        profileChanges
+            .find(email)
+            .orElseThrow(
+                () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No hay una solicitud de cambio para esa cuenta."));
+    DoctorAccount account =
+        findAccount(email)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Profesional no encontrado"));
+    if (change.status() != ProfileChange.Status.PENDING_REVIEW) {
+      if (approve) {
+        throw new ResponseStatusException(
+            HttpStatus.CONFLICT, "Todavía no hay cambios para aprobar. Autorizá la solicitud o rechazala.");
+      }
+      profileChanges.remove(email);
+      auditProfileChange(claims, AuditAction.PROFILE_CHANGE_REJECTED, account.id());
+      return;
+    }
+    if (approve) {
+      profileChanges.remove(email);
+      auditProfileChange(claims, AuditAction.PROFILE_CHANGE_APPROVED, account.id());
+      return;
+    }
+    String name = change.previousFullName() == null ? account.fullName() : change.previousFullName();
+    String license = change.previousLicenseNumber() == null ? account.licenseNumber() : change.previousLicenseNumber();
+    String institution = change.previousInstitution() == null ? account.institution() : change.previousInstitution();
+    postgresAuthStore.updateProfileFields(email, name, license, institution);
+    account.updateProfile(name, license, institution);
+    accountsByEmail.put(email, account);
+    profileChanges.remove(email);
+    auditProfileChange(claims, AuditAction.PROFILE_CHANGE_REJECTED, account.id());
+  }
+
+  private String newProfileToken() {
+    StringBuilder builder = new StringBuilder(8);
+    for (int i = 0; i < 8; i++) builder.append(TOKEN_ALPHABET.charAt(random.nextInt(TOKEN_ALPHABET.length())));
+    return builder.toString();
+  }
+
+  private static String hashToken(String token) {
+    try {
+      byte[] digest =
+          java.security.MessageDigest.getInstance("SHA-256").digest(token.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+      return java.util.HexFormat.of().formatHex(digest);
+    } catch (java.security.NoSuchAlgorithmException e) {
+      throw new IllegalStateException(e);
+    }
+  }
+
+  private void auditProfileChange(TokenService.Claims claims, AuditAction action, String targetAccountId) {
+    if (auditService == null) return;
+    auditService.record(
+        claims.subject(),
+        action.name(),
+        targetAccountId,
         MDC.get(TraceIdFilter.TRACE_ID_MDC_KEY),
         Map.of("entityType", "professional_account", "outcome", "success"));
   }
@@ -661,9 +992,16 @@ public class AuthService {
       emailDelivery.sendVerificationCode(email, type, code, CHALLENGE_TTL);
     } catch (RuntimeException e) {
       challenges.remove(challengeId);
+      // El intento fallido no debe gastar el cupo de reintentos: quien corrige el correo tiene que poder volver a probar.
+      java.util.ArrayDeque<Instant> sends = codeSends.get(email);
+      if (sends != null) {
+        synchronized (sends) {
+          sends.pollLast();
+        }
+      }
       throw new ResponseStatusException(
           HttpStatus.SERVICE_UNAVAILABLE,
-          "No pudimos enviar el correo de verificación. Intentá nuevamente en unos minutos.");
+          "Falló el envío del código. Verificá tus datos, preferentemente el correo electrónico, e intentá nuevamente.");
     }
     return new PendingAuthResponse(
         challengeId,
@@ -759,7 +1097,16 @@ public class AuthService {
    * this must never be the raw roles column directly.
    */
   private List<String> effectiveRoles(DoctorAccount account) {
-    return account.verified() && account.approved() ? account.roles() : List.of("PENDING_APPROVAL");
+    if (!(account.verified() && account.approved())) return List.of("PENDING_APPROVAL");
+    if (profileChanges != null
+        && account.roles() != null
+        && !account.roles().contains("ADMIN")
+        && profileChanges.isReviewPending(account.email())) {
+      List<String> roles = new java.util.ArrayList<>(account.roles());
+      roles.add("READ_ONLY");
+      return roles;
+    }
+    return account.roles();
   }
 
   private String normalizeEmail(String value) {

@@ -25,6 +25,7 @@ public class SmtpEmailDeliveryService implements EmailDeliveryService {
   private static final Logger log = LoggerFactory.getLogger(SmtpEmailDeliveryService.class);
 
   private final JavaMailSenderImpl sender;
+  private String supportEmail = "";
   private final InternetAddress from;
 
   public SmtpEmailDeliveryService(
@@ -63,6 +64,51 @@ public class SmtpEmailDeliveryService implements EmailDeliveryService {
     p.put("mail.smtp.timeout", String.valueOf(timeoutMs));
     p.put("mail.smtp.writetimeout", String.valueOf(timeoutMs));
     log.info("SMTP e-mail delivery enabled via {}:{} (credentials not logged)", host.trim(), port);
+  }
+
+  @org.springframework.beans.factory.annotation.Autowired(required = false)
+  void setSupportEmail(@Value("${pfi.support.email:}") String value) {
+    this.supportEmail = value == null ? "" : value.trim();
+  }
+
+  @Override
+  public void sendProfileChangeToken(String toEmail, String token, Duration validFor) {
+    send(
+        toEmail,
+        "MIRA·L - código para editar tu perfil",
+        "Un administrador autorizó el cambio de los datos de tu perfil.\n\n"
+            + "Tu código es: " + token + "\n\n"
+            + "Ingresalo en Configuración dentro de los próximos " + validFor.toMinutes() + " minutos. "
+            + "Si no pediste este cambio, ignorá este mensaje.\n\n"
+            + "Al guardar los cambios, tu cuenta queda en solo lectura hasta que un administrador los revise.\n");
+  }
+
+  @Override
+  public void notifyProfileChangeRequested(String doctorName, String doctorEmail, String note) {
+    String target = supportEmail.isBlank() ? from.getAddress() : supportEmail;
+    send(
+        target,
+        "MIRA·L - solicitud de cambio de datos de perfil",
+        "El profesional " + doctorName + " (" + doctorEmail + ") pidió cambiar los datos de su perfil.\n\n"
+            + "Motivo: " + (note == null || note.isBlank() ? "(sin detalle)" : note) + "\n\n"
+            + "Para autorizarlo, entrá a la pantalla Profesionales de MIRA·L (sección «Cambios de perfil»).\n");
+  }
+
+  private void send(String toEmail, String subject, String text) {
+    try {
+      InternetAddress to = new InternetAddress(toEmail, true);
+      MimeMessage message = sender.createMimeMessage();
+      MimeMessageHelper helper = new MimeMessageHelper(message, StandardCharsets.UTF_8.name());
+      helper.setFrom(from);
+      helper.setTo(to);
+      helper.setSubject(subject);
+      helper.setText(text, false);
+      sender.send(message);
+      log.info("Notification e-mail handed to SMTP server");
+    } catch (Exception e) {
+      log.warn("Notification e-mail could not be sent: {}", e.getClass().getSimpleName());
+      throw new EmailDeliveryException("SMTP delivery failed", e);
+    }
   }
 
   private static void requireSet(String name, String value) {
