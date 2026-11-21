@@ -24,6 +24,9 @@ public final class AuthDtos {
 
   public record SettingsRequest(Boolean twoFactorEnabled, Boolean onboardingCompleted) {}
 
+  public record ChangePasswordRequest(
+      @NotBlank String currentPassword, @NotBlank String newPassword) {}
+
   public record ApprovalRequest(@Email @NotBlank String email, boolean approved) {}
 
   /**

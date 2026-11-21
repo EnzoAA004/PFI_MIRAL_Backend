@@ -7,7 +7,7 @@ public class DoctorAccount {
   private final String id;
   private final String fullName;
   private final String email;
-  private final String passwordHash;
+  private String passwordHash;
   private final String licenseNumber;
   private final String specialty;
   private final String institution;
@@ -61,6 +61,10 @@ public class DoctorAccount {
 
   public String passwordHash() {
     return passwordHash;
+  }
+
+  public void changePasswordHash(String newPasswordHash) {
+    this.passwordHash = newPasswordHash;
   }
 
   public String licenseNumber() {

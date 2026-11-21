@@ -54,6 +54,7 @@ public class AuthService {
   private final AuditService auditService;
   private final Map<String, java.util.ArrayDeque<Instant>> codeSends = new ConcurrentHashMap<>();
   private EmailDeliveryService emailDelivery;
+  private final Map<String, java.util.ArrayDeque<Instant>> passwordFailures = new ConcurrentHashMap<>();
 
   public AuthService(
       PasswordHasher passwordHasher,
@@ -223,6 +224,89 @@ public class AuthService {
    * deactivated account's old professional roles on its own `/me` instead of the PENDING_APPROVAL
    * state it is actually restricted to.
    */
+  static final int MIN_NEW_PASSWORD_LENGTH = 10;
+
+  /**
+   * Self-service password change. Requires the current password, enforces a minimal policy, revokes
+   * every refresh token of the account (other devices are signed out) and returns a fresh session
+   * so the caller stays signed in. At most 5 wrong current passwords per 15 minutes per account.
+   */
+  public TokenResponse changePassword(
+      TokenService.Claims claims, String currentPassword, String newPassword) {
+    String email = normalizeEmail(claims.email());
+    if (isDemoAccountBlocked(email) || DEMO_ACCOUNT_EMAIL.equals(email)) {
+      throw new ResponseStatusException(
+          HttpStatus.FORBIDDEN, "La contraseña de la cuenta demo no se puede cambiar.");
+    }
+    DoctorAccount account =
+        findAccount(email)
+            .orElseThrow(
+                () -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Cuenta no encontrada"));
+    java.util.ArrayDeque<Instant> failures =
+        passwordFailures.computeIfAbsent(email, k -> new java.util.ArrayDeque<>());
+    synchronized (failures) {
+      Instant now = Instant.now();
+      while (!failures.isEmpty() && failures.peekFirst().isBefore(now.minus(Duration.ofMinutes(15)))) {
+        failures.pollFirst();
+      }
+      if (failures.size() >= 5) {
+        throw new ResponseStatusException(
+            HttpStatus.TOO_MANY_REQUESTS,
+            "Demasiados intentos con la contraseña actual. Esperá unos minutos.");
+      }
+      if (!passwordHasher.verify(currentPassword, account.passwordHash())) {
+        failures.addLast(now);
+        throw new ResponseStatusException(
+            HttpStatus.FORBIDDEN, "La contraseña actual no es correcta.");
+      }
+      failures.clear();
+    }
+    String problem = newPasswordProblem(newPassword, currentPassword, email);
+    if (problem != null) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, problem);
+    }
+    String newHash = passwordHasher.hash(newPassword);
+    postgresAuthStore.updatePasswordHash(email, newHash);
+    account.changePasswordHash(newHash);
+    accountsByEmail.put(email, account);
+    postgresAuthStore.revokeRefreshTokensForEmail(email);
+    refreshTokens.values().removeIf(email::equals);
+    invalidateChallengesFor(email);
+    auditPasswordChange(claims, account);
+    return issueTokens(account);
+  }
+
+  static String newPasswordProblem(String newPassword, String currentPassword, String email) {
+    if (newPassword == null || newPassword.length() < MIN_NEW_PASSWORD_LENGTH) {
+      return "La nueva contraseña debe tener al menos " + MIN_NEW_PASSWORD_LENGTH + " caracteres.";
+    }
+    if (newPassword.length() > 128) {
+      return "La nueva contraseña no puede superar los 128 caracteres.";
+    }
+    boolean letter = newPassword.chars().anyMatch(Character::isLetter);
+    boolean digit = newPassword.chars().anyMatch(Character::isDigit);
+    if (!letter || !digit) {
+      return "La nueva contraseña debe combinar letras y números.";
+    }
+    if (newPassword.equals(currentPassword)) {
+      return "La nueva contraseña debe ser distinta de la actual.";
+    }
+    if (newPassword.equalsIgnoreCase(email)) {
+      return "La nueva contraseña no puede ser tu correo.";
+    }
+    return null;
+  }
+
+  private void auditPasswordChange(TokenService.Claims claims, DoctorAccount account) {
+    if (auditService == null) return;
+    auditService.record(
+        claims.subject(),
+        AuditAction.PASSWORD_CHANGED.name(),
+        account.id(),
+        MDC.get(TraceIdFilter.TRACE_ID_MDC_KEY),
+        Map.of("entityType", "professional_account", "outcome", "success"));
+  }
+
   public UserResponse currentUser(TokenService.Claims claims) {
     DoctorAccount account = findAccount(normalizeEmail(claims.email())).orElse(null);
     if (account == null) {

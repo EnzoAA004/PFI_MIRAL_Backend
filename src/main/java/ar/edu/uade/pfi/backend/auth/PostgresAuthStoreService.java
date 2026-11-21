@@ -553,6 +553,25 @@ public class PostgresAuthStoreService {
    * demo-account sessions from a previous rollout without touching any other account's tokens (no
    * DELETE, no wildcard, single-email WHERE clause only).
    */
+  /** Unlike the best-effort settings writes, a password change must never be lost silently. */
+  public void updatePasswordHash(String email, String passwordHash) {
+    if (!enabled) return;
+    try (Connection connection = connection();
+        PreparedStatement statement =
+            connection.prepareStatement(
+                "UPDATE doctor_accounts SET password_hash = ?, updated_at = now() WHERE email = ?")) {
+      statement.setString(1, passwordHash);
+      statement.setString(2, email);
+      if (statement.executeUpdate() != 1) {
+        throw new IllegalStateException("Password hash row not updated");
+      }
+    } catch (RuntimeException ex) {
+      throw ex;
+    } catch (Exception ex) {
+      throw new IllegalStateException("Could not persist the new password", ex);
+    }
+  }
+
   public void revokeRefreshTokensForEmail(String email) {
     if (!enabled) return;
     try (Connection connection = connection();

@@ -1,6 +1,7 @@
 package ar.edu.uade.pfi.backend.auth;
 
 import ar.edu.uade.pfi.backend.auth.dto.AuthDtos.ApprovalRequest;
+import ar.edu.uade.pfi.backend.auth.dto.AuthDtos.ChangePasswordRequest;
 import ar.edu.uade.pfi.backend.auth.dto.AuthDtos.LoginRequest;
 import ar.edu.uade.pfi.backend.auth.dto.AuthDtos.PendingAuthResponse;
 import ar.edu.uade.pfi.backend.auth.dto.AuthDtos.ProfessionalActivationRequest;
@@ -238,6 +239,17 @@ public class AuthController {
     TokenService.Claims claims =
         (TokenService.Claims) request.getAttribute(AuthFilter.AUTH_CLAIMS_ATTRIBUTE);
     return authService.updateSettings(claims, settings);
+  }
+
+  @PatchMapping("/password")
+  public TokenResponse changePassword(
+      HttpServletRequest request, @Valid @RequestBody ChangePasswordRequest body) {
+    TokenService.Claims claims =
+        (TokenService.Claims) request.getAttribute(AuthFilter.AUTH_CLAIMS_ATTRIBUTE);
+    if (claims == null) {
+      throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Sesión requerida");
+    }
+    return authService.changePassword(claims, body.currentPassword(), body.newPassword());
   }
 
   /**
