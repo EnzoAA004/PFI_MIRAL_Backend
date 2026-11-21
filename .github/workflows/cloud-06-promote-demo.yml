@@ -43,7 +43,7 @@ jobs:
 
       # Step 1 — download and parse the DEV-validated release manifest.
       - name: Download release manifest from the DEV validation run
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: pfi-cloud-release-manifest
           run-id: ${{ inputs.release_manifest_run_id }}
