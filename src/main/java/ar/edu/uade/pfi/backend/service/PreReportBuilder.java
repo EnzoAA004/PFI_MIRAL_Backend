@@ -305,10 +305,14 @@ public class PreReportBuilder {
                 r.put("width", region.width());
                 r.put("height", region.height());
                 entry.put("region", r);
-                boolean onAnalysisImage = region.inputId().equals(analysisInputId) && analysisIndex != null && analysisIndex == region.sliceIndex() && !sagittalPlaneRunId.isEmpty();
-                entry.put("imagePath", onAnalysisImage
-                    ? "/api/ai/assets/" + sagittalPlaneRunId + "/sagittal/input.png"
-                    : "/api/ai/series/" + region.inputId() + "/slices/" + region.sliceIndex());
+                String imagePath = "/api/ai/series/" + region.inputId() + "/slices/" + region.sliceIndex();
+                if (region.inputId().equals(analysisInputId) && !sagittalPlaneRunId.isEmpty()) {
+                    String file = analysisIndex != null && analysisIndex == region.sliceIndex()
+                        ? "input.png"
+                        : String.format(Locale.ROOT, "slice-%03d.png", region.sliceIndex());
+                    imagePath = "/api/ai/assets/" + sagittalPlaneRunId + "/sagittal/" + file;
+                }
+                entry.put("imagePath", imagePath);
             }
             sources.add(entry);
         }

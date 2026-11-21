@@ -73,6 +73,8 @@ class PreReportServiceTest {
                 region("sagittal_t2", "inp-t2", 7, 93.0, 228.5, new double[] {87, 205, 99, 252}, 384),
                 region("sagittal_t1", "inp-t1", 7, 76.5, 188.5, new double[] {71, 170, 82, 207}, 320)));
             Map<String, Object> bulgingL4 = AssistantTestFixtures.bulging("L4-L5", false, 0.9);
+            bulgingL4.put("sourceSeries", List.of(
+                region("sagittal_t2", "inp-t2", 5, 93.0, 228.5, new double[] {87, 205, 99, 252}, 384)));
             Map<String, Object> badRegion = AssistantTestFixtures.finding("L3-L4", "disc_narrowing", "present", Map.of("absent", 0.4, "present", 0.6));
             badRegion.put("sourceSeries", List.of(
                 region("sagittal_t2", "inp-t2", 7, 93.0, 228.5, new double[] {87, 205, 99, 900}, 384),
@@ -151,6 +153,10 @@ class PreReportServiceTest {
         List<Map<String, Object>> sources = (List<Map<String, Object>>) bulging.get("sources");
         assertEquals("/api/ai/assets/sag-run-1/sagittal/input.png", sources.get(0).get("imagePath"), "serie y corte analizados: la imagen canónica de la corrida");
         assertEquals("/api/ai/series/inp-t1/slices/7", sources.get(1).get("imagePath"), "otra serie: su corte, no uno genérico");
+        Map<String, Object> bulgingL4 = ((List<Map<String, Object>>) generated.get("findings")).stream()
+            .filter(f -> "L4-L5".equals(f.get("level")) && "disc_bulging".equals(f.get("type"))).findFirst().orElseThrow();
+        assertEquals("/api/ai/assets/sag-run-1/sagittal/slice-005.png",
+            ((List<Map<String, Object>>) bulgingL4.get("sources")).get(0).get("imagePath"));
         assertEquals(384, ((Map<String, Object>) sources.get(0).get("region")).get("width"));
 
         // Región inválida: se conserva el resultado, sin localización y con el motivo.
