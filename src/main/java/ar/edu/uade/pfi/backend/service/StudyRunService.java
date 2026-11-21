@@ -11,6 +11,7 @@ import ar.edu.uade.pfi.backend.dto.StudyMetadataDto;
 import ar.edu.uade.pfi.backend.dto.StudyUploadResponseDto;
 import ar.edu.uade.pfi.backend.dto.StudyUploadSeriesDto;
 import ar.edu.uade.pfi.backend.repository.StudyRepository;
+import ar.edu.uade.pfi.backend.repository.PatientRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -31,15 +32,21 @@ public class StudyRunService {
     private static final Pattern SUBJECT_REF_PATTERN = Pattern.compile("^[A-Za-z0-9._-]{3,64}$");
 
     private final StudyRepository repository;
+    private final PatientRepository patientRepository;
     private final Clock clock;
 
     @Autowired
-    public StudyRunService(StudyRepository repository) {
-        this(repository, Clock.systemUTC());
+    public StudyRunService(StudyRepository repository, PatientRepository patientRepository) {
+        this(repository, patientRepository, Clock.systemUTC());
     }
 
-    StudyRunService(StudyRepository repository, Clock clock) {
+    public StudyRunService(StudyRepository repository) { this(repository, null, Clock.systemUTC()); }
+
+    StudyRunService(StudyRepository repository, Clock clock) { this(repository, null, clock); }
+
+    StudyRunService(StudyRepository repository, PatientRepository patientRepository, Clock clock) {
         this.repository = repository;
+        this.patientRepository = patientRepository;
         this.clock = clock;
     }
 
@@ -94,6 +101,7 @@ public class StudyRunService {
     public PreparedStudyMetadata prepareStudyMetadata(String caseId, StudyMetadataDto metadata) {
         String normalizedCaseId = requireCaseId(caseId);
         StudyMetadataDto normalized = normalizeMetadata(metadata);
+        validatePatient(normalized);
         Study existing = findStudyForMetadata(normalizedCaseId).orElse(null);
         if (existing != null
             && normalized != null
@@ -124,11 +132,13 @@ public class StudyRunService {
                 UUID.randomUUID().toString(),
                 normalizedCaseId,
                 status,
+                normalized == null ? null : normalized.patientId(),
                 normalized == null ? null : normalized.subjectRef(),
                 normalized == null ? null : normalized.studyDate(),
                 normalized == null ? null : normalized.modality(),
                 normalized == null ? null : normalized.description(),
                 normalized == null ? "medium" : valueOrDefault(normalized.reviewPriority(), "medium"),
+                normalized == null ? null : normalized.ageAtStudy(), normalized == null ? null : normalized.ageProvenance(), normalized == null ? null : normalized.clinicalReason(), normalized == null ? null : normalized.symptoms(), normalized == null ? null : normalized.symptomDuration(), normalized == null ? null : normalized.relevantHistory(), normalized == null ? null : normalized.contextVersion(),
                 now,
                 now
             ));
@@ -140,29 +150,38 @@ public class StudyRunService {
         Study current = existing.get();
         if (normalized == null) return current;
 
+        String patientId = firstNonBlank(current.patientId(), normalized.patientId());
         String subjectRef = firstNonBlank(current.subjectRef(), normalized.subjectRef());
         LocalDate studyDate = normalized.studyDate() == null ? current.studyDate() : normalized.studyDate();
         String modality = firstNonBlank(normalized.modality(), current.modality());
         String description = firstNonBlank(normalized.description(), current.description());
         String reviewPriority = firstNonBlank(normalized.reviewPriority(), current.reviewPriority());
+        Integer ageAtStudy = normalized.ageAtStudy() == null ? current.ageAtStudy() : normalized.ageAtStudy();
+        String ageProvenance = firstNonBlank(normalized.ageProvenance(), current.ageProvenance());
+        String clinicalReason = firstNonBlank(normalized.clinicalReason(), current.clinicalReason());
+        String symptoms = firstNonBlank(normalized.symptoms(), current.symptoms());
+        String symptomDuration = firstNonBlank(normalized.symptomDuration(), current.symptomDuration());
+        String relevantHistory = firstNonBlank(normalized.relevantHistory(), current.relevantHistory());
+        String contextVersion = firstNonBlank(normalized.contextVersion(), current.contextVersion());
         boolean changed =
-            !same(current.subjectRef(), subjectRef)
+            !same(current.patientId(), patientId) || !same(current.subjectRef(), subjectRef)
                 || !same(current.studyDate(), studyDate)
                 || !same(current.modality(), modality)
                 || !same(current.description(), description)
-                || !same(current.reviewPriority(), reviewPriority);
+                || !same(current.reviewPriority(), reviewPriority) || !same(current.ageAtStudy(), ageAtStudy) || !same(current.ageProvenance(), ageProvenance) || !same(current.clinicalReason(), clinicalReason) || !same(current.symptoms(), symptoms) || !same(current.symptomDuration(), symptomDuration) || !same(current.relevantHistory(), relevantHistory) || !same(current.contextVersion(), contextVersion);
         if (!changed) return current;
 
         Study updated = saveStudyForMetadata(new Study(
             current.id(),
             current.caseId(),
             current.status(),
-            current.patientId(),
+            patientId,
             subjectRef,
             studyDate,
             modality,
             description,
             reviewPriority,
+            ageAtStudy, ageProvenance, clinicalReason, symptoms, symptomDuration, relevantHistory, contextVersion,
             current.createdAt(),
             clock.instant()
         ));
@@ -371,13 +390,33 @@ public class StudyRunService {
 
     private StudyMetadataDto normalizeMetadata(StudyMetadataDto metadata) {
         if (metadata == null) return null;
+        Integer age = metadata.ageAtStudy();
+        String ageProvenance = trimToNull(metadata.ageProvenance());
+        if (age == null && patientRepository != null && metadata.patientId() != null && metadata.studyDate() != null) {
+            age = patientRepository.findById(metadata.patientId().trim()).flatMap(patient -> java.util.Optional.ofNullable(patient.dateOfBirth())).map(dateOfBirth -> ageOn(dateOfBirth, metadata.studyDate())).orElse(null);
+            if (age != null) ageProvenance = "calculated";
+        }
+        if (age != null && (age < 0 || age > 130)) throw new StudyMetadataException(HttpStatus.BAD_REQUEST, "INVALID_AGE_AT_STUDY", "La edad al estudio debe estar entre 0 y 130.");
         return new StudyMetadataDto(
             normalizeSubjectRef(metadata.subjectRef()),
             metadata.studyDate(),
             trimToNull(metadata.modality()),
             trimToNull(metadata.description()),
-            normalizePriority(metadata.reviewPriority())
+            normalizePriority(metadata.reviewPriority()), metadata.patientId(), age, ageProvenance, trimToNull(metadata.clinicalReason()), trimToNull(metadata.symptoms()), trimToNull(metadata.symptomDuration()), trimToNull(metadata.relevantHistory()), trimToNull(metadata.contextVersion())
         );
+    }
+
+    private int ageOn(LocalDate birthDate, LocalDate studyDate) {
+        int age = studyDate.getYear() - birthDate.getYear();
+        if (studyDate.isBefore(birthDate.plusYears(age))) age--;
+        return age;
+    }
+
+    private void validatePatient(StudyMetadataDto metadata) {
+        if (metadata == null || metadata.patientId() == null || metadata.patientId().isBlank() || patientRepository == null) return;
+        if (patientRepository.findById(metadata.patientId().trim()).isEmpty()) {
+            throw new StudyMetadataException(HttpStatus.BAD_REQUEST, "PATIENT_NOT_FOUND", "El paciente seleccionado no existe o no esta disponible.");
+        }
     }
 
     private String normalizeSubjectRef(String subjectRef) {

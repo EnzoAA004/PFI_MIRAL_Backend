@@ -94,8 +94,9 @@ public class StudyChatContextBuilder {
         }
 
         ChatContextResult.ChatContextStudy studyContext = new ChatContextResult.ChatContextStudy(
-            study.caseId(), study.studyDate() == null ? null : study.studyDate().toString()
+            study.caseId(), study.studyDate() == null ? null : study.studyDate().toString(), study.ageAtStudy(), study.ageProvenance(), study.clinicalReason(), study.symptoms(), study.symptomDuration(), study.relevantHistory(), study.contextVersion()
         );
+        if (study.ageAtStudy() != null || study.clinicalReason() != null || study.symptoms() != null || study.symptomDuration() != null || study.relevantHistory() != null) sources.add("study_clinical_context");
         return new ChatContextResult(studyContext, analysisContext, discLevels, longitudinal, sources);
     }
 

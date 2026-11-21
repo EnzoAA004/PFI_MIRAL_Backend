@@ -66,7 +66,7 @@ public class PatientService {
         databaseCall(
             () ->
                 patientRepository.save(
-                    new Patient(UUID.randomUUID().toString(), reference, now, now)));
+                    new Patient(UUID.randomUUID().toString(), reference, clean(request == null ? null : request.firstName()), clean(request == null ? null : request.lastName()), request == null ? null : request.dateOfBirth(), now, now)));
     if (actor == null || actor.isBlank() || !patientRepository.claimPatientOwner(patient.id(), actor)) {
       throw new IllegalStateException("Could not assign patient owner");
     }
@@ -84,8 +84,8 @@ public class PatientService {
     if (normalizedQuery.length() > 64) {
       throw invalidReference("query supera el largo maximo permitido.");
     }
-    if (!normalizedQuery.isEmpty() && !PATIENT_REFERENCE.matcher(normalizedQuery).matches()) {
-      throw invalidReference("query tiene un formato invalido.");
+    if (normalizedQuery.chars().anyMatch(Character::isISOControl)) {
+      throw invalidReference("query contiene caracteres no permitidos.");
     }
     int limit = requestedLimit == null ? DEFAULT_LIMIT : requestedLimit;
     if (limit < 1 || limit > MAX_LIMIT) {
@@ -94,7 +94,7 @@ public class PatientService {
           "INVALID_PATIENT_LIMIT",
           "limit debe estar entre 1 y " + MAX_LIMIT + ".");
     }
-    return databaseCall(() -> patientRepository.searchByReferencePrefix(normalizedQuery, limit))
+    return databaseCall(() -> patientRepository.search(normalizedQuery, limit))
         .stream()
         .map(this::summary)
         .toList();
@@ -115,7 +115,7 @@ public class PatientService {
     String validId = validateUuid(patientId, "patientId");
     String reference = validateReference(request == null ? null : request.patientReference());
     Patient updated =
-        databaseCall(() -> patientRepository.updateReference(validId, reference, clock.instant()))
+        databaseCall(() -> patientRepository.updateProfile(validId, reference, clean(request == null ? null : request.firstName()), clean(request == null ? null : request.lastName()), request == null ? null : request.dateOfBirth(), clock.instant()))
             .orElseThrow(this::patientNotFound);
     auditService.record(
         actor,
@@ -213,12 +213,12 @@ public class PatientService {
 
   private PatientSummaryDto summary(Patient patient) {
     return new PatientSummaryDto(
-        patient.id(), patient.patientReference(), patient.createdAt(), patient.updatedAt());
+        patient.id(), patient.patientReference(), patient.firstName(), patient.lastName(), patient.dateOfBirth(), patient.createdAt(), patient.updatedAt());
   }
 
   private PatientDetailDto detail(Patient patient) {
     return new PatientDetailDto(
-        patient.id(), patient.patientReference(), patient.createdAt(), patient.updatedAt());
+        patient.id(), patient.patientReference(), patient.firstName(), patient.lastName(), patient.dateOfBirth(), patient.createdAt(), patient.updatedAt());
   }
 
   private PatientStudySummaryDto studySummary(Study study) {
@@ -240,6 +240,8 @@ public class PatientService {
     }
     return reference;
   }
+
+  private String clean(String value) { return value == null || value.isBlank() ? null : value.trim(); }
 
   private String validateUuid(String value, String field) {
     String candidate = value == null ? "" : value.trim();

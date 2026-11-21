@@ -9,4 +9,16 @@ public record StudyMetadataDto(
     LocalDate studyDate,
     String modality,
     String description,
-    String reviewPriority) {}
+    String reviewPriority,
+    String patientId,
+    Integer ageAtStudy,
+    String ageProvenance,
+    String clinicalReason,
+    String symptoms,
+    String symptomDuration,
+    String relevantHistory,
+    String contextVersion) {
+  public StudyMetadataDto(String subjectRef, LocalDate studyDate, String modality, String description, String reviewPriority) {
+    this(subjectRef, studyDate, modality, description, reviewPriority, null, null, null, null, null, null, null, null);
+  }
+}

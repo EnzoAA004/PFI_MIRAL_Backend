@@ -9,6 +9,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import ar.edu.uade.pfi.backend.client.AiProductCheckpointClient;
@@ -16,11 +17,13 @@ import ar.edu.uade.pfi.backend.auth.RoleAuthorizationService;
 import ar.edu.uade.pfi.backend.dto.DiscDegenerativeProductRequestDto;
 import ar.edu.uade.pfi.backend.dto.DiscSegmentationSourceDto;
 import ar.edu.uade.pfi.backend.dto.FullSeriesSegmentationRequestDto;
+import ar.edu.uade.pfi.backend.repository.StudyRepository;
 import ar.edu.uade.pfi.backend.service.DiscDegenerativeFindingsPersistenceService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.web.server.ResponseStatusException;
@@ -54,6 +57,67 @@ class AiProductCheckpointControllerTest {
     verify(authorization).requireStudyWrite(request, "case-a");
     verify(authorization).requireResourceBelongsToStudy(request, "input-b", "case-a", true);
     verify(client, never()).runFullSeriesSegmentation(any());
+  }
+
+  @Test
+  void fullSeriesRegistersRunAgainstStudyForScopedFindingsAndAssets() {
+    AiProductCheckpointClient client = mock(AiProductCheckpointClient.class);
+    DiscDegenerativeFindingsPersistenceService persistence = mock(DiscDegenerativeFindingsPersistenceService.class);
+    RoleAuthorizationService authorization = mock(RoleAuthorizationService.class);
+    StudyRepository repository = mock(StudyRepository.class);
+    HttpServletRequest request = mock(HttpServletRequest.class);
+    FullSeriesSegmentationRequestDto body =
+        new FullSeriesSegmentationRequestDto("case-a", "input-a", "sagittal", "sagittal_spider");
+    when(client.runFullSeriesSegmentation(body)).thenReturn(fullSeriesResponse("seg-run-a"));
+    when(repository.registerAiPipelineRunResource("seg-run-a", "case-a")).thenReturn(true);
+    AiProductCheckpointController controller =
+        new AiProductCheckpointController(client, persistence, authorization, repository);
+
+    Map<String, Object> result = controller.runFullSeries(body, request);
+
+    assertEquals("seg-run-a", result.get("runId"));
+    verify(repository).registerAiPipelineRunResource("seg-run-a", "case-a");
+    verify(client).runFullSeriesSegmentation(body);
+  }
+
+  @Test
+  void fullSeriesDoesNotReturnUnscopedRunWhenRegistrationFails() {
+    AiProductCheckpointClient client = mock(AiProductCheckpointClient.class);
+    RoleAuthorizationService authorization = mock(RoleAuthorizationService.class);
+    StudyRepository repository = mock(StudyRepository.class);
+    HttpServletRequest request = mock(HttpServletRequest.class);
+    FullSeriesSegmentationRequestDto body =
+        new FullSeriesSegmentationRequestDto("case-a", "input-a", "sagittal", "sagittal_spider");
+    when(client.runFullSeriesSegmentation(body)).thenReturn(fullSeriesResponse("orphan-run"));
+    when(repository.registerAiPipelineRunResource("orphan-run", "case-a")).thenReturn(false);
+    AiProductCheckpointController controller = new AiProductCheckpointController(
+        client, mock(DiscDegenerativeFindingsPersistenceService.class), authorization, repository);
+
+    ResponseStatusException error = org.junit.jupiter.api.Assertions.assertThrows(
+        ResponseStatusException.class, () -> controller.runFullSeries(body, request));
+
+    assertEquals(org.springframework.http.HttpStatus.NOT_FOUND, error.getStatusCode());
+    verify(repository).registerAiPipelineRunResource("orphan-run", "case-a");
+  }
+
+  @Test
+  void fullSeriesAssetsRequireStudyAccessBeforeFetchingTheImage() {
+    AiProductCheckpointClient client = mock(AiProductCheckpointClient.class);
+    RoleAuthorizationService authorization = mock(RoleAuthorizationService.class);
+    StudyRepository repository = mock(StudyRepository.class);
+    HttpServletRequest request = mock(HttpServletRequest.class);
+    when(repository.resolveStudyCaseId("seg-run-a")).thenReturn(Optional.of("case-a"));
+    doThrow(new ResponseStatusException(org.springframework.http.HttpStatus.NOT_FOUND))
+        .when(authorization).requireResourceBelongsToStudy(request, "seg-run-a", "case-a", false);
+    AiProductCheckpointController controller = new AiProductCheckpointController(
+        client, mock(DiscDegenerativeFindingsPersistenceService.class), authorization, repository);
+
+    org.junit.jupiter.api.Assertions.assertThrows(
+        ResponseStatusException.class,
+        () -> controller.fullSeriesAsset("seg-run-a", "sagittal", 0, "overlay.png", request));
+
+    verify(authorization).requireResourceBelongsToStudy(request, "seg-run-a", "case-a", false);
+    verifyNoInteractions(client);
   }
 
   @Test
@@ -175,5 +239,18 @@ class AiProductCheckpointControllerTest {
             }
             """;
     return mapper.readValue(json, new TypeReference<Map<String, Object>>() {});
+  }
+
+  private Map<String, Object> fullSeriesResponse(String runId) {
+    return Map.of(
+        "schemaVersion", "pfi.full-series-segmentation.v1",
+        "status", "completed",
+        "runId", runId,
+        "coverageComplete", true,
+        "humanReviewRequired", true,
+        "notClinicalDiagnosis", true,
+        "sliceCount", 1,
+        "segmentedSliceCount", 1,
+        "slices", List.of(Map.of("index", 0)));
   }
 }

@@ -2,6 +2,7 @@ package ar.edu.uade.pfi.backend.repository;
 
 import ar.edu.uade.pfi.backend.domain.Patient;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -47,6 +48,21 @@ public class InMemoryPatientRepository implements PatientRepository {
   }
 
   @Override
+  public List<Patient> search(String query, int limit) {
+    String normalizedQuery = normalize(query);
+    return patientsById.values().stream()
+        .filter(patient -> normalize(patient.patientReference()).startsWith(normalizedQuery)
+            || normalize(patient.firstName()).contains(normalizedQuery)
+            || normalize(patient.lastName()).contains(normalizedQuery)
+            || normalize((patient.firstName() == null ? "" : patient.firstName()) + " "
+                + (patient.lastName() == null ? "" : patient.lastName())).contains(normalizedQuery))
+        .sorted(Comparator.comparing((Patient patient) -> normalize(patient.patientReference()))
+            .thenComparing(Patient::id))
+        .limit(limit)
+        .toList();
+  }
+
+  @Override
   public synchronized Optional<Patient> updateReference(
       String patientId, String patientReference, Instant updatedAt) {
     Patient current = patientsById.get(patientId);
@@ -57,7 +73,22 @@ public class InMemoryPatientRepository implements PatientRepository {
     if (owner != null && !owner.equals(patientId)) {
       throw new DuplicatePatientReferenceException(null);
     }
-    Patient updated = new Patient(current.id(), patientReference, current.createdAt(), updatedAt);
+    Patient updated = new Patient(current.id(), patientReference, current.firstName(), current.lastName(), current.dateOfBirth(), current.createdAt(), updatedAt);
+    patientsById.put(patientId, updated);
+    idsByNormalizedReference.remove(oldNormalized);
+    idsByNormalizedReference.put(newNormalized, patientId);
+    return Optional.of(updated);
+  }
+
+  @Override
+  public synchronized Optional<Patient> updateProfile(String patientId, String patientReference, String firstName, String lastName, LocalDate dateOfBirth, Instant updatedAt) {
+    Patient current = patientsById.get(patientId);
+    if (current == null) return Optional.empty();
+    String oldNormalized = normalize(current.patientReference());
+    String newNormalized = normalize(patientReference);
+    String owner = idsByNormalizedReference.get(newNormalized);
+    if (owner != null && !owner.equals(patientId)) throw new DuplicatePatientReferenceException(null);
+    Patient updated = new Patient(current.id(), patientReference, firstName, lastName, dateOfBirth, current.createdAt(), updatedAt);
     patientsById.put(patientId, updated);
     idsByNormalizedReference.remove(oldNormalized);
     idsByNormalizedReference.put(newNormalized, patientId);
@@ -77,6 +108,6 @@ public class InMemoryPatientRepository implements PatientRepository {
   }
 
   private String normalize(String value) {
-    return value.trim().toLowerCase(Locale.ROOT);
+    return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
   }
 }

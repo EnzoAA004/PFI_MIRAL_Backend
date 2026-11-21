@@ -2,6 +2,7 @@ package ar.edu.uade.pfi.backend.controller;
 
 import ar.edu.uade.pfi.backend.client.AiProductCheckpointClient;
 import ar.edu.uade.pfi.backend.auth.RoleAuthorizationService;
+import ar.edu.uade.pfi.backend.repository.StudyRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import ar.edu.uade.pfi.backend.dto.DiscDegenerativeProductRequestDto;
@@ -36,21 +37,35 @@ public class AiProductCheckpointController {
   private final AiProductCheckpointClient aiClient;
   private final DiscDegenerativeFindingsPersistenceService persistence;
   private final RoleAuthorizationService authorization;
+  private final StudyRepository studyRepository;
 
   public AiProductCheckpointController(
       AiProductCheckpointClient aiClient, DiscDegenerativeFindingsPersistenceService persistence) {
     this.aiClient = aiClient;
     this.persistence = persistence;
     this.authorization = null;
+    this.studyRepository = null;
   }
 
-  @Autowired
   public AiProductCheckpointController(
       AiProductCheckpointClient aiClient, DiscDegenerativeFindingsPersistenceService persistence,
       RoleAuthorizationService authorization) {
     this.aiClient = aiClient;
     this.persistence = persistence;
     this.authorization = authorization;
+    this.studyRepository = null;
+  }
+
+  @Autowired
+  public AiProductCheckpointController(
+      AiProductCheckpointClient aiClient,
+      DiscDegenerativeFindingsPersistenceService persistence,
+      RoleAuthorizationService authorization,
+      StudyRepository studyRepository) {
+    this.aiClient = aiClient;
+    this.persistence = persistence;
+    this.authorization = authorization;
+    this.studyRepository = studyRepository;
   }
 
   @GetMapping("/checkpoint")
@@ -76,6 +91,13 @@ public class AiProductCheckpointController {
     authorization.requireResourceBelongsToStudy(httpRequest, request.inputId(), request.caseId(), true);
     Map<String, Object> response = aiClient.runFullSeriesSegmentation(request);
     requireFullSeriesResponse(response);
+    if (studyRepository == null) {
+      throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "El registro de corridas no está disponible.");
+    }
+    String runId = (String) response.get("runId");
+    if (!studyRepository.registerAiPipelineRunResource(runId, request.caseId())) {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No se pudo asociar la corrida al estudio.");
+    }
     return response;
   }
 
@@ -84,7 +106,14 @@ public class AiProductCheckpointController {
       @PathVariable String runId,
       @PathVariable String plane,
       @PathVariable int index,
-      @PathVariable String assetName) {
+      @PathVariable String assetName,
+      HttpServletRequest request) {
+    if (authorization == null || studyRepository == null) {
+      throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "La autorización de estudios no está disponible.");
+    }
+    String caseId = studyRepository.resolveStudyCaseId(runId)
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Recurso no encontrado."));
+    authorization.requireResourceBelongsToStudy(request, runId, caseId, false);
     ResponseEntity<byte[]> upstream = aiClient.getFullSeriesAsset(runId, plane, index, assetName);
     byte[] body = upstream.getBody() == null ? new byte[0] : upstream.getBody();
     return ResponseEntity.status(upstream.getStatusCode())
@@ -166,7 +195,9 @@ public class AiProductCheckpointController {
         || !"completed".equals(response.get("status"))
         || !Boolean.TRUE.equals(response.get("coverageComplete"))
         || !Boolean.TRUE.equals(response.get("humanReviewRequired"))
-        || !Boolean.TRUE.equals(response.get("notClinicalDiagnosis"))) {
+        || !Boolean.TRUE.equals(response.get("notClinicalDiagnosis"))
+        || !(response.get("runId") instanceof String runId)
+        || blank(runId)) {
       throw invalidUpstream();
     }
     Object sliceCount = response.get("sliceCount");

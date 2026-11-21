@@ -22,6 +22,10 @@ public record ChatMessage(
     String provider,
     String promptVersion,
     String analysisRunId,
-    String baselineStudyId
+    String baselineStudyId,
+    String contextVersion
 ) {
+    public ChatMessage(String id, String conversationId, String role, String content, Instant createdAt, String model, String provider, String promptVersion, String analysisRunId, String baselineStudyId) {
+        this(id, conversationId, role, content, createdAt, model, provider, promptVersion, analysisRunId, baselineStudyId, null);
+    }
 }

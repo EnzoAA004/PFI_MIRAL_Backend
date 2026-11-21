@@ -19,6 +19,8 @@ public record ChatResponseDto(
     List<String> warnings,
     boolean humanReviewRequired,
     boolean notClinicalDiagnosis,
-    List<String> contextSources
+    List<String> contextSources,
+    String contextVersion,
+    String draftStatus
 ) {
 }

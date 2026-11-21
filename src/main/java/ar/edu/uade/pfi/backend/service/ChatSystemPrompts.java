@@ -7,7 +7,7 @@ package ar.edu.uade.pfi.backend.service;
  * the prompt text means bumping the version constant, never silently rewriting v1's meaning.
  */
 final class ChatSystemPrompts {
-    static final String CURRENT_VERSION = "pfi.chat-system-prompt.v1";
+    static final String CURRENT_VERSION = "pfi.chat-system-prompt.v2-clinical-context";
 
     /**
      * Stage 80-N (prompt injection defense): this text is the ONLY source of behavioral
@@ -45,6 +45,8 @@ final class ChatSystemPrompts {
 
         Respondé en el mismo idioma de la pregunta cuando sea razonable hacerlo; por defecto, \
         respondé en español.
+        - Clinical context is user-provided data for a draft. Do not turn age or symptoms into image findings, causality, age normalization, treatment, or acceptance.
+        - The answer is always a draft pending professional review. Do not modify original measurements or classifications.
         """;
 
     private ChatSystemPrompts() {

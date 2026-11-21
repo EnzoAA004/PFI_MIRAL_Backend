@@ -17,8 +17,12 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 @Testcontainers(disabledWithoutDocker = true)
 class PatientDomainMigrationCompatibilityTest {
-  private static final String PATIENT_MIGRATION = "V20260812_016_patient_domain_foundation.sql";
+  private static final String PATIENT_FOUNDATION_MIGRATION = "V20260812_016_patient_domain_foundation.sql";
   private static final String ACCESS_MIGRATION = "V20261118_024_study_access_grants.sql";
+  private static final List<String> CONTEXT_MIGRATIONS = List.of(
+      "V20261120_027_patient_profile.sql",
+      "V20261120_028_study_clinical_context.sql",
+      "V20261120_029_chat_context_version.sql");
 
   @Container
   static final PostgreSQLContainer<?> postgres =
@@ -33,7 +37,8 @@ class PatientDomainMigrationCompatibilityTest {
     Path legacyMigrations = Files.createDirectory(tempDirectory.resolve("legacy"));
     Path patientMigration = Files.createDirectory(tempDirectory.resolve("patient"));
     Path accessMigration = Files.createDirectory(tempDirectory.resolve("access"));
-    copyMigrationsBeforePatientFoundation(legacyMigrations, patientMigration, accessMigration);
+    Path contextMigrations = Files.createDirectory(tempDirectory.resolve("context"));
+    copyMigrationsBeforePatientFoundation(legacyMigrations, patientMigration, accessMigration, contextMigrations);
 
     try (var connection = connection()) {
       new SqlMigrationRunner(legacyMigrations).apply(connection);
@@ -64,11 +69,13 @@ class PatientDomainMigrationCompatibilityTest {
     assertEquals(2, studyCount());
 
     try (var connection = connection()) {
-      assertEquals(
-          List.of(PATIENT_MIGRATION), new SqlMigrationRunner(patientMigration).apply(connection));
+      assertEquals(List.of(PATIENT_FOUNDATION_MIGRATION), new SqlMigrationRunner(patientMigration).apply(connection));
     }
     try (var connection = connection()) {
       assertEquals(List.of(ACCESS_MIGRATION), new SqlMigrationRunner(accessMigration).apply(connection));
+    }
+    try (var connection = connection()) {
+      assertEquals(CONTEXT_MIGRATIONS, new SqlMigrationRunner(contextMigrations).apply(connection));
     }
 
     assertEquals(2, studyCount());
@@ -90,12 +97,13 @@ class PatientDomainMigrationCompatibilityTest {
     assertEquals(2, nullPatientStudyCount());
   }
 
-  private void copyMigrationsBeforePatientFoundation(Path legacy, Path patient, Path access) throws Exception {
+  private void copyMigrationsBeforePatientFoundation(Path legacy, Path patient, Path access, Path context) throws Exception {
     try (var migrations = Files.list(SqlMigrationRunner.DEFAULT_MIGRATIONS_DIRECTORY)) {
       for (Path migration : migrations.filter(path -> path.toString().endsWith(".sql")).toList()) {
         String filename = migration.getFileName().toString();
-        Path destination = filename.equals(PATIENT_MIGRATION) ? patient
-            : filename.equals(ACCESS_MIGRATION) ? access : legacy;
+        Path destination = filename.equals(PATIENT_FOUNDATION_MIGRATION) ? patient
+            : filename.equals(ACCESS_MIGRATION) ? access
+            : CONTEXT_MIGRATIONS.contains(filename) ? context : legacy;
         Files.copy(migration, destination.resolve(migration.getFileName()));
       }
     }
