@@ -140,7 +140,10 @@ public class SmtpEmailDeliveryService implements EmailDeliveryService {
   }
 
   static String body(String purpose, String code, Duration validFor) {
-    String action = "LOGIN".equals(purpose) ? "iniciar sesión" : "verificar tu correo profesional";
+    String action =
+        "LOGIN".equals(purpose)
+            ? "iniciar sesión"
+            : "RESET".equals(purpose) ? "restablecer tu contraseña" : "verificar tu correo profesional";
     return "Tu código para " + action + " en MIRA·L es: " + code + "\n\n"
         + "Vence en " + validFor.toMinutes() + " minutos. Si no lo solicitaste, ignorá este mensaje.\n\n"
         + "MIRA·L es un prototipo académico; este correo no contiene datos de pacientes.\n";

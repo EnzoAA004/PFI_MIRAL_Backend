@@ -37,6 +37,8 @@ public class AuthFilter extends OncePerRequestFilter {
         "/api/auth/verify-registration",
         "/api/auth/login",
         "/api/auth/verify-login",
+        "/api/auth/forgot-password",
+        "/api/auth/reset-password",
         "/api/auth/refresh",
         "/api/auth/logout"
     );

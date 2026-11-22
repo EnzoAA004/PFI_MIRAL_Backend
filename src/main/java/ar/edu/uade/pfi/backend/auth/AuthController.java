@@ -10,7 +10,9 @@ import ar.edu.uade.pfi.backend.auth.dto.AuthDtos.AdminProfileChangeDecisionReque
 import ar.edu.uade.pfi.backend.auth.dto.AuthDtos.AdminProfileChangeAuthorizeRequest;
 import ar.edu.uade.pfi.backend.auth.dto.AuthDtos.ChangePasswordRequest;
 import ar.edu.uade.pfi.backend.auth.dto.AuthDtos.LoginRequest;
+import ar.edu.uade.pfi.backend.auth.dto.AuthDtos.ForgotPasswordRequest;
 import ar.edu.uade.pfi.backend.auth.dto.AuthDtos.PendingAuthResponse;
+import ar.edu.uade.pfi.backend.auth.dto.AuthDtos.ResetPasswordRequest;
 import ar.edu.uade.pfi.backend.auth.dto.AuthDtos.ProfessionalActivationRequest;
 import ar.edu.uade.pfi.backend.auth.dto.AuthDtos.ProfessionalActivationResponse;
 import ar.edu.uade.pfi.backend.auth.dto.AuthDtos.RefreshRequest;
@@ -247,6 +249,28 @@ public class AuthController {
     TokenService.Claims claims =
         (TokenService.Claims) request.getAttribute(AuthFilter.AUTH_CLAIMS_ATTRIBUTE);
     return authService.updateSettings(claims, settings);
+  }
+
+  @Operation(
+      summary = "Pide un codigo para restablecer la contraseña olvidada",
+      description =
+          "Responde siempre igual exista o no la cuenta (no se filtra quien esta registrado). Si"
+              + " la cuenta existe, el codigo sale por correo; en la instalacion local, sin correo,"
+              + " queda en el registro del backend.")
+  @PostMapping("/forgot-password")
+  public PendingAuthResponse forgotPassword(@Valid @RequestBody ForgotPasswordRequest body) {
+    return authService.requestPasswordReset(body.email());
+  }
+
+  @Operation(
+      summary = "Define una contraseña nueva con el codigo recibido",
+      description =
+          "No inicia sesion: cierra todas las sesiones de la cuenta y hay que ingresar de nuevo.")
+  @PostMapping("/reset-password")
+  public ResponseEntity<Map<String, Object>> resetPassword(
+      @Valid @RequestBody ResetPasswordRequest body) {
+    authService.resetPassword(body.challengeId(), body.code(), body.newPassword());
+    return ResponseEntity.ok(Map.of("status", "ok"));
   }
 
   @PatchMapping("/password")

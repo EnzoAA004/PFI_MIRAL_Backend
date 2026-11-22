@@ -24,6 +24,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -34,6 +36,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class AuthService {
+  private static final Logger log = LoggerFactory.getLogger(AuthService.class);
   /**
    * The single well-known demo account email. Blocking must key off this identity, not off roles,
    * because a previously-seeded demo account may already be persisted with ADMIN in Postgres even
@@ -44,6 +47,8 @@ public class AuthService {
   private static final Duration CHALLENGE_TTL = Duration.ofMinutes(10);
   private final Map<String, DoctorAccount> accountsByEmail = new ConcurrentHashMap<>();
   private final Map<String, Challenge> challenges = new ConcurrentHashMap<>();
+  private final Map<String, Integer> resetAttempts = new ConcurrentHashMap<>();
+  static final int MAX_RESET_CODE_ATTEMPTS = 5;
   private final Map<String, String> refreshTokens = new ConcurrentHashMap<>();
   private final PasswordHasher passwordHasher;
   private final TokenService tokenService;
@@ -190,6 +195,10 @@ public class AuthService {
     if (challenge == null || challenge.expiresAt().isBefore(Instant.now())) {
       throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Código expirado o inválido");
     }
+    if ("RESET".equals(challenge.type())) {
+      // Un codigo de restablecimiento solo sirve en /reset-password, nunca para abrir sesion.
+      throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Código expirado o inválido");
+    }
     if (!challenge.code().equals(code.trim())) {
       throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Código inválido");
     }
@@ -294,6 +303,90 @@ public class AuthService {
     invalidateChallengesFor(email);
     auditPasswordChange(claims, account);
     return issueTokens(account);
+  }
+
+  // ---- Contraseña olvidada ---------------------------------------------------------------------
+  //
+  // Se pide un codigo (por correo; en local, sin correo, queda en el registro del backend) y con ese
+  // codigo se define la contraseña nueva. La respuesta no revela si la cuenta existe y el codigo
+  // tiene un maximo de intentos. Al terminar se cierran todas las sesiones de la cuenta.
+
+  static final String RESET_REQUEST_MESSAGE =
+      "Si el correo corresponde a una cuenta verificada, enviamos un código para restablecer la contraseña.";
+
+  public PendingAuthResponse requestPasswordReset(String emailValue) {
+    String email = normalizeEmail(emailValue);
+    DoctorAccount account = findAccount(email).orElse(null);
+    boolean eligible =
+        account != null
+            && account.verified()
+            && !isDemoAccountBlocked(email)
+            && !DEMO_ACCOUNT_EMAIL.equals(email);
+    if (!eligible) {
+      // Misma forma de respuesta que una cuenta real, para no filtrar quien esta registrado.
+      return new PendingAuthResponse(
+          UUID.randomUUID().toString(),
+          emailDelivery == null ? "email-demo" : "email",
+          (int) CHALLENGE_TTL.toSeconds(),
+          RESET_REQUEST_MESSAGE,
+          null);
+    }
+    PendingAuthResponse pending = createChallenge("RESET", email, RESET_REQUEST_MESSAGE);
+    if (auditService != null) {
+      auditService.record(
+          account.id(),
+          "PASSWORD_RESET_REQUESTED",
+          account.id(),
+          MDC.get(TraceIdFilter.TRACE_ID_MDC_KEY),
+          Map.of("entityType", "professional_account", "outcome", "requested"));
+    }
+    return pending;
+  }
+
+  public void resetPassword(String challengeId, String code, String newPassword) {
+    Challenge challenge = challengeId == null ? null : challenges.get(challengeId);
+    if (challenge == null
+        || !"RESET".equals(challenge.type())
+        || challenge.expiresAt().isBefore(Instant.now())) {
+      throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Código expirado o inválido");
+    }
+    int attempts = resetAttempts.merge(challengeId, 1, Integer::sum);
+    if (attempts > MAX_RESET_CODE_ATTEMPTS) {
+      challenges.remove(challengeId);
+      resetAttempts.remove(challengeId);
+      throw new ResponseStatusException(
+          HttpStatus.TOO_MANY_REQUESTS, "Demasiados intentos. Pedí un código nuevo.");
+    }
+    if (code == null || !challenge.code().equals(code.trim())) {
+      throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Código inválido");
+    }
+    String email = challenge.email();
+    DoctorAccount account =
+        findAccount(email)
+            .orElseThrow(
+                () -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Código expirado o inválido"));
+    String problem = newPasswordProblem(newPassword, null, email);
+    if (problem != null) {
+      // El codigo sigue vigente: quien se equivoco con la politica puede corregir la clave nueva.
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, problem);
+    }
+    String newHash = passwordHasher.hash(newPassword);
+    postgresAuthStore.updatePasswordHash(email, newHash);
+    account.changePasswordHash(newHash);
+    accountsByEmail.put(email, account);
+    postgresAuthStore.revokeRefreshTokensForEmail(email);
+    refreshTokens.values().removeIf(email::equals);
+    invalidateChallengesFor(email);
+    resetAttempts.remove(challengeId);
+    passwordFailures.remove(email);
+    if (auditService != null) {
+      auditService.record(
+          account.id(),
+          AuditAction.PASSWORD_CHANGED.name(),
+          account.id(),
+          MDC.get(TraceIdFilter.TRACE_ID_MDC_KEY),
+          Map.of("entityType", "professional_account", "outcome", "reset"));
+    }
   }
 
   static String newPasswordProblem(String newPassword, String currentPassword, String email) {
@@ -980,6 +1073,10 @@ public class AuthService {
         challengeId,
         new Challenge(challengeId, email, type, code, Instant.now().plus(CHALLENGE_TTL)));
     if (emailDelivery == null) {
+      if ("RESET".equals(type)) {
+        // Instalacion local sin correo: el codigo no sale por la API; queda en el registro del backend.
+        log.warn("[RESTABLECER-CLAVE] codigo para {}: {} (vence en {} min)", email, code, CHALLENGE_TTL.toMinutes());
+      }
       return new PendingAuthResponse(
           challengeId,
           "email-demo",
@@ -1009,7 +1106,9 @@ public class AuthService {
         (int) CHALLENGE_TTL.toSeconds(),
         "REGISTER".equals(type)
             ? "Enviamos un código de verificación a tu correo. Luego la cuenta queda pendiente de aprobación institucional."
-            : "Enviamos un código de verificación a tu correo.",
+            : "RESET".equals(type)
+                ? RESET_REQUEST_MESSAGE
+                : "Enviamos un código de verificación a tu correo.",
         exposeCodes ? code : null);
   }
 
