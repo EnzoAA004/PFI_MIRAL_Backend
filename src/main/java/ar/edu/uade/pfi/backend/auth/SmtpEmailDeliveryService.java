@@ -84,6 +84,17 @@ public class SmtpEmailDeliveryService implements EmailDeliveryService {
   }
 
   @Override
+  public void sendRegistrationRejected(String toEmail, String fullName, String reason) {
+    send(
+        toEmail,
+        "MIRA·L - tu registro no fue aprobado",
+        "Hola " + (fullName == null || fullName.isBlank() ? "" : fullName) + ",\n\n"
+            + "Un administrador revisó tu registro profesional en MIRA·L y todavía no pudo aprobarlo.\n\n"
+            + "Motivo: " + reason + "\n\n"
+            + "Podés corregir los datos y volver a registrarte, o responder a este correo para aclararlo.\n");
+  }
+
+  @Override
   public void notifyProfileChangeRequested(String doctorName, String doctorEmail, String note) {
     String target = supportEmail.isBlank() ? from.getAddress() : supportEmail;
     send(

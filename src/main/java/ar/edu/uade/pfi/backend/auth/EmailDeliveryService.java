@@ -20,6 +20,9 @@ public interface EmailDeliveryService {
   /** Código de un solo uso para habilitar la edición del perfil (lo pidió el profesional y lo autorizó un administrador). */
   default void sendProfileChangeToken(String toEmail, String token, Duration validFor) {}
 
+  /** Le cuenta al profesional por qué un administrador no aprobó su registro. */
+  default void sendRegistrationRejected(String toEmail, String fullName, String reason) {}
+
   /** Avisa a soporte que un profesional pidió cambiar los datos de su perfil. */
   default void notifyProfileChangeRequested(String doctorName, String doctorEmail, String note) {}
 

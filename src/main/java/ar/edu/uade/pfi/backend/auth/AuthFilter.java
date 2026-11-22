@@ -59,7 +59,7 @@ public class AuthFilter extends OncePerRequestFilter {
      */
     private static final List<String> OPENAPI_PATH_PREFIXES =
         List.of("/v3/api-docs", "/swagger-ui", "/swagger-ui.html");
-    private static final Set<String> PENDING_ALLOWED_PATHS = Set.of("/api/auth/me", "/api/auth/settings");
+    private static final Set<String> PENDING_ALLOWED_PATHS = Set.of("/api/auth/me", "/api/auth/settings", "/api/auth/rejection");
     private final TokenService tokenService;
     private final AuthAccountStateService accountStateService;
     private final boolean authEnabled;

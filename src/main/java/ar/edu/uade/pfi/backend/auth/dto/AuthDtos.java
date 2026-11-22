@@ -28,6 +28,8 @@ public final class AuthDtos {
   public record ChangePasswordRequest(
       @NotBlank String currentPassword, @NotBlank String newPassword) {}
 
+  public record RejectRegistrationRequest(@Email @NotBlank String email, @NotBlank String reason) {}
+
   public record ForgotPasswordRequest(@Email @NotBlank String email) {}
 
   public record ResetPasswordRequest(

@@ -12,6 +12,7 @@ import ar.edu.uade.pfi.backend.auth.dto.AuthDtos.ChangePasswordRequest;
 import ar.edu.uade.pfi.backend.auth.dto.AuthDtos.LoginRequest;
 import ar.edu.uade.pfi.backend.auth.dto.AuthDtos.ForgotPasswordRequest;
 import ar.edu.uade.pfi.backend.auth.dto.AuthDtos.PendingAuthResponse;
+import ar.edu.uade.pfi.backend.auth.dto.AuthDtos.RejectRegistrationRequest;
 import ar.edu.uade.pfi.backend.auth.dto.AuthDtos.ResetPasswordRequest;
 import ar.edu.uade.pfi.backend.auth.dto.AuthDtos.ProfessionalActivationRequest;
 import ar.edu.uade.pfi.backend.auth.dto.AuthDtos.ProfessionalActivationResponse;
@@ -392,6 +393,37 @@ public class AuthController {
    * unknown fields ("roles", "admin", ...) are rejected explicitly here, against the raw JsonNode,
    * before the DTO is even constructed.
    */
+  @Operation(
+      summary = "Rechaza el registro de un profesional pendiente, con el motivo",
+      description =
+          "Guarda el motivo para mostrarlo en la pantalla de cuenta pendiente y, si el entorno envia"
+              + " correos, se lo envia al profesional. Aprobar la cuenta despues borra el rechazo.")
+  @PostMapping("/admin/professionals/rejection")
+  public Map<String, Object> rejectRegistration(
+      HttpServletRequest request, @Valid @RequestBody RejectRegistrationRequest body) {
+    authorizationService.requireAdmin(request, "professional.rejection");
+    AuthService.RejectionResult result =
+        authService.rejectRegistration(requireClaims(request), body.email(), body.reason());
+    return Map.of("email", result.email(), "emailSent", result.emailSent());
+  }
+
+  @GetMapping("/admin/professionals/rejections")
+  public List<Map<String, Object>> registrationRejections(HttpServletRequest request) {
+    authorizationService.requireAdmin(request, "professional.rejection");
+    return authService.listRegistrationRejections(requireClaims(request)).stream()
+        .map(r -> Map.<String, Object>of("email", r.email(), "reason", r.reason(), "rejectedAt", r.rejectedAt().toString()))
+        .toList();
+  }
+
+  /** Lo consulta la propia cuenta pendiente para saber por qué no fue aprobada. */
+  @GetMapping("/rejection")
+  public Map<String, Object> myRegistrationRejection(HttpServletRequest request) {
+    return authService
+        .registrationRejectionFor(requireClaims(request))
+        .map(r -> Map.<String, Object>of("rejected", true, "reason", r.reason(), "rejectedAt", r.rejectedAt().toString()))
+        .orElse(Map.of("rejected", false));
+  }
+
   @PatchMapping("/admin/professionals/activation")
   public ProfessionalActivationResponse updateProfessionalActivation(
       HttpServletRequest request, @RequestBody String rawBody) {

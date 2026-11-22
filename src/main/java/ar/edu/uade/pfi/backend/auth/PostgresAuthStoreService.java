@@ -685,6 +685,75 @@ public class PostgresAuthStoreService {
   }
 
   /** Quita una cuenta que nunca llegó a verificarse (por ejemplo, si no se pudo enviar el código). */
+  public void saveRegistrationRejection(String email, String reason, String rejectedBy, Instant rejectedAt) {
+    if (!enabled) return;
+    try (Connection connection = connection();
+        PreparedStatement statement =
+            connection.prepareStatement(
+                """
+            INSERT INTO doctor_registration_rejections(email, reason, rejected_by, rejected_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT (email) DO UPDATE SET
+              reason = EXCLUDED.reason, rejected_by = EXCLUDED.rejected_by, rejected_at = EXCLUDED.rejected_at
+            """)) {
+      statement.setString(1, email);
+      statement.setString(2, reason);
+      statement.setString(3, rejectedBy == null ? "" : rejectedBy);
+      statement.setTimestamp(4, Timestamp.from(rejectedAt));
+      statement.executeUpdate();
+    } catch (Exception ex) {
+      throw new IllegalStateException("Could not persist the registration rejection", ex);
+    }
+  }
+
+  public Optional<AuthService.RegistrationRejection> findRegistrationRejection(String email) {
+    if (!enabled) return Optional.empty();
+    try (Connection connection = connection();
+        PreparedStatement statement =
+            connection.prepareStatement(
+                "SELECT email, reason, rejected_by, rejected_at FROM doctor_registration_rejections WHERE email = ?")) {
+      statement.setString(1, email);
+      try (ResultSet rs = statement.executeQuery()) {
+        return rs.next() ? Optional.of(readRejection(rs)) : Optional.empty();
+      }
+    } catch (Exception ex) {
+      throw new IllegalStateException("Could not read the registration rejection", ex);
+    }
+  }
+
+  public List<AuthService.RegistrationRejection> listRegistrationRejections() {
+    if (!enabled) return List.of();
+    List<AuthService.RegistrationRejection> items = new ArrayList<>();
+    try (Connection connection = connection();
+        PreparedStatement statement =
+            connection.prepareStatement(
+                "SELECT email, reason, rejected_by, rejected_at FROM doctor_registration_rejections ORDER BY rejected_at DESC");
+        ResultSet rs = statement.executeQuery()) {
+      while (rs.next()) items.add(readRejection(rs));
+    } catch (Exception ex) {
+      throw new IllegalStateException("Could not list the registration rejections", ex);
+    }
+    return items;
+  }
+
+  public void deleteRegistrationRejection(String email) {
+    if (!enabled) return;
+    try (Connection connection = connection();
+        PreparedStatement statement =
+            connection.prepareStatement("DELETE FROM doctor_registration_rejections WHERE email = ?")) {
+      statement.setString(1, email);
+      statement.executeUpdate();
+    } catch (Exception ex) {
+      throw new IllegalStateException("Could not remove the registration rejection", ex);
+    }
+  }
+
+  private static AuthService.RegistrationRejection readRejection(ResultSet rs) throws Exception {
+    Timestamp at = rs.getTimestamp("rejected_at");
+    return new AuthService.RegistrationRejection(
+        rs.getString("email"), rs.getString("reason"), rs.getString("rejected_by"), at == null ? Instant.now() : at.toInstant());
+  }
+
   public void deleteUnverifiedAccount(String email) {
     if (!enabled) return;
     try (Connection connection = connection();
@@ -813,6 +882,17 @@ public class PostgresAuthStoreService {
                     prev_institution TEXT NULL,
                     requested_at TIMESTAMPTZ NOT NULL DEFAULT now(),
                     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                )
+                """);
+      connection
+          .createStatement()
+          .execute(
+              """
+                CREATE TABLE IF NOT EXISTS doctor_registration_rejections (
+                    email TEXT PRIMARY KEY REFERENCES doctor_accounts(email) ON DELETE CASCADE,
+                    reason TEXT NOT NULL,
+                    rejected_by TEXT NOT NULL DEFAULT '',
+                    rejected_at TIMESTAMPTZ NOT NULL DEFAULT now()
                 )
                 """);
     } catch (Exception ignored) {

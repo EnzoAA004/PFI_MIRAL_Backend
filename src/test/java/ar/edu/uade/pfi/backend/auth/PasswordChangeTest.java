@@ -100,7 +100,7 @@ class PasswordChangeTest {
 
   @Test
   void policyMessagesNameTheProblem() {
-    assertTrue(AuthService.newPasswordProblem("corta1", OLD, EMAIL).contains("10 caracteres"));
+    assertTrue(AuthService.newPasswordProblem("corta1", OLD, EMAIL).contains("8 caracteres"));
     assertEquals(null, AuthService.newPasswordProblem("Nueva-Clave-2026", OLD, EMAIL));
   }
 }

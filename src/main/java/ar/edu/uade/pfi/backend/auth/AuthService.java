@@ -48,6 +48,7 @@ public class AuthService {
   private final Map<String, DoctorAccount> accountsByEmail = new ConcurrentHashMap<>();
   private final Map<String, Challenge> challenges = new ConcurrentHashMap<>();
   private final Map<String, Integer> resetAttempts = new ConcurrentHashMap<>();
+  private final Map<String, RegistrationRejection> rejections = new ConcurrentHashMap<>();
   static final int MAX_RESET_CODE_ATTEMPTS = 5;
   private final Map<String, String> refreshTokens = new ConcurrentHashMap<>();
   private final PasswordHasher passwordHasher;
@@ -63,6 +64,8 @@ public class AuthService {
   private EmailDeliveryService emailDelivery;
   private ProfileChangeRegistry profileChanges;
   private final Map<String, java.util.ArrayDeque<Instant>> profileTokenFailures = new ConcurrentHashMap<>();
+  private final Map<String, java.util.ArrayDeque<Instant>> loginFailures = new ConcurrentHashMap<>();
+  static final int MAX_LOGIN_FAILURES = 5;
   private final Map<String, java.util.ArrayDeque<Instant>> passwordFailures = new ConcurrentHashMap<>();
 
   public AuthService(
@@ -131,6 +134,14 @@ public class AuthService {
 
   public PendingAuthResponse register(RegisterRequest request) {
     String email = normalizeEmail(request.email());
+    if (!PasswordPolicy.validEmail(email)) {
+      throw new ResponseStatusException(
+          HttpStatus.BAD_REQUEST, "El correo no tiene un formato válido (usuario@dominio.com).");
+    }
+    String passwordProblem = PasswordPolicy.problem(request.password(), email);
+    if (passwordProblem != null) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, passwordProblem);
+    }
     if (findAccount(email).isPresent()) {
       throw new ResponseStatusException(
           HttpStatus.CONFLICT, "Ya existe una cuenta registrada con ese email");
@@ -172,9 +183,28 @@ public class AuthService {
     if (isDemoAccountBlocked(email)) {
       throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Credenciales inválidas");
     }
+    java.util.ArrayDeque<Instant> failures =
+        loginFailures.computeIfAbsent(email, k -> new java.util.ArrayDeque<>());
+    synchronized (failures) {
+      Instant now = Instant.now();
+      while (!failures.isEmpty() && failures.peekFirst().isBefore(now.minus(Duration.ofMinutes(15)))) {
+        failures.pollFirst();
+      }
+      if (failures.size() >= MAX_LOGIN_FAILURES) {
+        throw new ResponseStatusException(
+            HttpStatus.TOO_MANY_REQUESTS,
+            "Demasiados intentos de ingreso. Esperá unos minutos antes de volver a probar.");
+      }
+    }
     DoctorAccount account = findAccount(email).orElse(null);
     if (account == null || !passwordHasher.verify(password, account.passwordHash())) {
+      synchronized (failures) {
+        failures.addLast(Instant.now());
+      }
       throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Credenciales inválidas");
+    }
+    synchronized (failures) {
+      failures.clear();
     }
     if (!account.verified()) {
       return createChallenge(
@@ -253,7 +283,6 @@ public class AuthService {
    * deactivated account's old professional roles on its own `/me` instead of the PENDING_APPROVAL
    * state it is actually restricted to.
    */
-  static final int MIN_NEW_PASSWORD_LENGTH = 10;
 
   /**
    * Self-service password change. Requires the current password, enforces a minimal policy, revokes
@@ -303,6 +332,102 @@ public class AuthService {
     invalidateChallengesFor(email);
     auditPasswordChange(claims, account);
     return issueTokens(account);
+  }
+
+  // ---- Rechazo de un registro con motivo ----------------------------------------------------------
+  //
+  // El administrador no aprueba una cuenta pendiente (por ejemplo, la matrícula no coincide) y le dice al
+  // profesional por qué. El motivo sale por correo si el entorno envía correos y, en todos los casos, queda
+  // guardado para mostrarse en la pantalla de cuenta pendiente. Aprobar la cuenta después borra el rechazo.
+
+  static final int MIN_REJECTION_REASON = 10;
+  static final int MAX_REJECTION_REASON = 1000;
+
+  public record RegistrationRejection(String email, String reason, String rejectedBy, Instant rejectedAt) {}
+
+  public record RejectionResult(String email, boolean emailSent) {}
+
+  public RejectionResult rejectRegistration(TokenService.Claims claims, String emailValue, String reasonValue) {
+    requireAdmin(claims);
+    String email = normalizeEmail(emailValue);
+    String reason = reasonValue == null ? "" : reasonValue.trim();
+    if (reason.length() < MIN_REJECTION_REASON || reason.length() > MAX_REJECTION_REASON) {
+      throw new ResponseStatusException(
+          HttpStatus.BAD_REQUEST,
+          "Escribí el motivo del rechazo (entre " + MIN_REJECTION_REASON + " y " + MAX_REJECTION_REASON + " caracteres).");
+    }
+    DoctorAccount account =
+        findAccount(email)
+            .filter(a -> !DEMO_ACCOUNT_EMAIL.equals(a.email()))
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Profesional no encontrado"));
+    if (account.roles() != null && account.roles().contains("ADMIN")) {
+      throw new AdminAccountProtectedException();
+    }
+    if (account.approved()) {
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT, "La cuenta ya está aprobada: para quitarle el acceso usá «Revocar acceso».");
+    }
+    RegistrationRejection rejection = new RegistrationRejection(email, reason, claims.subject(), Instant.now());
+    postgresAuthStore.saveRegistrationRejection(
+        rejection.email(), rejection.reason(), rejection.rejectedBy(), rejection.rejectedAt());
+    rejections.put(email, rejection);
+    boolean emailSent = false;
+    if (emailDelivery != null) {
+      try {
+        emailDelivery.sendRegistrationRejected(email, account.fullName(), reason);
+        emailSent = true;
+      } catch (RuntimeException ex) {
+        log.warn("Rejection e-mail could not be sent: {}", ex.getClass().getSimpleName());
+      }
+    }
+    if (auditService != null) {
+      auditService.record(
+          claims.subject(),
+          "PROFESSIONAL_REGISTRATION_REJECTED",
+          account.id(),
+          MDC.get(TraceIdFilter.TRACE_ID_MDC_KEY),
+          Map.of("entityType", "professional_account", "emailSent", emailSent));
+    }
+    return new RejectionResult(email, emailSent);
+  }
+
+  /** El rechazo vigente de la cuenta de la sesión, o vacío. Lo usa la pantalla de cuenta pendiente. */
+  public Optional<RegistrationRejection> registrationRejectionFor(TokenService.Claims claims) {
+    return findRejection(normalizeEmail(claims.email()));
+  }
+
+  /** Solo ADMIN: los rechazos vigentes, para mostrarlos en la lista de profesionales. */
+  public List<RegistrationRejection> listRegistrationRejections(TokenService.Claims claims) {
+    requireAdmin(claims);
+    java.util.Map<String, RegistrationRejection> merged = new java.util.LinkedHashMap<>();
+    try {
+      postgresAuthStore.listRegistrationRejections().forEach(r -> merged.put(r.email(), r));
+    } catch (RuntimeException ignored) {
+      // Se usa lo que haya en memoria.
+    }
+    merged.putAll(rejections);
+    return List.copyOf(merged.values());
+  }
+
+  private Optional<RegistrationRejection> findRejection(String email) {
+    RegistrationRejection cached = rejections.get(email);
+    if (cached != null) return Optional.of(cached);
+    try {
+      Optional<RegistrationRejection> persisted = postgresAuthStore.findRegistrationRejection(email);
+      persisted.ifPresent(r -> rejections.put(email, r));
+      return persisted;
+    } catch (RuntimeException ex) {
+      return Optional.empty();
+    }
+  }
+
+  private void clearRejection(String email) {
+    rejections.remove(email);
+    try {
+      postgresAuthStore.deleteRegistrationRejection(email);
+    } catch (RuntimeException ignored) {
+      // El rechazo ya no se muestra a una cuenta aprobada aunque la fila no se pueda borrar.
+    }
   }
 
   // ---- Contraseña olvidada ---------------------------------------------------------------------
@@ -390,22 +515,10 @@ public class AuthService {
   }
 
   static String newPasswordProblem(String newPassword, String currentPassword, String email) {
-    if (newPassword == null || newPassword.length() < MIN_NEW_PASSWORD_LENGTH) {
-      return "La nueva contraseña debe tener al menos " + MIN_NEW_PASSWORD_LENGTH + " caracteres.";
-    }
-    if (newPassword.length() > 128) {
-      return "La nueva contraseña no puede superar los 128 caracteres.";
-    }
-    boolean letter = newPassword.chars().anyMatch(Character::isLetter);
-    boolean digit = newPassword.chars().anyMatch(Character::isDigit);
-    if (!letter || !digit) {
-      return "La nueva contraseña debe combinar letras y números.";
-    }
+    String problem = PasswordPolicy.problem(newPassword, email);
+    if (problem != null) return problem.replace("La contraseña", "La nueva contraseña");
     if (newPassword.equals(currentPassword)) {
       return "La nueva contraseña debe ser distinta de la actual.";
-    }
-    if (newPassword.equalsIgnoreCase(email)) {
-      return "La nueva contraseña no puede ser tu correo.";
     }
     return null;
   }
@@ -847,6 +960,7 @@ public class AuthService {
     account.approve(true);
     account.setRoles(targetRoles);
     accountsByEmail.put(account.email(), account);
+    clearRejection(account.email());
     invalidateChallengesFor(account.email());
     auditActivation(claims, account, AuditAction.PROFESSIONAL_ACTIVATED, true, targetRoles);
     return new ProfessionalActivationResponse(
