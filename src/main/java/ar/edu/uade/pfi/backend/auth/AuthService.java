@@ -207,6 +207,16 @@ public class AuthService {
       failures.clear();
     }
     if (!account.verified()) {
+      Optional<RegistrationRejection> rejected = findRejection(email);
+      if (rejected.isPresent()) {
+        // Sin sesión (la cuenta nunca se verificó): el motivo del rechazo viaja en la propia respuesta de ingreso.
+        return new PendingAuthResponse(
+            "",
+            "rejected",
+            0,
+            "Tu registro no fue aprobado. Motivo indicado por el administrador: " + rejected.get().reason(),
+            null);
+      }
       return createChallenge(
           "REGISTER", email, "La cuenta todavía requiere verificación del email profesional.");
     }

@@ -94,6 +94,17 @@ class RegistrationRulesTest {
   }
 
   @Test
+  void anUnverifiedRejectedAccountSeesTheReasonWhenTryingToSignIn() {
+    service.register(request("pend4@example.com", GOOD));
+    service.rejectRegistration(admin, "pend4@example.com", "La matrícula no coincide con el registro.");
+    Object response = service.login("pend4@example.com", GOOD);
+    assertTrue(response instanceof ar.edu.uade.pfi.backend.auth.dto.AuthDtos.PendingAuthResponse);
+    var pending = (ar.edu.uade.pfi.backend.auth.dto.AuthDtos.PendingAuthResponse) response;
+    assertEquals("", pending.challengeId());
+    assertTrue(pending.message().contains("matrícula"));
+  }
+
+  @Test
   void aFailedEmailStillStoresTheReasonAndSaysSo() {
     service.register(request("pend2@example.com", GOOD));
     mailFails = true;
