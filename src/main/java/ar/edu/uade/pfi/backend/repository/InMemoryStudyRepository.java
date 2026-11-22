@@ -654,6 +654,26 @@ public class InMemoryStudyRepository implements StudyRepository {
         return saved;
     }
 
+    private final ConcurrentMap<String, ar.edu.uade.pfi.backend.domain.FindingDecision> findingDecisions = new ConcurrentHashMap<>();
+
+    @Override
+    public java.util.List<ar.edu.uade.pfi.backend.domain.FindingDecision> findFindingDecisions(String studyId, String runId) {
+        String prefix = studyId + "|" + runId + "|";
+        return findingDecisions.entrySet().stream().filter(e -> e.getKey().startsWith(prefix)).map(java.util.Map.Entry::getValue)
+            .sorted(java.util.Comparator.comparing(ar.edu.uade.pfi.backend.domain.FindingDecision::findingKey)).toList();
+    }
+
+    @Override
+    public ar.edu.uade.pfi.backend.domain.FindingDecision saveFindingDecision(ar.edu.uade.pfi.backend.domain.FindingDecision decision) {
+        findingDecisions.put(decision.studyId() + "|" + decision.runId() + "|" + decision.findingKey(), decision);
+        return decision;
+    }
+
+    @Override
+    public void deleteFindingDecision(String studyId, String runId, String findingKey) {
+        findingDecisions.remove(studyId + "|" + runId + "|" + findingKey);
+    }
+
     // ---- Stage 80: contextual chat ----
 
     @Override

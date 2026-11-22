@@ -1717,6 +1717,65 @@ public class PostgresStudyRepository implements StudyRepository {
             rs.getTimestamp("created_at").toInstant(), rs.getTimestamp("updated_at").toInstant(), rs.getString("updated_by"));
     }
 
+    // ---- Decisiones del profesional sobre hallazgos ----
+
+    @Override
+    public java.util.List<ar.edu.uade.pfi.backend.domain.FindingDecision> findFindingDecisions(String studyId, String runId) {
+        try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
+            SELECT study_id, run_id, finding_key, decision, note, decided_by, decided_at
+            FROM domain_finding_decisions WHERE study_id = ?::uuid AND run_id = ? ORDER BY finding_key
+            """)) {
+            statement.setString(1, studyId);
+            statement.setString(2, runId);
+            java.util.List<ar.edu.uade.pfi.backend.domain.FindingDecision> result = new java.util.ArrayList<>();
+            try (ResultSet rs = statement.executeQuery()) {
+                while (rs.next()) {
+                    result.add(new ar.edu.uade.pfi.backend.domain.FindingDecision(
+                        rs.getObject("study_id", UUID.class).toString(), rs.getString("run_id"), rs.getString("finding_key"),
+                        rs.getString("decision"), rs.getString("note"), rs.getString("decided_by"), rs.getTimestamp("decided_at").toInstant()));
+                }
+            }
+            return result;
+        } catch (Exception ex) {
+            throw new IllegalStateException("Could not find finding decisions", ex);
+        }
+    }
+
+    @Override
+    public ar.edu.uade.pfi.backend.domain.FindingDecision saveFindingDecision(ar.edu.uade.pfi.backend.domain.FindingDecision decision) {
+        try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
+            INSERT INTO domain_finding_decisions(study_id, run_id, finding_key, decision, note, decided_by, decided_at)
+            VALUES (?::uuid, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT (study_id, run_id, finding_key)
+            DO UPDATE SET decision = EXCLUDED.decision, note = EXCLUDED.note, decided_by = EXCLUDED.decided_by, decided_at = EXCLUDED.decided_at
+            """)) {
+            statement.setString(1, decision.studyId());
+            statement.setString(2, decision.runId());
+            statement.setString(3, decision.findingKey());
+            statement.setString(4, decision.decision());
+            statement.setString(5, decision.note());
+            statement.setString(6, decision.decidedBy());
+            statement.setTimestamp(7, Timestamp.from(decision.decidedAt()));
+            statement.executeUpdate();
+            return decision;
+        } catch (Exception ex) {
+            throw new IllegalStateException("Could not save finding decision", ex);
+        }
+    }
+
+    @Override
+    public void deleteFindingDecision(String studyId, String runId, String findingKey) {
+        try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement(
+            "DELETE FROM domain_finding_decisions WHERE study_id = ?::uuid AND run_id = ? AND finding_key = ?")) {
+            statement.setString(1, studyId);
+            statement.setString(2, runId);
+            statement.setString(3, findingKey);
+            statement.executeUpdate();
+        } catch (Exception ex) {
+            throw new IllegalStateException("Could not delete finding decision", ex);
+        }
+    }
+
     // ---- Stage 80: contextual chat ----
 
     @Override

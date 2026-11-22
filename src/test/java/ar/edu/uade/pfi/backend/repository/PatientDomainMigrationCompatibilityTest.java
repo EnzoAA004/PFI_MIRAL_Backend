@@ -23,7 +23,8 @@ class PatientDomainMigrationCompatibilityTest {
       "V20261120_027_patient_profile.sql",
       "V20261120_028_study_clinical_context.sql",
       "V20261120_029_chat_context_version.sql",
-      "V20261121_031_patient_active.sql");
+      "V20261121_031_patient_active.sql",
+      "V20261122_032_finding_decisions.sql");
 
   @Container
   static final PostgreSQLContainer<?> postgres =

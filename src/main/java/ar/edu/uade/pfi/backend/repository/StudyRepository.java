@@ -113,6 +113,21 @@ public interface StudyRepository {
         throw new UnsupportedOperationException("report drafts");
     }
 
+    /** Decisiones del profesional sobre los hallazgos de una corrida (vacio si no decidio ninguna). */
+    default java.util.List<ar.edu.uade.pfi.backend.domain.FindingDecision> findFindingDecisions(String studyId, String runId) {
+        throw new UnsupportedOperationException("finding decisions");
+    }
+
+    /** Crea o reemplaza la decision de un hallazgo. */
+    default ar.edu.uade.pfi.backend.domain.FindingDecision saveFindingDecision(ar.edu.uade.pfi.backend.domain.FindingDecision decision) {
+        throw new UnsupportedOperationException("finding decisions");
+    }
+
+    /** Quita la decision (el hallazgo vuelve a "sin revisar"). */
+    default void deleteFindingDecision(String studyId, String runId, String findingKey) {
+        throw new UnsupportedOperationException("finding decisions");
+    }
+
     DomainAuditEvent saveAuditEvent(DomainAuditEvent event);
 
     List<DomainAuditEvent> findAuditEventsByTraceId(String traceId);
