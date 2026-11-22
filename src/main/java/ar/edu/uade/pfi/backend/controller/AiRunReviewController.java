@@ -74,11 +74,11 @@ public class AiRunReviewController {
   }
 
   /**
-   * Replaces the run's annotations with the posted set.
+   * Reemplaza las anotaciones de la corrida por el conjunto enviado.
    *
-   * <p>Replace and not append: the reading room edits the whole set locally and saves it as a unit,
-   * so an append-only endpoint would leave no way to delete an annotation without a second call
-   * that could half-apply.
+   * <p>Reemplazar y no agregar: la sala de lectura edita todo el conjunto localmente y lo guarda como una unidad,
+   * así que un endpoint solo de append no dejaría forma de borrar una anotación sin una segunda llamada
+   * que podría aplicarse a medias.
    */
   @PutMapping("/{multiplanarRunId}/annotations")
   public List<ReviewerAnnotationDto> putAnnotations(

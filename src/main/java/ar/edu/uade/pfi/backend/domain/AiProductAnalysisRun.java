@@ -5,19 +5,19 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * One persisted execution of {@code POST /v1/product/analyze} (pfi.ai-product-result.v1) against
- * a Study. {@code status} is the AI Module's own {@code completed}/{@code partial}/{@code failed}
- * value, persisted verbatim — never reinterpreted (stage 76-D).
+ * Una ejecución persistida de {@code POST /v1/product/analyze} (pfi.ai-product-result.v1) contra
+ * un Study. {@code status} es el valor propio {@code completed}/{@code partial}/{@code failed} del módulo de IA,
+ * persistido textualmente — nunca reinterpretado (etapa 76-D).
  *
- * <p>No separate execution-lifecycle state (PENDING/RUNNING) is modeled: the AI call is
- * synchronous and a row is only ever created after the call has already returned a validated
- * result (stage 76-K/76-L) — introducing a lifecycle enum for a state nothing ever observes
- * would be complexity without a caller.
+ * <p>No se modela ningún estado de ciclo de vida de ejecución separado (PENDING/RUNNING): la llamada a la IA es
+ * sincrónica y una fila solo se crea una vez que la llamada ya devolvió un
+ * resultado validado (etapa 76-K/76-L) — introducir un enum de ciclo de vida para un estado que nadie observa
+ * sería complejidad sin un consumidor.
  *
- * <p>{@code sagittalInputId}/{@code axialInputId} are the Backend's own opaque input identifiers
- * (already used elsewhere for {@code /inputs} uploads) — never a filesystem path.
- * {@code rawResponseSanitized} is optional trazability only (stage 76-H); the structured rows
- * ({@link AiDiscLevelResult}, {@link AiMeasurementResult}) are always the primary source of truth.
+ * <p>{@code sagittalInputId}/{@code axialInputId} son los identificadores de input opacos propios del Backend
+ * (ya usados en otros lugares para los uploads de {@code /inputs}) — nunca un path del filesystem.
+ * {@code rawResponseSanitized} es solo para trazabilidad opcional (etapa 76-H); las filas estructuradas
+ * ({@link AiDiscLevelResult}, {@link AiMeasurementResult}) son siempre la fuente primaria de verdad.
  */
 public record AiProductAnalysisRun(
     String id,

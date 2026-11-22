@@ -3,15 +3,15 @@ package ar.edu.uade.pfi.backend.dto;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 /**
- * Stage 80-J: request body for {@code POST /api/studies/{caseId}/chat}. The Frontend never sends
- * measurements/context/facts of any kind here — only the question and, optionally, which
- * analysis/baseline to ground it in. Spring alone resolves the rest server-side (80-J: "Spring
+ * Etapa 80-J: body del request de {@code POST /api/studies/{caseId}/chat}. El Frontend nunca envía
+ * mediciones/contexto/hechos de ningún tipo acá — solo la pregunta y, opcionalmente, en qué
+ * análisis/baseline fundamentarla. Spring resuelve por sí solo el resto del lado del servidor (80-J: "Spring
  * resuelve todo el contexto").
  *
- * <p>Stage 81-C: {@code conversationId} is optional. {@code null} starts a new conversation
- * (Stage 80 behavior, unchanged). A non-null value continues an existing one — {@link
- * ar.edu.uade.pfi.backend.service.ChatService} validates it belongs to this Study before
- * appending a turn to it.
+ * <p>Etapa 81-C: {@code conversationId} es opcional. {@code null} inicia una nueva conversación
+ * (comportamiento de la Etapa 80, sin cambios). Un valor no nulo continúa una existente — {@link
+ * ar.edu.uade.pfi.backend.service.ChatService} valida que pertenezca a este Study antes de
+ * agregarle un turno.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ChatRequestDto(String question, String analysisId, String baselineCaseId, String conversationId) {

@@ -3,10 +3,10 @@ package ar.edu.uade.pfi.backend.service;
 import org.springframework.http.HttpStatus;
 
 /**
- * A transport-level failure calling POST /v1/product/analyze (4xx/5xx/timeout/connection).
- * Mirrors {@link AiMultiplanarUpstreamException}'s shape for a different subsystem so a
- * product-analyze failure is never logged/classified as a multiplanar one. Never carries the
- * raw upstream body — the public message always comes from {@code ApiErrorCode.publicMessage()}.
+ * Una falla a nivel de transporte al llamar a POST /v1/product/analyze (4xx/5xx/timeout/conexión).
+ * Replica la forma de {@link AiMultiplanarUpstreamException} para un subsistema distinto, de modo que una
+ * falla de product-analyze nunca se loguee/clasifique como una multiplanar. Nunca lleva el
+ * body upstream crudo — el mensaje público siempre sale de {@code ApiErrorCode.publicMessage()}.
  */
 public class AiProductUpstreamException extends RuntimeException {
     private final HttpStatus status;

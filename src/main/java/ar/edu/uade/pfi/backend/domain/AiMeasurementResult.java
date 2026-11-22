@@ -1,12 +1,12 @@
 package ar.edu.uade.pfi.backend.domain;
 
 /**
- * One entry of {@code discLevels[].measurements[]}, persisted as its own row (stage 76-F) so
- * queries like "all measurements for structure X across a study's history" don't need to walk a
- * JSON blob. Field set matches {@code AiProductAnalyzeResponseDto.Measurement} exactly — no
- * {@code bboxHeightMm}/{@code bboxWidthMm} columns, because the real AI contract does not emit
- * them; adding unused columns here would be inventing contract fields the Backend does not
- * actually receive.
+ * Una entrada de {@code discLevels[].measurements[]}, persistida como su propia fila (etapa 76-F) para que
+ * consultas como "todas las mediciones de la estructura X a lo largo del historial de un estudio" no necesiten recorrer un
+ * blob JSON. El conjunto de campos coincide exactamente con {@code AiProductAnalyzeResponseDto.Measurement} — sin
+ * columnas {@code bboxHeightMm}/{@code bboxWidthMm}, porque el contrato real de la IA no las emite;
+ * agregar columnas sin uso acá sería inventar campos de contrato que el Backend no
+ * recibe realmente.
  */
 public record AiMeasurementResult(
     String id,

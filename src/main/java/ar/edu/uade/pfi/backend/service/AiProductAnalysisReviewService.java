@@ -23,16 +23,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * Stage 78: professional review/correction workflow on top of the stage-76
- * {@code AiProductAnalysisRun}/{@code AiDiscLevelResult}/{@code AiMeasurementResult} persistence.
+ * Etapa 78: workflow de revisión/corrección profesional sobre la persistencia de la etapa 76
+ * {@code AiProductAnalysisRun}/{@code AiDiscLevelResult}/{@code AiMeasurementResult}.
  *
- * <p>The AI's original output is never rewritten by anything in this class — it only ever writes
- * to the separate stage-78 review/correction tables ({@code domain_ai_analysis_run_reviews},
- * {@code domain_ai_disc_level_reviews}, {@code domain_ai_measurement_corrections}), then re-reads
- * the analysis through {@link AiProductAnalysisPersistenceService#detail} so every response is
- * built from the same single source of truth as a plain GET.
+ * <p>Nada de esta clase reescribe nunca la salida original de la IA — solo escribe
+ * en las tablas separadas de revisión/corrección de la etapa 78 ({@code domain_ai_analysis_run_reviews},
+ * {@code domain_ai_disc_level_reviews}, {@code domain_ai_measurement_corrections}), y luego relee
+ * el análisis mediante {@link AiProductAnalysisPersistenceService#detail} para que cada respuesta se
+ * construya desde la misma fuente única de verdad que un GET simple.
  *
- * <p>No AI call happens anywhere here (78-N) — review/correction is a pure Backend/DB operation.
+ * <p>Acá no ocurre ninguna llamada a la IA (78-N) — revisar/corregir es una operación puramente de Backend/DB.
  */
 @Service
 public class AiProductAnalysisReviewService {
@@ -135,7 +135,7 @@ public class AiProductAnalysisReviewService {
         return normalized;
     }
 
-    /** Optional, plain text, length-capped, and rejected outright if it looks like markup (78: "no permitir XSS persistente"). */
+    /** Opcional, texto plano, con tope de longitud, y rechazado de plano si parece markup (78: "no permitir XSS persistente"). */
     private String sanitizeComment(String comment) {
         if (comment == null) return null;
         String trimmed = comment.trim();
@@ -153,7 +153,7 @@ public class AiProductAnalysisReviewService {
         return field;
     }
 
-    /** Rejects null, NaN, and Infinity (78: "value no NaN, value no Infinity"). */
+    /** Rechaza null, NaN e Infinity (78: "value no NaN, value no Infinity"). */
     private double validateCorrectedValue(Double value) {
         if (value == null || !Double.isFinite(value)) {
             throw new RunReviewException(HttpStatus.BAD_REQUEST, "AI_PRODUCT_CORRECTION_INVALID_VALUE", "El valor de la correccion no es valido.");
@@ -170,7 +170,7 @@ public class AiProductAnalysisReviewService {
         };
     }
 
-    /** Fixed per field, never accepted from the client — a correction can never relabel a value's unit. */
+    /** Fijo por campo, nunca aceptado del cliente — una corrección nunca puede reetiquetar la unidad de un valor. */
     private String unitFor(String field) {
         return "areaMm2".equals(field) ? "mm2" : "mm";
     }
@@ -180,7 +180,7 @@ public class AiProductAnalysisReviewService {
         try {
             auditService.record(actor == null || actor.isBlank() ? "system" : actor, action, entityId, traceId == null || traceId.isBlank() ? "unavailable" : traceId, metadata);
         } catch (RuntimeException ignored) {
-            // Review/correction must not fail just because audit persistence is unavailable.
+            // La revisión/corrección no debe fallar solo porque la persistencia de auditoría no esté disponible.
         }
     }
 }

@@ -1,20 +1,20 @@
 package ar.edu.uade.pfi.backend.domain;
 
 /**
- * The four EXT-04B1 conceptual labels for an {@link AiEvidenceRegion} — always DERIVED, never
- * persisted as their own column (EXT-04B1 principle 1: no second, independent state machine).
+ * Las cuatro etiquetas conceptuales de EXT-04B1 para un {@link AiEvidenceRegion} — siempre DERIVADAS, nunca
+ * persistidas como columna propia (EXT-04B1 principio 1: ninguna segunda máquina de estados independiente).
  *
- * <p>Computed purely from {@code origin} (ai|professional), whether an
- * {@link AiEvidenceRegionCorrection} exists for the region, and the review vocabulary already
- * modeled by {@code AiDiscLevelReview}/{@code AiProductAnalysisRunReview}
- * ({@code pending|accepted|observed|rejected}) — reused as-is, never re-encoded.
+ * <p>Se calculan puramente a partir de {@code origin} (ai|professional), de si existe un
+ * {@link AiEvidenceRegionCorrection} para la región, y del vocabulario de revisión ya
+ * modelado por {@code AiDiscLevelReview}/{@code AiProductAnalysisRunReview}
+ * ({@code pending|accepted|observed|rejected}) — reutilizado tal cual, nunca recodificado.
  *
- * <p>{@code observed} is treated exactly like {@code accepted} here (both count as
- * "validated"), the same precedent {@code ar.edu.uade.pfi.backend.service.EffectiveAnalysisRunSelector}
- * already set by grouping them into a single {@code PREFERRED_REVIEW_STATUSES} set for run selection.
- * Inventing a different reading of "observed" for evidence regions than the one already used
- * for run selection would recreate the "two divergent interpretations of the same vocabulary"
- * risk this design explicitly avoids.
+ * <p>{@code observed} se trata exactamente igual que {@code accepted} acá (ambos cuentan como
+ * "validado"), el mismo precedente que {@code ar.edu.uade.pfi.backend.service.EffectiveAnalysisRunSelector}
+ * ya sentó al agruparlos en un único conjunto {@code PREFERRED_REVIEW_STATUSES} para la selección de corridas.
+ * Inventar una lectura distinta de "observed" para las regiones de evidencia que la ya usada
+ * para la selección de corridas recrearía el riesgo de "dos interpretaciones divergentes del mismo vocabulario"
+ * que este diseño evita explícitamente.
  */
 public enum DerivedEvidenceOrigin {
     AI_SUGGESTED,

@@ -4,18 +4,18 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * EXT-02: "review feedback telemetry" — answers "dónde está fallando más el modelo" using only
- * data that already exists (measurement corrections, evidence region corrections/review status),
- * never a new AI capability. Explicitly descriptive, never diagnostic: no field here claims
- * "clinical accuracy" or "model safety" — see {@code REPORT_SAFETY_TEXT}-style disclaimers in the
- * Frontend display layer.
+ * EXT-02: "telemetría de feedback de revisión" — responde "dónde está fallando más el modelo" usando solo
+ * datos que ya existen (correcciones de mediciones, correcciones/estado de revisión de regiones de evidencia),
+ * nunca una nueva capacidad de IA. Explícitamente descriptivo, nunca diagnóstico: ningún campo acá afirma
+ * "precisión clínica" ni "seguridad del modelo" — ver los disclaimers estilo {@code REPORT_SAFETY_TEXT} en la
+ * capa de presentación del Frontend.
  */
 public record ReviewAnalyticsReport(
     String schemaVersion,
     Instant generatedAt,
     MeasurementAnalytics measurements,
     EvidenceRegionAnalytics evidenceRegions,
-    /** Documented gaps — a metric this spec asked for that has no stable contract to compute from, named explicitly rather than invented. */
+    /** Brechas documentadas — una métrica que esta spec pidió y que no tiene un contrato estable desde el cual calcularla, nombrada explícitamente en lugar de inventada. */
     List<String> limitations
 ) {
     public record MeasurementAnalytics(
@@ -26,7 +26,7 @@ public record ReviewAnalyticsReport(
     ) {
     }
 
-    /** One (level, plane, structure, metric, unit, releaseId) bucket — never mixes units or metrics. */
+    /** Un bucket (level, plane, structure, metric, unit, releaseId) — nunca mezcla unidades ni métricas. */
     public record MeasurementGroup(
         String level,
         String plane,
@@ -57,10 +57,10 @@ public record ReviewAnalyticsReport(
     }
 
     /**
-     * Only ever produced for a correction whose original and corrected geometry share the same
-     * comparable shape (BBOX→BBOX or ELLIPSE→ELLIPSE) — a shape-changing correction (e.g.
-     * BBOX→ELLIPSE) or anything touching MASK_REFERENCE is skipped, never forced into a number
-     * that would not mean the same thing across rows.
+     * Solo se produce para una corrección cuya geometría original y corregida comparten la misma
+     * forma comparable (BBOX→BBOX o ELLIPSE→ELLIPSE) — una corrección que cambia de forma (p. ej.
+     * BBOX→ELLIPSE) o cualquier cosa que toque MASK_REFERENCE se omite, nunca se fuerza a un número
+     * que no significaría lo mismo entre filas.
      */
     public record GeometryCorrectionDelta(
         String regionId,
@@ -68,7 +68,7 @@ public record ReviewAnalyticsReport(
         String geometryType,
         double centroidDisplacement,
         double areaDelta,
-        /** Only computed for BBOX; null for ELLIPSE (no closed-form-simple IoU implemented this stage — see limitations). */
+        /** Solo se calcula para BBOX; null para ELLIPSE (no se implementó un IoU simple de forma cerrada en esta etapa — ver limitaciones). */
         Double intersectionOverUnion
     ) {
     }

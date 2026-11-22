@@ -8,9 +8,9 @@ public record AiPlaneMaskV2Dto(
     String id,
     String classKey,
     Integer classId,
-    /** Lumbar level of this instance, when it could be determined. */
+    /** Nivel lumbar de esta instancia, cuando pudo determinarse. */
     String level,
-    /** Colour assigned to the instance so neighbouring structures stay distinguishable. */
+    /** Color asignado a la instancia para que las estructuras vecinas se mantengan distinguibles. */
     String color,
     Double confidence,
     Boolean enabled,

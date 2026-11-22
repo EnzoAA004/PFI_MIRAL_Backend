@@ -1,11 +1,11 @@
 package ar.edu.uade.pfi.backend.dto;
 
 /**
- * Public/backend contract for the P10.9 full-series pass.
+ * Contrato público/backend para la pasada de serie completa de P10.9.
  *
- * <p>The AI Module only segments series for which a compatible trained segmentation model exists.
- * "full series" means every slice of that supported analyzable series, not every series in the
- * uploaded study.
+ * <p>El módulo de IA solo segmenta series para las que existe un modelo de segmentación entrenado compatible.
+ * "Serie completa" significa cada slice de esa serie analizable soportada, no cada serie del
+ * estudio subido.
  */
 public record FullSeriesSegmentationRequestDto(
     String caseId, String inputId, String plane, String modelKey) {}

@@ -61,9 +61,9 @@ public record AiServiceProperties(
     }
 
     /**
-     * For Cloud Run ID-token auth the audience is an origin only: scheme + authority,
-     * no path/query/fragment and no trailing slash. If PFI_AI_SERVICE_AUDIENCE is blank,
-     * it is derived from PFI_AI_SERVICE_URL using the same fail-closed validation.
+     * Para la autenticación con ID token de Cloud Run, la audience es solo un origin: scheme + authority,
+     * sin path/query/fragment ni barra final. Si PFI_AI_SERVICE_AUDIENCE está en blanco,
+     * se deriva de PFI_AI_SERVICE_URL con la misma validación fail-closed.
      */
     public String resolvedAudience() {
         String source = audience == null || audience.isBlank() ? resolvedBaseUrl() : audience;

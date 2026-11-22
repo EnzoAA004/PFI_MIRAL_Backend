@@ -17,21 +17,21 @@ public record MultiplanarRunRequestDto(
     String axialModelKey,
     Boolean allowContractFallback,
     /**
-     * Every series the uploaded study carried, so the reader can display them.
+     * Todas las series que traía el estudio subido, para que el lector pueda mostrarlas.
      *
-     * <p>Optional, and empty for a run built from two per-plane uploads rather than a study
-     * archive. The two analysed planes still travel in {@code sagittalInputId}/{@code
-     * axialInputId}: this list does not replace them, it adds the ones no model runs on — the T1s,
-     * the axial T1 with no model, the localizer — which the doctor needs and which used to be
-     * discarded at ingestion.
+     * <p>Opcional, y vacío para una corrida armada a partir de dos uploads por plano en lugar de un archivo
+     * de estudio. Los dos planos analizados siguen viajando en {@code sagittalInputId}/{@code
+     * axialInputId}: esta lista no los reemplaza, agrega los que ningún modelo procesa — los T1,
+     * el T1 axial sin modelo, el localizador — que el médico necesita y que antes se
+     * descartaban en la ingesta.
      */
     @Valid List<StudyUploadSeriesDto> studySeries,
     Map<String, Object> metadata) {
   /**
-   * A run with no study catalogue behind it: two per-plane uploads.
+   * Una corrida sin un catálogo de estudio detrás: dos uploads por plano.
    *
-   * <p>Kept as its own constructor rather than making every caller pass {@code null}: "this run did
-   * not come from a study archive" is a real case, not an omission.
+   * <p>Se mantiene como constructor propio en lugar de obligar a cada llamante a pasar {@code null}: "esta corrida no
+   * vino de un archivo de estudio" es un caso real, no una omisión.
    */
   public MultiplanarRunRequestDto(
       String caseId,

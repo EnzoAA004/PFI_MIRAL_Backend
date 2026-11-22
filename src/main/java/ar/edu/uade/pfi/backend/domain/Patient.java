@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Objects;
 
-/** De-identified longitudinal patient identity. Direct patient identifiers are out of scope. */
+/** Identidad longitudinal de paciente desidentificada. Los identificadores directos del paciente están fuera de alcance. */
 public record Patient(String id, String patientReference, String firstName, String lastName, LocalDate dateOfBirth, Instant createdAt, Instant updatedAt, boolean active) {
   public Patient(String id, String patientReference, Instant createdAt, Instant updatedAt) {
     this(id, patientReference, null, null, null, createdAt, updatedAt, true);

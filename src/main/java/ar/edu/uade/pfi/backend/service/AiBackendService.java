@@ -54,35 +54,35 @@ import org.springframework.web.server.ResponseStatusException;
 public class AiBackendService {
     static final long MAX_INPUT_UPLOAD_BYTES = 200L * 1024L * 1024L;
     /**
-     * Upload formats the backend forwards to the AI Module.
+     * Formatos de upload que el backend reenvía al módulo de IA.
      *
-     * <p>It must not be narrower than the AI Module's own allowlist, or the backend
-     * rejects a file the module could have read — which is what happened with whole
-     * series: {@code .zip} is how a multi-slice study travels, and {@code .ima} is
-     * what a Siemens scanner writes, and neither reached the module.
+     * <p>No debe ser más acotada que la propia lista de permitidos del módulo de IA, o el backend
+     * rechaza un archivo que el módulo podría haber leído — que es lo que pasó con series
+     * completas: {@code .zip} es cómo viaja un estudio multi-slice, y {@code .ima} es
+     * lo que escribe un escáner Siemens, y ninguno llegaba al módulo.
      */
     private static final Set<String> ALLOWED_INPUT_EXTENSIONS =
             Set.of("npy", "png", "jpg", "jpeg", "bmp", "tif", "tiff", "mha", "mhd", "dcm", "ima", "zip");
     private static final Set<String> ALLOWED_INPUT_PLANES = Set.of("sagittal", "axial");
     private static final Set<String> ALLOWED_SERVER_SIDE_SOURCE_KEYS = Set.of("fixture:sagittal_sample", "fixture:axial_sample");
     /**
-     * Planes a series can be listed and displayed under.
+     * Planos bajo los cuales una serie puede listarse y mostrarse.
      *
-     * <p>Wider than {@link #ALLOWED_INPUT_PLANES} on purpose: that one guards what a
-     * model may run on, this one guards what the reader may look at. {@code unknown}
-     * is the series whose header carries no orientation, and a localizer, which has no
-     * single plane to report.
+     * <p>Más amplia que {@link #ALLOWED_INPUT_PLANES} a propósito: aquella protege sobre qué
+     * puede correr un modelo, esta protege lo que el lector puede mirar. {@code unknown}
+     * es la serie cuyo header no trae orientación, y un localizador, que no tiene un
+     * único plano que informar.
      */
     private static final Set<String> VIEWABLE_PLANES = Set.of("sagittal", "axial", "coronal", "unknown");
     private static final Set<String> ALLOWED_ASSET_NAMES = Set.of("input.png", "overlay.png", "mask-preview.png", "lumbar-3d-mesh.json");
     static final long DEFAULT_STUDY_UPLOAD_BYTES = 200L * 1024L * 1024L;
     /**
-     * Content types accepted for a whole-study archive.
+     * Content types aceptados para un archivo de estudio completo.
      *
-     * <p>The empty string is included on purpose: a browser that cannot classify the
-     * file sends no content type at all, and rejecting that would turn a valid study
-     * away over a header the client never had to send. The extension is checked
-     * separately, so this widens nothing on its own.
+     * <p>El string vacío se incluye a propósito: un navegador que no puede clasificar el
+     * archivo no envía ningún content type, y rechazar eso dejaría afuera un estudio válido
+     * por un header que el cliente nunca tuvo que enviar. La extensión se chequea
+     * por separado, así que esto por sí solo no amplía nada.
      */
     private static final Set<String> ALLOWED_STUDY_CONTENT_TYPES = Set.of("", "application/zip", "application/x-zip-compressed", "application/octet-stream");
     private static final Pattern CASE_ID_PATTERN = Pattern.compile("^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$");
@@ -513,11 +513,11 @@ public class AiBackendService {
     }
 
     /**
-     * Persists the raw study ZIP durably, keyed by studyId, so it can be reprocessed
-     * later via {@link #reprocessStudy(String)} without asking the client to upload it
-     * again. Best-effort: a durable-storage failure here must not fail the upload the
-     * doctor is waiting on, since the AI module already accepted and processed the
-     * study — see docs/cloud/CLOUD_DURABLE_STORAGE_DESIGN.md.
+     * Persiste el ZIP crudo del estudio de forma durable, con clave studyId, para poder reprocesarlo
+     * más tarde vía {@link #reprocessStudy(String)} sin pedirle al cliente que lo suba
+     * de nuevo. Best-effort: una falla del almacenamiento durable acá no debe hacer fallar el upload que el
+     * médico está esperando, ya que el módulo de IA ya aceptó y procesó el
+     * estudio — ver docs/cloud/CLOUD_DURABLE_STORAGE_DESIGN.md.
      */
     private void persistStudyInputDurably(String studyId, String caseId, byte[] rawBytes, String originalFilename) {
         if (objectStorage == null || durableObjectAssetRepository == null) return;
@@ -552,10 +552,10 @@ public class AiBackendService {
     }
 
     /**
-     * Reprocesses a study's already-persisted DICOM input without a new client upload:
-     * reads the durable bytes recorded by {@link #persistStudyInputDurably} and resends
-     * them to the AI module exactly as a fresh upload would. Demonstrates that the raw
-     * study is reusable from durable storage alone.
+     * Reprocesa el input DICOM ya persistido de un estudio sin un nuevo upload del cliente:
+     * lee los bytes durables registrados por {@link #persistStudyInputDurably} y los reenvía
+     * al módulo de IA exactamente como lo haría un upload nuevo. Demuestra que el estudio
+     * crudo es reutilizable únicamente desde el almacenamiento durable.
      */
     public StudyUploadResponseDto reprocessStudy(String studyId, String caseId) {
         String normalizedStudyId = trimmed(studyId);
@@ -626,9 +626,9 @@ public class AiBackendService {
     }
 
     /**
-     * Identifier of a stored series: exactly what the AI module mints in
-     * {@code register_series_files}. Anchored, so nothing that could climb a path or
-     * name another endpoint reaches the upstream URL.
+     * Identificador de una serie almacenada: exactamente lo que acuña el módulo de IA en
+     * {@code register_series_files}. Anclado, de modo que nada que pueda escalar un path o
+     * nombrar otro endpoint llegue a la URL upstream.
      */
     private static final Pattern INPUT_ID_PATTERN = Pattern.compile("^inp_[0-9a-f]{32}$");
 
@@ -971,14 +971,14 @@ public class AiBackendService {
         for (Object item : list) {
             Map<String, Object> map = objectMap(item);
             /*
-             * The listing keeps every plane, including the ones no model runs on.
+             * El listado conserva todos los planos, incluidos aquellos sobre los que no corre ningún modelo.
              *
-             * ALLOWED_INPUT_PLANES is the set a run can be launched against, and using
-             * it to filter this listing conflated two different questions: a coronal
-             * series and a localizer were dropped from the study's contents because
-             * nothing could be inferred from them. The doctor still has to see that
-             * the study carried them — a missing series they expected to find is
-             * itself a finding, and silence here reads as "the study did not have it".
+             * ALLOWED_INPUT_PLANES es el conjunto contra el que se puede lanzar una corrida, y usarlo
+             * para filtrar este listado confundía dos preguntas distintas: una serie coronal
+             * y un localizador se descartaban del contenido del estudio porque
+             * no se podía inferir nada de ellos. El médico igual tiene que ver que
+             * el estudio los traía — una serie faltante que esperaba encontrar es
+             * en sí un hallazgo, y el silencio acá se lee como "el estudio no la tenía".
              */
             String plane = normalized(text(map.get("plane")));
             if (!VIEWABLE_PLANES.contains(plane)) continue;
@@ -1101,22 +1101,22 @@ public class AiBackendService {
     }
 
     /**
-     * Per-slice asset of a series: the preview ({@code slice-007.png}) or its raw
-     * 16-bit pixels ({@code slice-007.raw}). It is the only asset
-     * name that cannot live in a fixed list, because how many slices a study has
-     * depends on the study. The pattern is as strict as the list — digits only, no
-     * path separators, fixed extension — so it does not widen the traversal surface
-     * the list already closed. The workspace plane is still restricted to the mesh
-     * by the checks right below this one.
+     * Asset por slice de una serie: el preview ({@code slice-007.png}) o sus píxeles crudos
+     * de 16 bits ({@code slice-007.raw}). Es el único nombre de
+     * asset que no puede vivir en una lista fija, porque la cantidad de slices de un estudio
+     * depende del estudio. El patrón es tan estricto como la lista — solo dígitos, sin
+     * separadores de path, extensión fija — por lo que no amplía la superficie de path traversal
+     * que la lista ya cerró. El plano workspace sigue restringido a la malla
+     * por los chequeos justo debajo de este.
      */
     private boolean isSlicePreviewName(String assetName) {
         return SLICE_PREVIEW_NAME.matcher(assetName).matches();
     }
 
     /**
-     * Per-class segmentation mask ({@code mask-vertebra_group.png}). Same reasoning as
-     * the slice preview: the set depends on the model, so it cannot be a fixed list,
-     * and the pattern stays as strict as the list it complements.
+     * Máscara de segmentación por clase ({@code mask-vertebra_group.png}). Mismo razonamiento que
+     * el preview de slice: el conjunto depende del modelo, así que no puede ser una lista fija,
+     * y el patrón se mantiene tan estricto como la lista que complementa.
      */
     private boolean isClassMaskName(String assetName) {
         return CLASS_MASK_NAME.matcher(assetName).matches();

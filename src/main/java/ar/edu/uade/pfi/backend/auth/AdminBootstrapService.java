@@ -14,21 +14,21 @@ import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
 /**
- * Bootstraps exactly one real production ADMIN, once, so that SPRING_PROFILES_ACTIVE=production +
- * PFI_AUTH_DEMO_ENABLED=false never leaves a deployment with zero administrators (the demo account,
- * the only account that used to carry ADMIN by default, is correctly refused in production by
- * P10-A.1 — this fills that gap with a real, deliberately-provisioned account instead).
+ * Crea exactamente un ADMIN real de producción, una sola vez, para que SPRING_PROFILES_ACTIVE=production +
+ * PFI_AUTH_DEMO_ENABLED=false nunca deje un despliegue sin administradores (la cuenta demo,
+ * la única que antes llevaba ADMIN por defecto, es rechazada correctamente en producción por
+ * P10-A.1 — esto cubre ese vacío con una cuenta real, aprovisionada deliberadamente).
  *
- * <p>Not a controller: there is no HTTP endpoint for this. It only runs via {@code @PostConstruct},
- * and only when the active Spring profile is production/prod — every other profile
- * (default/dev/test) is a complete no-op, so `mvn test` never depends on any of the
- * bootstrap-admin-* variables.
+ * <p>No es un controller: no hay ningún endpoint HTTP para esto. Solo corre vía {@code @PostConstruct},
+ * y solo cuando el perfil de Spring activo es production/prod — cualquier otro perfil
+ * (default/dev/test) es un no-op completo, por lo que `mvn test` nunca depende de ninguna de las
+ * variables bootstrap-admin-*.
  *
- * <p>{@code @DependsOn("securityStartupValidator")} enforces initialization order: (1)
- * SecurityStartupValidator's own @PostConstruct validates structural production config first; only
- * then (2) does this bean even get constructed/its @PostConstruct run, against (3) an
- * already-migrated PostgresAuthStoreService (migration happens in that bean's own constructor,
- * which has already completed by the time it's injected here).
+ * <p>{@code @DependsOn("securityStartupValidator")} fuerza el orden de inicialización: (1)
+ * el @PostConstruct de SecurityStartupValidator valida primero la configuración estructural de producción; recién
+ * entonces (2) se construye este bean y corre su @PostConstruct, contra (3) un
+ * PostgresAuthStoreService ya migrado (la migración ocurre en el constructor de ese bean,
+ * que ya terminó cuando se inyecta acá).
  */
 @Component
 @DependsOn("securityStartupValidator")
@@ -75,7 +75,7 @@ public class AdminBootstrapService {
   @PostConstruct
   void bootstrap() {
     if (!isProductionProfile()) {
-      // Outside production, never auto-create an admin and never block startup for its absence.
+      // Fuera de producción, nunca se crea un admin automáticamente ni se bloquea el arranque por su ausencia.
       log.info("startup.adminBootstrap.skipped reason=non_production");
       return;
     }
@@ -133,7 +133,7 @@ public class AdminBootstrapService {
     if (DEMO_PASSWORD.equals(password)) {
       fail("PFI_AUTH_BOOTSTRAP_ADMIN_PASSWORD no puede ser la contrasena demo");
     }
-    // Never log either value being compared here.
+    // Nunca loguear ninguno de los dos valores que se comparan acá.
     if (!jwtSecret.isBlank() && password.equals(jwtSecret)) {
       fail("PFI_AUTH_BOOTSTRAP_ADMIN_PASSWORD no puede ser igual a PFI_AUTH_JWT_SECRET");
     }

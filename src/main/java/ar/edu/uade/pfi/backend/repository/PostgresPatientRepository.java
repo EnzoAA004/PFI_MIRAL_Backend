@@ -225,7 +225,7 @@ public class PostgresPatientRepository implements PatientRepository {
       statement.setString(2, principalId);
       statement.executeUpdate();
     } catch (Exception ex) {
-      // A different owner may already exist; verify below without changing ownership.
+      // Puede existir ya un owner distinto; verificar más abajo sin cambiar la propiedad.
     }
     return isPatientOwner(patientId, principalId);
   }

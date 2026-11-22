@@ -15,34 +15,34 @@ import java.util.Optional;
 import org.springframework.stereotype.Component;
 
 /**
- * EXT-04B2: resolves, for each {@link AiEvidenceRegion} of a run, which geometry is the
- * "effective" one to show — inspired by {@link EffectiveMeasurementResolver} but NOT a
- * mechanical copy, because a region's effectiveness also depends on whether it was rejected
- * (a scalar measurement has no such gate) and on a caller-controlled policy for still-pending
- * AI suggestions.
+ * EXT-04B2: resuelve, para cada {@link AiEvidenceRegion} de una corrida, cuál geometría es la
+ * "efectiva" para mostrar — inspirado en {@link EffectiveMeasurementResolver} pero NO una
+ * copia mecánica, porque la efectividad de una región también depende de si fue rechazada
+ * (una medición escalar no tiene ese filtro) y de una política controlada por quien llama para las sugerencias de IA
+ * todavía pendientes.
  *
- * <p>Policy (EXT-04B1 section 11, confirmed against the review system that actually exists):
+ * <p>Política (EXT-04B1 sección 11, confirmada contra el sistema de revisión que realmente existe):
  * <ol>
- *   <li>a correction exists → the corrected geometry, always effective;</li>
- *   <li>{@code origin="professional"} (hand-drawn, no AI original) → its own geometry, always
- *       effective;</li>
- *   <li>{@code origin="ai"}, review {@code accepted} or {@code observed} → the AI geometry,
- *       effective;</li>
- *   <li>{@code origin="ai"}, review {@code pending} → the AI geometry, effective only if the
- *       caller opts in ({@code includeUnreviewedSuggestions}) — hiding an unreviewed suggestion
- *       by default is a product/UI policy choice, not a data-resolution one, so this resolver
- *       exposes the flag instead of deciding unilaterally;</li>
- *   <li>{@code origin="ai"}, review {@code rejected}, no correction → never effective. A
- *       rejection that is later followed by a correction stops being "the AI's rejected
- *       suggestion" and becomes case 1 instead — a professional actively re-authoring the
- *       geometry is a stronger, more specific signal than a coarser prior rejection.</li>
+ *   <li>existe una corrección → la geometría corregida, siempre efectiva;</li>
+ *   <li>{@code origin="professional"} (dibujada a mano, sin original de IA) → su propia geometría, siempre
+ *       efectiva;</li>
+ *   <li>{@code origin="ai"}, revisión {@code accepted} u {@code observed} → la geometría de la IA,
+ *       efectiva;</li>
+ *   <li>{@code origin="ai"}, revisión {@code pending} → la geometría de la IA, efectiva solo si
+ *       quien llama lo habilita ({@code includeUnreviewedSuggestions}) — ocultar una sugerencia sin revisar
+ *       por defecto es una decisión de política de producto/UI, no de resolución de datos, así que este resolver
+ *       expone el flag en lugar de decidir unilateralmente;</li>
+ *   <li>{@code origin="ai"}, revisión {@code rejected}, sin corrección → nunca efectiva. Un
+ *       rechazo seguido más tarde por una corrección deja de ser "la sugerencia rechazada de la
+ *       IA" y pasa a ser el caso 1 — un profesional que vuelve a autorar activamente la
+ *       geometría es una señal más fuerte y específica que un rechazo previo más grueso.</li>
  * </ol>
  *
- * <p>{@code observed} is treated exactly like {@code accepted} (see {@link DerivedEvidenceOrigin}
- * javadoc) — the same reading {@link EffectiveAnalysisRunSelector} already gives it for run
- * selection. Nothing here ever deletes or hides history: a rejected/pending region is still
- * returned (only {@link EffectiveAnnotation#effective()} is {@code false}) — resolving
- * "effective" is a projection, never a delete (EXT-04B1 principle: "no esconder evidencia
+ * <p>{@code observed} se trata exactamente igual que {@code accepted} (ver el javadoc de {@link DerivedEvidenceOrigin})
+ * — la misma lectura que {@link EffectiveAnalysisRunSelector} ya le da para la selección
+ * de corridas. Nada acá borra ni oculta nunca el historial: una región rechazada/pendiente se sigue
+ * devolviendo (solo {@link EffectiveAnnotation#effective()} es {@code false}) — resolver
+ * "effective" es una proyección, nunca un borrado (principio de EXT-04B1: "no esconder evidencia
  * histórica").
  */
 @Component
@@ -101,9 +101,9 @@ public class EffectiveAnnotationResolver {
     }
 
     /**
-     * Same fallback {@link ar.edu.uade.pfi.backend.service.StudyReportService#discLevels}
-     * already applies: a disc-level review when the region names one, the run-level review
-     * otherwise, {@code "pending"} when neither exists.
+     * El mismo fallback que {@link ar.edu.uade.pfi.backend.service.StudyReportService#discLevels}
+     * ya aplica: una revisión de nivel de disco cuando la región nombra uno, la revisión a nivel de corrida
+     * en caso contrario, {@code "pending"} cuando no existe ninguna.
      */
     private String resolveReviewStatus(
         AiEvidenceRegion region,

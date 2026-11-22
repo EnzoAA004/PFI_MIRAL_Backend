@@ -4,9 +4,9 @@ import java.time.Instant;
 import java.util.Objects;
 
 /**
- * Metadata row for a binary persisted through {@code ObjectStorageService}. The binary
- * itself lives at {@code objectKey} in whichever provider {@code storageProvider} names
- * -- never in this row, and never in Postgres.
+ * Fila de metadatos para un binario persistido mediante {@code ObjectStorageService}. El binario
+ * en sí vive en {@code objectKey} en el proveedor que nombre {@code storageProvider}
+ * -- nunca en esta fila, y nunca en Postgres.
  */
 public record DurableObjectAsset(
     String assetId,

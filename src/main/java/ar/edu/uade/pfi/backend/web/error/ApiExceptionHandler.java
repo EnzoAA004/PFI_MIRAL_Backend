@@ -37,10 +37,10 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * Single mapping point from any exception to the one API error contract
- * (see {@code ApiErrorResponse}/{@code ApiErrorWriter}). Never logs or returns the raw
- * exception message on a 5xx, the exception's fully-qualified class name, SQL, a JDBC
- * URL, an AI Module URL, a local filesystem path, or a stack trace in the response body.
+ * Único punto de mapeo desde cualquier excepción al único contrato de error de la API
+ * (ver {@code ApiErrorResponse}/{@code ApiErrorWriter}). Nunca loguea ni devuelve el mensaje crudo de
+ * la excepción en un 5xx, el nombre de clase completamente calificado de la excepción, SQL, una URL
+ * JDBC, una URL del módulo de IA, un path local del filesystem ni un stack trace en el body de la respuesta.
  */
 @RestControllerAdvice
 public class ApiExceptionHandler {
@@ -65,11 +65,11 @@ public class ApiExceptionHandler {
     }
 
     /**
-     * A ResponseStatusException's own reason string is backend-authored at every current
-     * call site (audited for P10-B.1 §2 — none interpolate upstream/user-controlled
-     * content), but is still run through SafeLogSanitizer as defense in depth for 4xx,
-     * and is never trusted at all for 5xx — a fixed catalog message is used there
-     * instead, matching every other 5xx handler in this class (P10-B.1 §1).
+     * El string de motivo propio de una ResponseStatusException está redactado por el backend en cada
+     * sitio de llamada actual (auditado para P10-B.1 §2 — ninguno interpola contenido
+     * upstream/controlado por el usuario), pero igual se pasa por SafeLogSanitizer como defensa en profundidad para 4xx,
+     * y nunca se confía en él para 5xx — ahí se usa en cambio un mensaje fijo del catálogo,
+     * igual que en todos los demás handlers de 5xx de esta clase (P10-B.1 §1).
      */
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<Map<String, Object>> handleResponseStatusException(ResponseStatusException ex, HttpServletRequest request) {
@@ -92,23 +92,23 @@ public class ApiExceptionHandler {
     }
 
     /**
-     * AiServiceClient already constructs this exception with a fixed catalog message
-     * (P10-B.1 §3) — this handler re-derives the message from {@code ex.code()} anyway,
-     * rather than trusting {@code ex.getMessage()} directly, so a future call site that
-     * forgets that discipline still can't leak upstream text through here.
+     * AiServiceClient ya construye esta excepción con un mensaje fijo del catálogo
+     * (P10-B.1 §3) — este handler igual vuelve a derivar el mensaje de {@code ex.code()},
+     * en lugar de confiar directamente en {@code ex.getMessage()}, de modo que un futuro sitio de llamada que
+     * olvide esa disciplina igual no pueda filtrar texto upstream por acá.
      */
     @ExceptionHandler(AiMultiplanarUpstreamException.class)
     public ResponseEntity<Map<String, Object>> handleAiMultiplanarUpstream(AiMultiplanarUpstreamException ex, HttpServletRequest request) {
         return buildError(ex.status(), ex.code(), ApiErrorCode.fromCode(ex.code()).publicMessage(), request, ex);
     }
 
-    /** Stage 75: schemaVersion/release.releaseId mismatch on POST /v1/product/analyze — never exposed as a valid result. */
+    /** Etapa 75: discrepancia de schemaVersion/release.releaseId en POST /v1/product/analyze — nunca se expone como un resultado válido. */
     @ExceptionHandler(AiProductContractViolationException.class)
     public ResponseEntity<Map<String, Object>> handleAiProductContractViolation(AiProductContractViolationException ex, HttpServletRequest request) {
         return buildError(HttpStatus.BAD_GATEWAY, "AI_PRODUCT_CONTRACT_VIOLATION", ApiErrorCode.AI_PRODUCT_CONTRACT_VIOLATION.publicMessage(), request, ex);
     }
 
-    /** Stage 75: fail-closed safety contract violation (autonomousDiagnosis/notClinicalDiagnosis/humanReviewRequired). */
+    /** Etapa 75: violación del contrato de seguridad fail-closed (autonomousDiagnosis/notClinicalDiagnosis/humanReviewRequired). */
     @ExceptionHandler(AiProductSafetyViolationException.class)
     public ResponseEntity<Map<String, Object>> handleAiProductSafetyViolation(AiProductSafetyViolationException ex, HttpServletRequest request) {
         return buildError(HttpStatus.BAD_GATEWAY, "AI_PRODUCT_SAFETY_VIOLATION", ApiErrorCode.AI_PRODUCT_SAFETY_VIOLATION.publicMessage(), request, ex);
@@ -135,7 +135,7 @@ public class ApiExceptionHandler {
         return buildError(ex.status(), ex.code(), ex.getMessage(), request, ex);
     }
 
-    /** Stage 76-B: Study exists but has no analyzable sagittal/axial input to resolve — functional, not a 5xx. */
+    /** Etapa 76-B: el Study existe pero no tiene un input sagital/axial analizable para resolver — funcional, no un 5xx. */
     @ExceptionHandler(AiStudyInputUnresolvedException.class)
     public ResponseEntity<Map<String, Object>> handleAiStudyInputUnresolved(AiStudyInputUnresolvedException ex, HttpServletRequest request) {
         return buildError(HttpStatus.UNPROCESSABLE_ENTITY, "AI_STUDY_INPUT_UNRESOLVED", ApiErrorCode.AI_STUDY_INPUT_UNRESOLVED.publicMessage(), request, ex);
@@ -171,10 +171,10 @@ public class ApiExceptionHandler {
     }
 
     /**
-     * Malformed JSON or, notably, a strict DTO (JsonIgnoreProperties(ignoreUnknown =
-     * false)) rejecting an unexpected field — e.g. a professional-activation payload
-     * that tried to smuggle in "roles" or "admin". Sanitized 400, never the raw Jackson
-     * parse error (which could otherwise echo back request field names/values).
+     * JSON malformado o, notablemente, un DTO estricto (JsonIgnoreProperties(ignoreUnknown =
+     * false)) que rechaza un campo inesperado — p. ej. un payload de activación profesional
+     * que intentó colar "roles" o "admin". 400 sanitizado, nunca el error de parseo crudo de Jackson
+     * (que de otro modo podría devolver nombres/valores de campos del request).
      */
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<Map<String, Object>> handleUnreadableMessage(HttpMessageNotReadableException ex, HttpServletRequest request) {
@@ -207,9 +207,9 @@ public class ApiExceptionHandler {
     }
 
     /**
-     * Catch-all. Never surfaces ex.getMessage() (which could contain SQL, a JDBC URL, an
-     * AI Module URL, or a local path) in either the body or the log line — only the
-     * sanitized, fixed public message and the exception's simple class name.
+     * Catch-all. Nunca expone ex.getMessage() (que podría contener SQL, una URL JDBC, una
+     * URL del módulo de IA o un path local) ni en el body ni en la línea de log — solo el
+     * mensaje público fijo sanitizado y el nombre simple de clase de la excepción.
      */
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<Map<String, Object>> handleRuntime(RuntimeException ex, HttpServletRequest request) {
@@ -235,11 +235,11 @@ public class ApiExceptionHandler {
     }
 
     /**
-     * Structured, sanitized log line — never ex.getMessage() and never the exception's
-     * fully-qualified name (package + class), only its simple class name. A sanitized
-     * stack is only emitted at DEBUG (never in the public body, never at WARN/ERROR by
-     * default) so it stays available for local troubleshooting without becoming the
-     * default production log volume/leak surface.
+     * Línea de log estructurada y sanitizada — nunca ex.getMessage() y nunca el nombre
+     * completamente calificado de la excepción (paquete + clase), solo su nombre simple de clase. Un stack
+     * sanitizado solo se emite en DEBUG (nunca en el body público, nunca en WARN/ERROR por
+     * defecto) para que siga disponible para troubleshooting local sin convertirse en la
+     * superficie de volumen/filtración de logs de producción por defecto.
      */
     private void logError(HttpStatus status, String code, String traceId, HttpServletRequest request, Exception ex, boolean retryable) {
         String exceptionType = ex.getClass().getSimpleName();
@@ -258,13 +258,13 @@ public class ApiExceptionHandler {
     }
 
     /**
-     * P10-B.1 §13: AI_MULTIPLANAR_CONTRACT_VIOLATION is deliberately NOT counted here —
-     * AiServiceClient is the single authority for that code (it's the only place that can
-     * see the full HTTP+adapter+validator pipeline for a multiplanar run and increment
-     * exactly once), so counting it again here would double-count every such violation.
-     * AI_CONTRACT_VIOLATION (the older, single-plane/pipeline path, raised from
-     * AiBackendService rather than AiServiceClient) has no other counter, so it stays
-     * here.
+     * P10-B.1 §13: AI_MULTIPLANAR_CONTRACT_VIOLATION deliberadamente NO se cuenta acá —
+     * AiServiceClient es la única autoridad para ese código (es el único lugar que puede
+     * ver todo el pipeline HTTP+adaptador+validador de una corrida multiplanar e incrementar
+     * exactamente una vez), por lo que contarlo de nuevo acá duplicaría cada una de esas violaciones.
+     * AI_CONTRACT_VIOLATION (el camino más viejo, de un solo plano/pipeline, lanzado desde
+     * AiBackendService en lugar de AiServiceClient) no tiene ningún otro contador, así que se queda
+     * acá.
      */
     private void recordMetrics(HttpStatus status, String code) {
         if (metrics == null) return;

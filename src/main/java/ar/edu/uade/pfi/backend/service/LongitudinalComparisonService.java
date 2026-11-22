@@ -19,16 +19,16 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 /**
- * Stage 79: deterministic, on-demand (never persisted — 79-J) comparison of AI measurements
- * between two Studies of the same patient. No LLM, no ML, no clinical heuristics — only
- * {@code current - baseline} arithmetic over already-persisted, already-corrected-if-applicable
- * values, and this service never emits a clinical judgment (79-G).
+ * Etapa 79: comparación determinística y a demanda (nunca persistida — 79-J) de las mediciones de la IA
+ * entre dos Studies del mismo paciente. Sin LLM, sin ML, sin heurísticas clínicas — solo
+ * aritmética {@code current - baseline} sobre valores ya persistidos y, si corresponde, ya corregidos,
+ * y este servicio nunca emite un juicio clínico (79-G).
  */
 @Service
 public class LongitudinalComparisonService {
-    /** Floating-point equality only — never a "clinical significance threshold" (79-H). */
+    /** Solo igualdad de punto flotante — nunca un "umbral de significancia clínica" (79-H). */
     private static final double EPSILON = 1e-9;
-    /** Deterministic ordering of comparison rows — same field precedence as the old concatenated-string key. */
+    /** Ordenamiento determinístico de las filas de comparación — la misma precedencia de campos que la vieja clave de string concatenado. */
     private static final java.util.Comparator<EffectiveMeasurementResolver.MatchKey> MATCH_KEY_COMPARATOR =
         java.util.Comparator.comparing(EffectiveMeasurementResolver.MatchKey::level)
             .thenComparing(EffectiveMeasurementResolver.MatchKey::plane)
@@ -86,18 +86,18 @@ public class LongitudinalComparisonService {
     }
 
     /**
-     * Stage 79-D: fail closed. Two Studies are only "the same patient" when both carry a
-     * non-blank {@code subjectRef} and those values match case-insensitively/trimmed — the exact
-     * rule {@code StudyRepository.findStudiesBySubjectRef}/{@code PatientHistoryService} already
-     * use (stage 79-A recon: no {@code Patient} entity exists anywhere in this domain; subjectRef
-     * equality is the only safe evidence). A Study with no subjectRef can never be proven
-     * same-patient as anything — including another Study also missing one.
+     * Etapa 79-D: fail closed. Dos Studies son "el mismo paciente" solo cuando ambos llevan un
+     * {@code subjectRef} no vacío y esos valores coinciden sin distinguir mayúsculas y recortados — la misma
+     * regla que ya usan {@code StudyRepository.findStudiesBySubjectRef}/{@code PatientHistoryService}
+     * (reconocimiento de la etapa 79-A: no existe ninguna entidad {@code Patient} en este dominio; la
+     * igualdad de subjectRef es la única evidencia segura). Un Study sin subjectRef nunca puede probarse
+     * como del mismo paciente que nada — incluido otro Study que tampoco tenga uno.
      *
-     * <p>Throws {@link StudyNotFoundException} for the baseline side rather than a distinct
-     * "forbidden" error, following the same IDOR convention already used for cross-Study analysis
-     * lookups (stage 76/78: a resource belonging to a different Study 404s, never confirming it
-     * exists) — a baseline Study that exists but belongs to a different patient must never be
-     * distinguishable from one that doesn't exist at all.
+     * <p>Lanza {@link StudyNotFoundException} para el lado baseline en lugar de un error distinto de
+     * "forbidden", siguiendo la misma convención IDOR ya usada para las búsquedas de análisis entre Studies
+     * (etapa 76/78: un recurso que pertenece a otro Study devuelve 404, sin confirmar nunca que
+     * existe) — un Study baseline que existe pero pertenece a otro paciente nunca debe poder
+     * distinguirse de uno que no existe en absoluto.
      */
     private void requireSamePatient(Study current, Study baseline) {
         String currentSubject = normalizedSubjectRef(current.subjectRef());
@@ -112,11 +112,11 @@ public class LongitudinalComparisonService {
     }
 
     /**
-     * Stage 79-E: matches by the exact {@code (level, plane, structure, metric)} key —
-     * {@code areaMm2} is never compared against {@code majorAxisMm}, {@code mm} is never compared
-     * against {@code mm²}. A {@code level=null} measurement is NEVER paired with anything
-     * (including another {@code level=null} entry) — it always renders as its own
-     * {@code level_unresolved} row (stage 79-E "level null").
+     * Etapa 79-E: empareja por la clave exacta {@code (level, plane, structure, metric)} —
+     * {@code areaMm2} nunca se compara contra {@code majorAxisMm}, {@code mm} nunca se compara
+     * contra {@code mm²}. Una medición con {@code level=null} NUNCA se empareja con nada
+     * (incluida otra entrada con {@code level=null}) — siempre se renderiza como su propia
+     * fila {@code level_unresolved} (etapa 79-E "level null").
      */
     private List<LongitudinalComparisonResultDto.MeasurementComparison> compareMeasurements(
         List<EffectiveMeasurementResolver.EffectiveMeasurement> baseline,
@@ -180,7 +180,7 @@ public class LongitudinalComparisonService {
                 toEffectiveValueDto(baseline), null, null, null, null, "missing_current"
             );
         }
-        // Defensive: unreachable today (unit is fixed per metric server-side), kept for stage 79-Q completeness.
+        // Defensivo: hoy inalcanzable (la unidad es fija por métrica del lado del servidor), se mantiene por completitud de la etapa 79-Q.
         if (!baseline.unit().equals(current.unit())) {
             return new LongitudinalComparisonResultDto.MeasurementComparison(
                 baseline.level(), baseline.plane(), baseline.structure(), baseline.metric(), baseline.unit(),

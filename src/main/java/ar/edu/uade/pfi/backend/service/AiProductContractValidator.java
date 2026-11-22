@@ -5,13 +5,13 @@ import ar.edu.uade.pfi.backend.dto.AiProductAnalyzeResponseDto;
 import org.springframework.stereotype.Component;
 
 /**
- * Enforces the minimum contract Spring must verify on every POST /v1/product/analyze response
- * (stage 75-F): {@code schemaVersion}, {@code release.releaseId}, and the three safety fields.
+ * Aplica el contrato mínimo que Spring debe verificar en cada respuesta de POST /v1/product/analyze
+ * (etapa 75-F): {@code schemaVersion}, {@code release.releaseId} y los tres campos de seguridad.
  *
- * <p>The safety check is FAIL CLOSED: {@code autonomousDiagnosis=true},
- * {@code notClinicalDiagnosis=false}, or {@code humanReviewRequired=false} is a contract violation
- * regardless of {@code status}, and the result must never be exposed as valid. This is
- * deliberately never relaxed by configuration — there is no flag to turn it off.
+ * <p>El chequeo de seguridad es FAIL CLOSED: {@code autonomousDiagnosis=true},
+ * {@code notClinicalDiagnosis=false} o {@code humanReviewRequired=false} es una violación de contrato
+ * sin importar el {@code status}, y el resultado nunca debe exponerse como válido. Esto
+ * deliberadamente nunca se relaja por configuración — no hay ningún flag para apagarlo.
  */
 @Component
 public class AiProductContractValidator {
@@ -22,10 +22,10 @@ public class AiProductContractValidator {
     }
 
     /**
-     * @throws AiProductContractViolationException schemaVersion/releaseId mismatch, or the
-     *     response is missing a required top-level section.
-     * @throws AiProductSafetyViolationException the safety contract itself is violated — never
-     *     recoverable, never exposed as a valid result.
+     * @throws AiProductContractViolationException discrepancia de schemaVersion/releaseId, o la
+     *     respuesta carece de una sección requerida de primer nivel.
+     * @throws AiProductSafetyViolationException se viola el propio contrato de seguridad — nunca
+     *     recuperable, nunca expuesto como un resultado válido.
      */
     public void validate(AiProductAnalyzeResponseDto response) {
         if (response == null) {
@@ -41,8 +41,8 @@ public class AiProductContractValidator {
             throw new AiProductContractViolationException("ai_product_status_missing");
         }
 
-        // Fail closed — see class docs. Checked last so a plain contract mismatch above is never
-        // masked as "safety violation" in logs/metrics.
+        // Fail closed — ver docs de clase. Se chequea al final para que una discrepancia de contrato simple de arriba nunca
+        // se enmascare como "safety violation" en logs/métricas.
         if (!Boolean.TRUE.equals(response.humanReviewRequired())) {
             throw new AiProductSafetyViolationException("ai_product_human_review_required_false");
         }

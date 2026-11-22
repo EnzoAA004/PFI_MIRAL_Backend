@@ -1,9 +1,9 @@
 package ar.edu.uade.pfi.backend.client;
 
 /**
- * Stage 80: provider-agnostic chat result. Deliberately carries no safety flags
- * ({@code humanReviewRequired}/{@code notClinicalDiagnosis}) — those are set by
- * {@code ChatService} itself, unconditionally, never derived from a provider response (stage
+ * Etapa 80: resultado de chat agnóstico del proveedor. Deliberadamente no lleva flags de seguridad
+ * ({@code humanReviewRequired}/{@code notClinicalDiagnosis}) — los setea
+ * {@code ChatService} mismo, incondicionalmente, nunca se derivan de la respuesta de un proveedor (etapa
  * 80-L: "No permitir que provider cambie esos flags").
  */
 public record LlmChatResult(String content, String model, String provider) {

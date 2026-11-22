@@ -13,8 +13,8 @@ import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 
 /**
- * Safe runtime-only diagnostics for Cloud Run routing investigations. Never includes JDBC URLs,
- * bucket names, secret values, auth tokens, request headers, or filesystem paths.
+ * Diagnósticos seguros solo de runtime para investigaciones de routing de Cloud Run. Nunca incluye URLs JDBC,
+ * nombres de buckets, valores de secretos, tokens de auth, headers de request ni paths del filesystem.
  */
 @Service
 public class RuntimeDiagnosticsService {

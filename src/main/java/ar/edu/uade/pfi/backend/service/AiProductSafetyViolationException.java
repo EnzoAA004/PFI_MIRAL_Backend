@@ -1,12 +1,12 @@
 package ar.edu.uade.pfi.backend.service;
 
 /**
- * The AI Module's POST /v1/product/analyze response violates the product safety contract:
- * {@code autonomousDiagnosis=true} or {@code notClinicalDiagnosis=false} (or
- * {@code humanReviewRequired=false}). This is FAIL CLOSED — the result is never exposed as
- * valid, regardless of {@code status}. Kept distinct from
- * {@link AiProductContractViolationException} so a safety failure is never confused with a
- * routine schema/release mismatch in logs, metrics, or tests.
+ * La respuesta de POST /v1/product/analyze del módulo de IA viola el contrato de seguridad del producto:
+ * {@code autonomousDiagnosis=true} o {@code notClinicalDiagnosis=false} (o
+ * {@code humanReviewRequired=false}). Esto es FAIL CLOSED — el resultado nunca se expone como
+ * válido, sin importar el {@code status}. Se mantiene separada de
+ * {@link AiProductContractViolationException} para que una falla de seguridad nunca se confunda con una
+ * discrepancia rutinaria de schema/release en logs, métricas o tests.
  */
 public class AiProductSafetyViolationException extends RuntimeException {
     public AiProductSafetyViolationException(String message) {

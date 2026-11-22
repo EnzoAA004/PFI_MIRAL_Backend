@@ -4,13 +4,13 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.ConstructorBinding;
 
 /**
- * Stage 80: configuration for the self-hosted LLM provider (Qwen2.5-7B-Instruct behind an
- * OpenAI-chat-completions-shaped HTTP API — see {@code SelfHostedLlmProvider}). Everything is
- * env-var overridable, nothing hardcoded — matching {@code AiServiceProperties}'s convention.
+ * Etapa 80: configuración del proveedor de LLM autoalojado (Qwen2.5-7B-Instruct detrás de una
+ * API HTTP con forma de chat-completions de OpenAI — ver {@code SelfHostedLlmProvider}). Todo es
+ * sobrescribible por variables de entorno, nada hardcodeado — siguiendo la convención de {@code AiServiceProperties}.
  *
  * <p>{@code enabled} defaults to {@code false} (stage 80-AF: "diseñar para poder apagar el LLM
- * runtime en desarrollo") — chat is an explicitly opt-in, complementary capability, never a
- * dependency the rest of the product needs to boot.
+ * runtime en desarrollo") — el chat es una capacidad complementaria, explícitamente opt-in, nunca una
+ * dependencia que el resto del producto necesite para arrancar.
  */
 @ConfigurationProperties(prefix = "pfi.llm")
 public record LlmProperties(
@@ -64,12 +64,12 @@ public record LlmProperties(
             .resolvedAudience();
     }
 
-    /** Floor of 10s — a self-hosted model can be slower than a conventional API but must never be unbounded (80-Q). */
+    /** Piso de 10s — un modelo autoalojado puede ser más lento que una API convencional, pero nunca debe quedar sin límite (80-Q). */
     public int resolvedTimeoutSeconds() {
         return timeoutSeconds == null ? 90 : Math.max(timeoutSeconds, 10);
     }
 
-    /** Default 0.1 — consistency/fidelity prioritized over creativity (80-AH). */
+    /** Default 0.1 — se prioriza la consistencia/fidelidad sobre la creatividad (80-AH). */
     public double resolvedTemperature() {
         return temperature == null ? 0.1 : temperature;
     }
@@ -79,9 +79,9 @@ public record LlmProperties(
     }
 
     /**
-     * Stage 81-C: bounded conversation-history window for multi-turn chat, in turns (one turn =
-     * one USER message + its ASSISTANT reply). Default 8, floor 1 — a continued conversation
-     * never reinjects unlimited history (81 "NO mandar conversación ilimitada").
+     * Etapa 81-C: ventana acotada de historial de conversación para chat multi-turno, en turnos (un turno =
+     * un mensaje USER + su respuesta ASSISTANT). Por defecto 8, piso 1 — una conversación continuada
+     * nunca reinyecta historial ilimitado (81 "NO mandar conversación ilimitada").
      */
     public int resolvedHistoryWindowTurns() {
         return historyWindowTurns == null ? 8 : Math.max(historyWindowTurns, 1);

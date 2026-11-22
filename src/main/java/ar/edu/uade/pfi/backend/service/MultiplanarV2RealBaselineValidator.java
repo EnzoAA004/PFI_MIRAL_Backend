@@ -14,10 +14,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
- * Strict production gate for the pfi.multiplanar-run.v2 contract. Only runs for
- * "strict" requests (inferenceMode=real_baseline, allowContractFallback=false); any
- * violation throws AiMultiplanarContractViolationException (mapped to 502
- * AI_MULTIPLANAR_CONTRACT_VIOLATION) before the canonical result is ever persisted.
+ * Gate de producción estricto para el contrato pfi.multiplanar-run.v2. Solo corre para
+ * requests "estrictos" (inferenceMode=real_baseline, allowContractFallback=false); cualquier
+ * violación lanza AiMultiplanarContractViolationException (mapeada a 502
+ * AI_MULTIPLANAR_CONTRACT_VIOLATION) antes de que el resultado canónico se persista siquiera.
  */
 @Service
 public class MultiplanarV2RealBaselineValidator {
@@ -27,8 +27,8 @@ public class MultiplanarV2RealBaselineValidator {
     static final String SAGITTAL_MODEL_VERSION = "sagittal-spider-final-v1";
     static final String SAGITTAL_ARTIFACT_HASH = "cf11dcc0ad77a7c787e64a796a2fd7398ef906add461cef4b3d61f1a5238e944";
 
-    // Frozen-artifact policy for sagittal_spider/sagittal-spider-final-v1 ONLY.
-    // Do not generalize these exact counts to future sagittal models/versions.
+    // Política de artefacto congelado SOLO para sagittal_spider/sagittal-spider-final-v1.
+    // No generalizar estas cantidades exactas a futuros modelos/versiones sagitales.
     private static final int FROZEN_MASK_COUNT = 3;
     private static final int FROZEN_LANDMARK_COUNT = 3;
     private static final int FROZEN_MEASUREMENT_COUNT = 9;
@@ -145,20 +145,20 @@ public class MultiplanarV2RealBaselineValidator {
     }
 
     /**
-     * Frozen-artifact regression check for sagittal_spider/sagittal-spider-final-v1.
+     * Chequeo de regresión de artefacto congelado para sagittal_spider/sagittal-spider-final-v1.
      *
-     * <p>It used to pin exact counts: 3 masks, 3 landmarks, 9 measurements. Those
-     * counts have now been relaxed three times in a row, and that is the signal —
-     * they were never guarding the model. They guarded the post-processing, which is
-     * being deliberately evolved: masks and measurements are now emitted per instance
-     * (one per disc, one per vertebral body) so the count follows the study's field
-     * of view rather than the model release.
+     * <p>Antes fijaba cantidades exactas: 3 máscaras, 3 landmarks, 9 mediciones. Esas
+     * cantidades se relajaron ya tres veces seguidas, y esa es la señal —
+     * nunca estuvieron protegiendo el modelo. Protegían el posprocesamiento, que
+     * se está evolucionando deliberadamente: las máscaras y mediciones ahora se emiten por instancia
+     * (una por disco, una por cuerpo vertebral), así que la cantidad sigue el campo de visión
+     * del estudio y no la release del modelo.
      *
-     * <p>What actually freezes the release is the artifact hash, asserted exactly in
-     * {@code validateSagittal}. That check is untouched. What remains here is a floor,
-     * so a release that silently stopped producing segmentation still fails; the shape
-     * of each item is verified by the per-mask, per-landmark and per-measurement
-     * checks above.
+     * <p>Lo que realmente congela la release es el hash del artefacto, afirmado exactamente en
+     * {@code validateSagittal}. Ese chequeo no se tocó. Lo que queda acá es un piso,
+     * para que una release que dejó de producir segmentación en silencio igual falle; la forma
+     * de cada ítem la verifican los chequeos por máscara, por landmark y por medición
+     * de arriba.
      */
     private void validateFrozenSagittalSpiderArtifactCounts(Map<String, Object> model, CanonicalPlaneRun plane) {
         boolean isFrozenRelease = SAGITTAL_MODEL_KEY.equals(text(model.get("key")))
@@ -202,10 +202,10 @@ public class MultiplanarV2RealBaselineValidator {
     }
 
     /**
-     * A 2D single-slice input (e.g. the server-side sagittal fixture) reports a
-     * 2-element shape (height, width); a volumetric input reports 3 (slices, height,
-     * width). Both are legitimate; sliceCount is read from its own explicit field
-     * rather than inferred from shape length.
+     * Un input 2D de un solo slice (p. ej. el fixture sagital del lado del servidor) informa un
+     * shape de 2 elementos (alto, ancho); un input volumétrico informa 3 (slices, alto,
+     * ancho). Ambos son legítimos; sliceCount se lee de su propio campo explícito
+     * en lugar de inferirse de la longitud del shape.
      */
     private boolean isValidShape(List<Integer> shape) {
         if (shape == null || (shape.size() != 2 && shape.size() != 3)) return false;

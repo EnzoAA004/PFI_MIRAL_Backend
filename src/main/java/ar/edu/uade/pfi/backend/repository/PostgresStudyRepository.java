@@ -349,7 +349,7 @@ public class PostgresStudyRepository implements StudyRepository {
             statement.setString(3, principalId);
             statement.executeUpdate();
         } catch (Exception ex) {
-            // A different owner may already exist (the partial unique index protects races).
+            // Puede existir ya un owner distinto (el índice único parcial protege las carreras).
         }
         try (Connection connection = connection(); PreparedStatement statement = connection.prepareStatement("""
             SELECT 1 FROM domain_study_access_grants
@@ -1212,7 +1212,7 @@ public class PostgresStudyRepository implements StudyRepository {
         }
     }
 
-    // ---- Stage 76: pfi.ai-product-result.v1 structured persistence ----
+    // ---- Etapa 76: persistencia estructurada de pfi.ai-product-result.v1 ----
 
     @Override
     public AiProductAnalysisRun saveAiProductAnalysisRun(AiProductAnalysisRun run, List<AiDiscLevelResult> discLevels, List<AiMeasurementResult> measurements) {
@@ -1464,7 +1464,7 @@ public class PostgresStudyRepository implements StudyRepository {
         return rs.wasNull() ? null : value;
     }
 
-    // ---- Stage 78: professional review / correction workflow ----
+    // ---- Etapa 78: flujo de revisión / corrección profesional ----
 
     @Override
     public AiProductAnalysisRunReview upsertAiProductAnalysisRunReview(String analysisRunId, String reviewStatus, String reviewComment, String reviewedBy, Instant reviewedAt) {
@@ -1776,7 +1776,7 @@ public class PostgresStudyRepository implements StudyRepository {
         }
     }
 
-    // ---- Stage 80: contextual chat ----
+    // ---- Etapa 80: chat contextual ----
 
     @Override
     public ChatConversation saveChatConversation(ChatConversation conversation) {
@@ -1950,7 +1950,7 @@ public class PostgresStudyRepository implements StudyRepository {
         }
     }
 
-    // ---- EXT-04B2: visual evidence regions ----
+    // ---- EXT-04B2: regiones de evidencia visual ----
 
     @Override
     public AiEvidenceRegion saveAiEvidenceRegion(AiEvidenceRegion region) {
@@ -2097,7 +2097,7 @@ public class PostgresStudyRepository implements StudyRepository {
         }
     }
 
-    // ---- EXT-07D: professional feedback capture (never training) ----
+    // ---- EXT-07D: captura de feedback profesional (nunca entrenamiento) ----
 
     @Override
     public ProfessionalFeedbackCandidate saveProfessionalFeedbackCandidate(ProfessionalFeedbackCandidate candidate) {

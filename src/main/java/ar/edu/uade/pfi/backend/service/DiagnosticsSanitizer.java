@@ -9,18 +9,18 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Recursive sanitizer specifically for AI Module diagnostics responses embedded in {@code GET
- * /api/system/diagnostics} (P10-B.1 §5). Unlike {@link AuditService#sanitize}, this is a blocklist,
- * not a strict allowlist — the upstream health/readiness/models responses have many benign fields
- * (schemaVersion, model key/version, artifact hash, quality status, ...) that must survive
- * unchanged for v1/v2 verification to keep working; only known-sensitive keys and values are
- * removed/redacted.
+ * Sanitizador recursivo específico para las respuestas de diagnóstico del módulo de IA embebidas en {@code GET
+ * /api/system/diagnostics} (P10-B.1 §5). A diferencia de {@link AuditService#sanitize}, esto es una blocklist,
+ * no una allowlist estricta — las respuestas de health/readiness/models del upstream tienen muchos campos inocuos
+ * (schemaVersion, key/versión de modelo, hash de artefacto, estado de calidad, ...) que deben sobrevivir
+ * sin cambios para que la verificación v1/v2 siga funcionando; solo se
+ * eliminan/redactan las claves y valores sensibles conocidos.
  */
 public final class DiagnosticsSanitizer {
   /**
-   * Exact key-name matches (case-insensitive), not substring matches — "port"/"host"/ "file"/"path"
-   * as *substrings* would otherwise false-positive on innocuous keys like "reportCount" or
-   * "profile" (caught during development, see DiagnosticsSanitizerTest).
+   * Coincidencias exactas de nombre de clave (sin distinguir mayúsculas), no por subcadena — "port"/"host"/ "file"/"path"
+   * como *subcadenas* darían falsos positivos con claves inocuas como "reportCount" o
+   * "profile" (detectado durante el desarrollo, ver DiagnosticsSanitizerTest).
    */
   private static final Set<String> SENSITIVE_KEYS =
       Set.of(

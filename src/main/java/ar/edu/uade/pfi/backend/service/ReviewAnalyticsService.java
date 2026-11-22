@@ -20,11 +20,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
- * EXT-02: computes {@link ReviewAnalyticsReport} entirely from data this product already
- * persists (Stage 78-D measurement corrections, EXT-04B2/EXT-04B5 evidence region corrections and
- * review status via {@link EffectiveAnnotationResolver}) — no new AI capability, no new
- * measurement of "accuracy", only a description of how often and by how much a professional's
- * value diverges from the AI's own output. Read-only: nothing here writes anything.
+ * EXT-02: calcula {@link ReviewAnalyticsReport} íntegramente a partir de datos que este producto ya
+ * persiste (correcciones de mediciones de la Etapa 78-D, correcciones de regiones de evidencia de EXT-04B2/EXT-04B5 y
+ * estado de revisión vía {@link EffectiveAnnotationResolver}) — sin nueva capacidad de IA, sin nueva
+ * medición de "precisión", solo una descripción de con qué frecuencia y por cuánto el
+ * valor de un profesional diverge de la salida propia de la IA. Solo lectura: nada acá escribe nada.
  */
 @Service
 public class ReviewAnalyticsService {
@@ -43,7 +43,7 @@ public class ReviewAnalyticsService {
         this.clock = clock;
     }
 
-    /** {@code caseId == null} aggregates across every study this Backend has ever persisted. */
+    /** {@code caseId == null} agrega sobre todos los estudios que este Backend haya persistido alguna vez. */
     public ReviewAnalyticsReport computeReport(String caseId) {
         List<Study> studies = caseId == null
             ? repository.findAllStudies()
@@ -88,7 +88,7 @@ public class ReviewAnalyticsService {
         );
     }
 
-    // ---- measurement instances -------------------------------------------------------------
+    // ---- instancias de medición -------------------------------------------------------------
 
     private record MetricField(String name, String unit, java.util.function.Function<AiMeasurementResult, Double> accessor) {
     }
@@ -99,7 +99,7 @@ public class ReviewAnalyticsService {
         new MetricField("minorAxisMm", "mm", AiMeasurementResult::minorAxisMm)
     );
 
-    /** Mutable accumulator — one per (measurement row, metric field) that actually has a value. */
+    /** Acumulador mutable — uno por (fila de medición, campo de métrica) que realmente tiene un valor. */
     private static final class MeasurementInstance {
         final String measurementId;
         final String level;
@@ -187,7 +187,7 @@ public class ReviewAnalyticsService {
         return value == null ? "" : value;
     }
 
-    // ---- evidence region analytics ----------------------------------------------------------
+    // ---- analítica de regiones de evidencia ----------------------------------------------------------
 
     private ReviewAnalyticsReport.EvidenceRegionAnalytics evidenceRegionAnalytics(
         List<AiEvidenceRegion> regions, List<AiEvidenceRegionCorrection> corrections, Map<String, String> reviewStatusByRegionId
@@ -233,7 +233,7 @@ public class ReviewAnalyticsService {
         );
     }
 
-    /** Only produced when original and corrected geometry are the SAME comparable shape — never across shapes, never for MASK_REFERENCE/POLYGON. */
+    /** Solo se produce cuando la geometría original y la corregida son la MISMA forma comparable — nunca entre formas, nunca para MASK_REFERENCE/POLYGON. */
     private Optional<ReviewAnalyticsReport.GeometryCorrectionDelta> geometryDelta(String regionId, AiEvidenceRegionCorrection correction) {
         if (correction.originalGeometryType() == null || correction.originalGeometry() == null) return Optional.empty();
         if (!correction.originalGeometryType().equals(correction.correctedGeometryType())) return Optional.empty();
@@ -255,7 +255,7 @@ public class ReviewAnalyticsService {
             double correctedArea = Math.PI * correctedEllipse.radiusX() * correctedEllipse.radiusY();
             return Optional.of(new ReviewAnalyticsReport.GeometryCorrectionDelta(regionId, correction.id(), "ELLIPSE", centroidDisplacement, correctedArea - originalArea, null));
         }
-        // POLYGON/MASK_REFERENCE, or a shape change already filtered above: not comparable, skip.
+        // POLYGON/MASK_REFERENCE, o un cambio de forma ya filtrado arriba: no comparable, se omite.
         return Optional.empty();
     }
 

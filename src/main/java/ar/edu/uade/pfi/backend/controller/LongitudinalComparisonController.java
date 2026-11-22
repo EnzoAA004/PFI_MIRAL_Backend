@@ -12,12 +12,12 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Stage 79. Addressed by {@code caseId} on both sides, matching every other endpoint in this
- * controller family (`/api/studies/{caseId}/...`) rather than a raw internal Study UUID.
+ * Etapa 79. Direccionado por {@code caseId} en ambos lados, igual que todo otro endpoint de esta
+ * familia de controllers (`/api/studies/{caseId}/...`) en lugar de un UUID interno crudo de Study.
  *
- * <p>Read-only and ungated by {@code RoleAuthorizationService.requireProfessional} — same
- * convention as the stage-76 GET history/detail endpoints (only the stage-78 mutating
- * PATCH/POST review endpoints require the professional role).
+ * <p>Solo lectura y sin restricción de {@code RoleAuthorizationService.requireProfessional} — misma
+ * convención que los endpoints GET de historial/detalle de la etapa 76 (solo los endpoints de revisión mutantes
+ * PATCH/POST de la etapa 78 requieren el rol profesional).
  */
 @RestController
 @RequestMapping("/api/studies/{caseId}")

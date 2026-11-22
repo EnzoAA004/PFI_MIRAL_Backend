@@ -3,17 +3,17 @@ package ar.edu.uade.pfi.backend.dto;
 import java.util.List;
 
 /**
- * Stage 80-D: the structured context {@code StudyChatContextBuilder} hands to the LLM — never the
- * other way around. This is deliberately minimal (80-I: "Limitar contexto"), not a re-export of
- * {@code AiProductAnalysisResultDto}: no internal ids ({@code analysisRunId}, {@code studyId},
- * {@code discLevelId}, {@code measurementId}), no {@code reviewedBy}/{@code reviewedAt}, no raw
- * DICOM/patient identity of any kind (80-E) — only what a natural-language answer could actually
- * need.
+ * Etapa 80-D: el contexto estructurado que {@code StudyChatContextBuilder} le entrega al LLM — nunca al
+ * revés. Es deliberadamente mínimo (80-I: "Limitar contexto"), no una re-exportación de
+ * {@code AiProductAnalysisResultDto}: sin ids internos ({@code analysisRunId}, {@code studyId},
+ * {@code discLevelId}, {@code measurementId}), sin {@code reviewedBy}/{@code reviewedAt}, sin identidad
+ * DICOM/paciente cruda de ningún tipo (80-E) — solo lo que una respuesta en lenguaje natural podría realmente
+ * necesitar.
  *
- * <p>{@code analysis}/{@code discLevels}/{@code longitudinalComparison} are all nullable/empty
- * when not requested or not available — the LLM is told explicitly (via the system prompt) to
- * report unavailability rather than invent it, and this type never fabricates a placeholder
- * value to fill a gap (80-O: grounding).
+ * <p>{@code analysis}/{@code discLevels}/{@code longitudinalComparison} son todos nullable/vacíos
+ * cuando no se pidieron o no están disponibles — al LLM se le indica explícitamente (vía el system prompt) que
+ * informe la indisponibilidad en lugar de inventarla, y este tipo nunca fabrica un valor placeholder
+ * para llenar un hueco (80-O: grounding).
  */
 public record ChatContextResult(
     ChatContextStudy study,
@@ -46,7 +46,7 @@ public record ChatContextResult(
     ) {
     }
 
-    /** {@code level} stays {@code null} exactly when 67B2 didn't assign one — never a placeholder. */
+    /** {@code level} queda en {@code null} exactamente cuando 67B2 no asignó uno — nunca un placeholder. */
     public record ChatContextDiscLevel(
         String level,
         String localizationStatus,
@@ -60,9 +60,9 @@ public record ChatContextResult(
     }
 
     /**
-     * Reuses {@link LongitudinalComparisonResultDto.MeasurementComparison} directly — stage 79
-     * already computed every delta deterministically; stage 80 must never recompute or
-     * reinterpret one (80-D: "NO calcular deltas longitudinales que ya calcula Stage 79").
+     * Reutiliza {@link LongitudinalComparisonResultDto.MeasurementComparison} directamente — la etapa 79
+     * ya calculó cada delta de forma determinística; la etapa 80 nunca debe recalcular ni
+     * reinterpretar uno (80-D: "NO calcular deltas longitudinales que ya calcula Stage 79").
      */
     public record ChatContextLongitudinal(
         String baselineCaseId,

@@ -3,10 +3,10 @@ package ar.edu.uade.pfi.backend.dto;
 import java.util.List;
 
 /**
- * Backend wrapper for the P10.7 product call.
+ * Wrapper del backend para la llamada de producto P10.7.
  *
- * <p>{@code multiplanarRunId} is backend-only and is never sent to the AI Module. It identifies the
- * immutable run snapshot that will receive the P10.7 prediction.
+ * <p>{@code multiplanarRunId} es solo del backend y nunca se envía al módulo de IA. Identifica el
+ * snapshot inmutable de corrida que recibirá la predicción P10.7.
  */
 public record DiscDegenerativeProductRequestDto(
     String multiplanarRunId, String caseId, List<DiscSegmentationSourceDto> sources) {}

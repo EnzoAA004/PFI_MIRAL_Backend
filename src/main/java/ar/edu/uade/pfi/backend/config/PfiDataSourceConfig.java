@@ -9,16 +9,16 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * The single application-wide pooled {@link DataSource}, shared by every
- * {@code PostgresXxx} repository/service in this backend. One pool per Cloud Run
- * instance (not one per repository class) is what keeps the worst-case connection
- * count against Cloud SQL predictable: {@code maximumPoolSize} (4) x Cloud Run
- * {@code max-instances} (2) = 8 possible connections, well under db-f1-micro's
- * connection ceiling -- see docs/cloud/CLOUD_REAL_DEPLOYMENT_EXECUTION_PLAN.md.
+ * El único {@link DataSource} con pool de toda la aplicación, compartido por cada
+ * repositorio/servicio {@code PostgresXxx} de este backend. Un pool por instancia de Cloud Run
+ * (no uno por clase de repositorio) es lo que mantiene predecible el peor caso de cantidad de
+ * conexiones contra Cloud SQL: {@code maximumPoolSize} (4) x Cloud Run
+ * {@code max-instances} (2) = 8 conexiones posibles, bien por debajo del tope de
+ * conexiones de db-f1-micro -- ver docs/cloud/CLOUD_REAL_DEPLOYMENT_EXECUTION_PLAN.md.
  *
- * <p>Only created in {@code pfi.persistence.mode=postgres}; in memory mode no
- * DataSource bean exists at all; see the always-on {@code PostgresXxx} services
- * (auth/review/catalog) for how they tolerate that via {@code ObjectProvider}.
+ * <p>Solo se crea con {@code pfi.persistence.mode=postgres}; en modo memoria no existe
+ * ningún bean DataSource; ver los servicios {@code PostgresXxx} siempre activos
+ * (auth/review/catalog) para ver cómo lo toleran vía {@code ObjectProvider}.
  */
 @Configuration
 @ConditionalOnProperty(name = "pfi.persistence.mode", havingValue = "postgres")

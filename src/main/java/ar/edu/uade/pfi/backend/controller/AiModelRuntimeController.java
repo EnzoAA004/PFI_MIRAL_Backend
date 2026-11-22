@@ -12,8 +12,8 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * Internal model runtime configuration (pytorch device/version, artifact state) is ADMIN-only for
- * the same reason as /api/ai/readiness and /api/ai/models/verify.
+ * La configuración interna del runtime del modelo (device/versión de pytorch, estado de artefactos) es solo ADMIN por
+ * el mismo motivo que /api/ai/readiness y /api/ai/models/verify.
  */
 @RestController
 @RequestMapping("/api/ai/models")

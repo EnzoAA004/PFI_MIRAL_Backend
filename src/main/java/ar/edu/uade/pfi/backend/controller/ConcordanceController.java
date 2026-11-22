@@ -12,12 +12,12 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * EXT-01: stateless concordance evaluation — the caller supplies the already-normalized
- * {@link EvidenceItem}s it holds (from whichever real product surfaces produced them: a
- * disc-level batch classification, an on-demand subarticular-ROI classification, a measurement,
- * a professional review) and gets back {@link ConcordanceResult}s. Nothing here is persisted;
- * this never becomes a new source of truth, only a read-only computation over evidence the
- * caller already has.
+ * EXT-01: evaluación de concordancia sin estado — quien llama aporta los {@link EvidenceItem}s ya normalizados
+ * que posee (de cualquier superficie real del producto que los haya producido: una
+ * clasificación por lote de niveles de disco, una clasificación de ROI subarticular a demanda, una medición,
+ * una revisión profesional) y recibe de vuelta {@link ConcordanceResult}s. Nada acá se persiste;
+ * esto nunca se convierte en una nueva fuente de verdad, solo en un cómputo de solo lectura sobre evidencia que
+ * quien llama ya tiene.
  */
 @RestController
 public class ConcordanceController {

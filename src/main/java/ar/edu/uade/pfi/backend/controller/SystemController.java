@@ -36,9 +36,9 @@ public class SystemController {
   }
 
   /**
-   * Minimal liveness endpoint: intentionally returns nothing beyond a status flag. No database,
-   * AI Module, secrets, or infra details — see /api/system/diagnostics (ADMIN-only) for anything
-   * richer. In Cloud Run it also emits X-PFI-Revision for routing traceability.
+   * Endpoint de liveness mínimo: intencionalmente no devuelve nada más que un flag de estado. Sin base de datos,
+   * módulo de IA, secretos ni detalles de infra — ver /api/system/diagnostics (solo ADMIN) para algo
+   * más rico. En Cloud Run además emite X-PFI-Revision para la trazabilidad del routing.
    */
   @GetMapping("/health")
   public Map<String, Object> health(HttpServletResponse response) {
@@ -52,8 +52,8 @@ public class SystemController {
   }
 
   /**
-   * Public but non-secret runtime state for Cloud Run routing diagnostics. This deliberately omits
-   * URLs, bucket names, DB credentials, request headers, actor data, and any secret material.
+   * Estado de runtime público pero no secreto para diagnóstico del routing de Cloud Run. Omite deliberadamente
+   * URLs, nombres de buckets, credenciales de DB, headers de request, datos del actor y cualquier material secreto.
    */
   @GetMapping("/runtime-diagnostics")
   public Map<String, Object> runtimeDiagnostics() {
@@ -69,7 +69,7 @@ public class SystemController {
     return systemDiagnosticsService.diagnostics();
   }
 
-  /** Triggers an AI Module warmup call — ADMIN-only, it is an operational action, not a read. */
+  /** Dispara una llamada de warmup al módulo de IA — solo ADMIN, es una acción operativa, no una lectura. */
   @PostMapping("/warmup")
   public Map<String, Object> warmup(HttpServletRequest request) {
     authorizationService.requireAdmin(request, "system.warmup");

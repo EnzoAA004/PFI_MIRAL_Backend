@@ -1,16 +1,16 @@
 package ar.edu.uade.pfi.backend.domain;
 
 /**
- * EXT-04B2: the single point in this Backend that converts an AI-supplied per-slice pixel
- * coordinate (the multiplanar v2 {@code CoordinateSpaceV2} basis — real pixel width/height of
- * the source slice) into the canonical normalised 0..256 basis {@link EvidenceGeometry} is
- * always expressed in.
+ * EXT-04B2: el único punto de este Backend que convierte una coordenada de píxel por slice suministrada por la IA
+ * (la base multiplanar v2 {@code CoordinateSpaceV2} — ancho/alto real en píxeles del
+ * slice de origen) a la base normalizada canónica 0..256 en la que {@link EvidenceGeometry} se expresa
+ * siempre.
  *
- * <p>EXT-04B1 section 8 is explicit that this conversion must happen in exactly one, tested
- * place rather than being repeated ad hoc in a controller, a UI, or the report — this class is
- * that place. No DICOM-physical coordinates are involved: no part of this stack stores or
- * validates {@code ImagePositionPatient}/{@code PixelSpacing} today, so introducing them here
- * would be inventing an unverified capability.
+ * <p>EXT-04B1 sección 8 es explícita en que esta conversión debe ocurrir en exactamente un lugar, testeado,
+ * y no repetirse ad hoc en un controller, una UI o el reporte — esta clase es
+ * ese lugar. No intervienen coordenadas físicas DICOM: ninguna parte de este stack guarda ni
+ * valida {@code ImagePositionPatient}/{@code PixelSpacing} hoy, así que introducirlas acá
+ * sería inventar una capacidad no verificada.
  */
 public final class EvidenceCoordinateNormalizer {
     public static final double CANONICAL_SIZE = EvidenceGeometry.CANONICAL_MAX;
@@ -20,10 +20,10 @@ public final class EvidenceCoordinateNormalizer {
     }
 
     /**
-     * @param pixelValue             a coordinate in the AI's own per-slice pixel frame
-     * @param sourceDimensionPixels  the width or height (matching the axis of {@code pixelValue})
-     *                               of that same frame, in real pixels
-     * @return the equivalent coordinate in the canonical 0..256 basis
+     * @param pixelValue             una coordenada en el marco de píxeles por slice propio de la IA
+     * @param sourceDimensionPixels  el ancho o el alto (según el eje de {@code pixelValue})
+     *                               de ese mismo marco, en píxeles reales
+     * @return la coordenada equivalente en la base canónica 0..256
      */
     public static double normalize(double pixelValue, double sourceDimensionPixels) {
         if (sourceDimensionPixels <= 0 || Double.isNaN(sourceDimensionPixels) || Double.isInfinite(sourceDimensionPixels)) {
@@ -33,10 +33,10 @@ public final class EvidenceCoordinateNormalizer {
             throw new IllegalArgumentException("pixelValue inválido: " + pixelValue);
         }
         double normalized = pixelValue / sourceDimensionPixels * CANONICAL_SIZE;
-        // A pixel exactly on the frame's far edge (pixelValue == sourceDimensionPixels) is valid
-        // and must land on 256.0, not be rejected by floating-point overshoot; anything
-        // materially outside the source frame (negative, or past the far edge) is a real bug
-        // upstream and is rejected rather than silently clamped away.
+        // Un píxel justo en el borde lejano del marco (pixelValue == sourceDimensionPixels) es válido
+        // y debe caer en 256.0, no ser rechazado por un desborde de punto flotante; cualquier cosa
+        // materialmente fuera del marco de origen (negativa, o más allá del borde lejano) es un bug real
+        // upstream y se rechaza en lugar de recortarse silenciosamente.
         if (normalized < -EPSILON || normalized > CANONICAL_SIZE + EPSILON) {
             throw new IllegalArgumentException(
                 "coordenada fuera del frame de origen: " + pixelValue + " / " + sourceDimensionPixels

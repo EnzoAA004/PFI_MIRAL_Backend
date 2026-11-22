@@ -472,10 +472,10 @@ public final class DiscFindingsComparator {
         int[] research = new int[4];
         for (Row row : rows) {
             int[] bucket = "main".equals(row.section()) ? main : research;
-            bucket[0] += 1; // all
+            bucket[0] += 1; // todos
             if ("not_comparable".equals(row.status())) bucket[3] += 1;
             else if ("unchanged".equals(row.status())) bucket[2] += 1;
-            else bucket[1] += 1; // changes
+            else bucket[1] += 1; // cambios
         }
         return new Result(List.copyOf(rows), main, research, unreadableRef, unreadableCur, reference, current);
     }

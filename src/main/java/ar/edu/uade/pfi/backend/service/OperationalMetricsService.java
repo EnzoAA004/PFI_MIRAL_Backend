@@ -7,14 +7,14 @@ import java.util.concurrent.atomic.LongAdder;
 import org.springframework.stereotype.Component;
 
 /**
- * In-process operational counters — fixed, low-cardinality keys only. This is a stopgap until GCP
- * (Cloud Monitoring) is wired up; see docs/P10_B_ERRORS_AUDIT_OBSERVABILITY.md for the honest
- * limitations (in-memory, resets on redeploy/restart, single instance, not a Prometheus/OTel
- * exporter).
+ * Contadores operativos en proceso — solo claves fijas y de baja cardinalidad. Es una solución provisoria hasta que GCP
+ * (Cloud Monitoring) esté conectado; ver docs/P10_B_ERRORS_AUDIT_OBSERVABILITY.md para las limitaciones
+ * reconocidas (en memoria, se reinicia con redeploy/restart, instancia única, no es un exporter de
+ * Prometheus/OTel).
  *
- * <p>Deliberately never keyed by traceId/caseId/runId/email/userId/an arbitrary path, or an
- * exception message — every counter here is a fixed, enumerable field, not a dynamic map keyed by
- * request data.
+ * <p>Deliberadamente nunca se indexa por traceId/caseId/runId/email/userId/un path arbitrario, ni por un
+ * mensaje de excepción — cada contador acá es un campo fijo y enumerable, no un mapa dinámico indexado por
+ * datos del request.
  */
 @Component
 public class OperationalMetricsService {
@@ -94,7 +94,7 @@ public class OperationalMetricsService {
     return Math.max(0, Instant.now().getEpochSecond() - startedAt.getEpochSecond());
   }
 
-  /** Sanitized, fixed-shape snapshot suitable for the ADMIN diagnostics endpoint. */
+  /** Snapshot sanitizado y de forma fija, apto para el endpoint de diagnóstico de ADMIN. */
   public Map<String, Object> snapshot() {
     Map<String, Object> counters = new LinkedHashMap<>();
     counters.put("httpRequestsTotal", httpRequestsTotal.sum());

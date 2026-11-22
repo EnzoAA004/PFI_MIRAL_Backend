@@ -4,10 +4,10 @@ import ar.edu.uade.pfi.backend.domain.EvidenceItem;
 import java.util.List;
 
 /**
- * EXT-01: the outcome of comparing one group of same-phenomenon/level/side {@link EvidenceItem}s
- * under {@link ConcordanceRuleSetV1}. Never asserts a diagnosis — {@code reasonCode} is always a
- * short, auditable machine string, and the Frontend's own display layer is responsible for
- * phrasing it as "las fuentes de evidencia son concordantes según la regla X", never "confirmado".
+ * EXT-01: el resultado de comparar un grupo de {@link EvidenceItem}s del mismo fenómeno/nivel/lado
+ * bajo {@link ConcordanceRuleSetV1}. Nunca afirma un diagnóstico — {@code reasonCode} es siempre un
+ * string de máquina corto y auditable, y la capa de presentación propia del Frontend es responsable de
+ * redactarlo como "las fuentes de evidencia son concordantes según la regla X", nunca "confirmado".
  */
 public record ConcordanceResult(
     String state,

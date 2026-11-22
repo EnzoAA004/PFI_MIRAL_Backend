@@ -5,9 +5,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
 /**
- * Expected identity of the frozen POST /v1/product/analyze contract (pfi.ai-product-result.v1,
- * releaseId post-e50-ai-product-freeze-v1 — see docs/contracts/ai-product-result-v1.schema.json
- * in the AI Module repo). Centralized here instead of a literal string scattered across classes.
+ * Identidad esperada del contrato congelado POST /v1/product/analyze (pfi.ai-product-result.v1,
+ * releaseId post-e50-ai-product-freeze-v1 — ver docs/contracts/ai-product-result-v1.schema.json
+ * en el repo del módulo de IA). Centralizada acá en lugar de un string literal desperdigado entre clases.
  */
 @Validated
 @ConfigurationProperties(prefix = "pfi.ai-product-contract")

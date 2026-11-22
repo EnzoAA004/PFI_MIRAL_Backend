@@ -55,9 +55,9 @@ public class SubjectHistoryController {
     }
 
     /**
-     * Stage 85-B: the "patient list" projection -- grouped by {@code Study.subjectRef}, never a
-     * persisted entity. Replaces the never-implemented {@code GET /api/patients} the old,
-     * now-retired {@code PatientDetailView}/{@code PatientsView} called (Stage 84 finding).
+     * Etapa 85-B: la proyección de "lista de pacientes" -- agrupada por {@code Study.subjectRef}, nunca una
+     * entidad persistida. Reemplaza al nunca implementado {@code GET /api/patients} que llamaban las viejas
+     * {@code PatientDetailView}/{@code PatientsView}, ya retiradas (hallazgo de la Etapa 84).
      */
     @GetMapping
     public List<SubjectSummaryDto> list(HttpServletRequest request) {
@@ -72,7 +72,7 @@ public class SubjectHistoryController {
         return patientHistoryService.history(subjectRef, accessible);
     }
 
-    /** Stage 84-M: which measurement keys have at least 2 comparable Studies -- for the Frontend's series selector. */
+    /** Etapa 84-M: qué claves de medición tienen al menos 2 Studies comparables -- para el selector de series del Frontend. */
     @GetMapping("/{subjectRef}/measurement-series/keys")
     public List<MeasurementSeriesDto.MeasurementSeriesKeyDto> availableSeriesKeys(@PathVariable String subjectRef, HttpServletRequest request) {
         List<String> accessible = accessibleCases(request, subjectRef);
@@ -80,7 +80,7 @@ public class SubjectHistoryController {
         return measurementSeriesService.availableSeriesKeys(subjectRef, accessible);
     }
 
-    /** Stage 84-I: one measurement's effective value across N Studies, chronologically ascending. */
+    /** Etapa 84-I: el valor efectivo de una medición a lo largo de N Studies, en orden cronológico ascendente. */
     @GetMapping("/{subjectRef}/measurement-series")
     public MeasurementSeriesDto measurementSeries(
         @PathVariable String subjectRef,

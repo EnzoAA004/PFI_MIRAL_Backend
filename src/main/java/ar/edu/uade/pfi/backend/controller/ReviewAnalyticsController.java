@@ -9,8 +9,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * EXT-02: read-only "review feedback telemetry" — internal, descriptive, never a clinical
- * accuracy claim. See {@link ReviewAnalyticsService}'s own javadoc for what this computes from.
+ * EXT-02: "telemetría de feedback de revisión" de solo lectura — interna, descriptiva, nunca una afirmación de
+ * precisión clínica. Ver el javadoc propio de {@link ReviewAnalyticsService} para saber a partir de qué se calcula.
  */
 @RestController
 public class ReviewAnalyticsController {
@@ -22,7 +22,7 @@ public class ReviewAnalyticsController {
         this.authorizationService = authorizationService;
     }
 
-    /** {@code caseId} optional — omitted, this aggregates across every study; present, it scopes to one. */
+    /** {@code caseId} es opcional — si se omite, agrega sobre todos los estudios; si está presente, se acota a uno. */
     @GetMapping("/api/analytics/review-feedback")
     public ReviewAnalyticsReport reviewFeedback(@RequestParam(required = false) String caseId, HttpServletRequest request) {
         if (caseId == null || caseId.isBlank()) authorizationService.requireAdmin(request, "global-review-analytics");

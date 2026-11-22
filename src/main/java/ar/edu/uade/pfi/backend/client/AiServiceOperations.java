@@ -47,7 +47,7 @@ public interface AiServiceOperations {
         throw new UnsupportedOperationException("asset_proxy_unavailable");
     }
 
-    /** A slice of a stored series, for the series of the study no model ran on. */
+    /** Un slice de una serie almacenada, para las series del estudio sobre las que no corrió ningún modelo. */
     default ResponseEntity<byte[]> getSeriesSlice(String inputId, int index) {
         throw new UnsupportedOperationException("series_slice_proxy_unavailable");
     }
@@ -80,9 +80,9 @@ public interface AiServiceOperations {
     }
 
     /**
-     * EXT-03: Grad-CAM explainability asset for the subarticular classifier's own prediction on
-     * this ROI. Same scope as {@link #predictSubarticular} — punctual, not part of a run, never
-     * persisted as a finding.
+     * EXT-03: asset de explicabilidad Grad-CAM para la predicción propia del clasificador subarticular sobre
+     * este ROI. Mismo alcance que {@link #predictSubarticular} — puntual, no forma parte de una corrida, nunca se
+     * persiste como hallazgo.
      */
     default ar.edu.uade.pfi.backend.dto.SubarticularExplainResponseDto explainSubarticular(ar.edu.uade.pfi.backend.dto.AiSubarticularExplainRequestDto request) {
         throw new UnsupportedOperationException("subarticular_explainability_unavailable");
@@ -107,10 +107,10 @@ public interface AiServiceOperations {
     }
 
     /**
-     * POST /v1/product/analyze — pfi.ai-product-result.v1 (post-e50-ai-product-freeze-v1). See
-     * {@code AiAnalysisService} for how {@code completed}/{@code partial}/{@code failed} are
-     * interpreted; this call itself only performs the HTTP request, deserialization, and the
-     * 75-F contract/safety validation (fail closed).
+     * POST /v1/product/analyze — pfi.ai-product-result.v1 (post-e50-ai-product-freeze-v1). Ver
+     * {@code AiAnalysisService} para saber cómo se interpretan {@code completed}/{@code partial}/{@code failed};
+     * esta llamada solo realiza el request HTTP, la deserialización y la validación de contrato/seguridad
+     * 75-F (fail closed).
      */
     default AiProductAnalyzeResponseDto analyzeProduct(AiProductAnalyzeRequestDto request) {
         throw new UnsupportedOperationException("product_analyze_unavailable");

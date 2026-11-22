@@ -12,11 +12,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * Persists the P10.7 prediction as an immutable extension of an existing run snapshot.
+ * Persiste la predicción P10.7 como una extensión inmutable de un snapshot de corrida existente.
  *
- * <p>Reviewer decisions remain outside this payload. The AI prediction is written once; an
- * identical retry is idempotent and a different second prediction conflicts instead of silently
- * rewriting what the professional originally reviewed.
+ * <p>Las decisiones del revisor quedan fuera de este payload. La predicción de la IA se escribe una sola vez; un
+ * reintento idéntico es idempotente y una segunda predicción distinta genera conflicto en lugar de reescribir en
+ * silencio lo que el profesional revisó originalmente.
  */
 @Service
 public class DiscDegenerativeFindingsPersistenceService {
@@ -170,7 +170,7 @@ public class DiscDegenerativeFindingsPersistenceService {
     return result;
   }
 
-  /** Read-only deep copy that deliberately preserves JSON null values such as anatomy.side. */
+  /** Copia profunda de solo lectura que preserva deliberadamente los valores JSON null como anatomy.side. */
   private Map<String, Object> deepReadOnlyCopy(Map<String, Object> source) {
     Map<String, Object> copy = new LinkedHashMap<>();
     for (Map.Entry<String, Object> entry : source.entrySet()) {

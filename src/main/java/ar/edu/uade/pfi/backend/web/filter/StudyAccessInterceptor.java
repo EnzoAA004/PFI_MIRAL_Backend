@@ -13,7 +13,7 @@ import org.springframework.web.servlet.HandlerInterceptor;
 import org.springframework.web.servlet.HandlerMapping;
 import org.springframework.web.server.ResponseStatusException;
 
-/** Applies the study boundary to every case-addressed route, including controllers added later. */
+/** Aplica el límite de estudio a toda ruta direccionada por caso, incluidos los controllers que se agreguen más adelante. */
 @Component
 @ConditionalOnBean({RoleAuthorizationService.class, StudyRepository.class})
 public class StudyAccessInterceptor implements HandlerInterceptor {
@@ -34,8 +34,8 @@ public class StudyAccessInterceptor implements HandlerInterceptor {
     String caseId = variables.get("caseId");
     boolean write = !HttpMethod.GET.matches(request.getMethod()) && !HttpMethod.HEAD.matches(request.getMethod());
 
-    // The dedicated legacy-assignment route performs its own ADMIN authorization and is the
-    // only allowed way to establish an initial owner for a persisted, unowned Study.
+    // La ruta dedicada de asignación legacy realiza su propia autorización ADMIN y es la
+    // única forma permitida de establecer un owner inicial para un Study persistido y sin owner.
     if (request.getRequestURI().matches("/api/admin/studies/[^/]+/owner")) return true;
 
     if (caseId != null && !caseId.isBlank()) {

@@ -38,9 +38,9 @@ import org.springframework.web.server.ResponseStatusException;
 public class AuthService {
   private static final Logger log = LoggerFactory.getLogger(AuthService.class);
   /**
-   * The single well-known demo account email. Blocking must key off this identity, not off roles,
-   * because a previously-seeded demo account may already be persisted with ADMIN in Postgres even
-   * after demo mode is turned off.
+   * El email único y conocido de la cuenta demo. El bloqueo debe basarse en esta identidad, no en los roles,
+   * porque una cuenta demo sembrada previamente puede estar persistida con ADMIN en Postgres incluso
+   * después de apagar el modo demo.
    */
   public static final String DEMO_ACCOUNT_EMAIL = "doctor.demo@pfi.local";
 
@@ -112,17 +112,17 @@ public class AuthService {
     this.profileChanges = profileChanges;
   }
 
-  /** Optional: present only when {@code pfi.auth.email-delivery=smtp}. */
+  /** Opcional: presente solo cuando {@code pfi.auth.email-delivery=smtp}. */
   @Autowired(required = false)
   void setEmailDelivery(EmailDeliveryService emailDelivery) {
     this.emailDelivery = emailDelivery;
   }
 
   /**
-   * If demo mode is not effectively enabled at startup, proactively revoke any lingering refresh
-   * tokens for the demo account from a previous deployment/rollout — otherwise a still-valid
-   * refresh token issued before this change could keep renewing access tokens indefinitely even
-   * though the seed endpoint is now closed.
+   * Si el modo demo no está efectivamente habilitado al arrancar, revoca de forma proactiva cualquier refresh
+   * token remanente de la cuenta demo de un despliegue/rollout anterior — de lo contrario un
+   * refresh token todavía válido emitido antes de este cambio podría seguir renovando access tokens indefinidamente aunque
+   * el endpoint de seed ya esté cerrado.
    */
   @PostConstruct
   void revokeDemoSessionsIfDemoDisabled() {
@@ -276,18 +276,18 @@ public class AuthService {
   }
 
   /**
-   * P10-B.2: reports {@code claims.roles()} — the caller's *effective* roles for this specific
-   * request, as already resolved by AuthFilter/AuthAccountStateService — not {@code
-   * account.roles()} directly. Roles are no longer wiped on deactivation (they are preserved in
-   * storage for reactivation), so reading the raw persisted value here would incorrectly show a
-   * deactivated account's old professional roles on its own `/me` instead of the PENDING_APPROVAL
-   * state it is actually restricted to.
+   * P10-B.2: informa {@code claims.roles()} — los roles *efectivos* del llamante para este request
+   * puntual, ya resueltos por AuthFilter/AuthAccountStateService — no {@code
+   * account.roles()} directamente. Los roles ya no se borran al desactivar (se preservan en
+   * el almacenamiento para la reactivación), así que leer el valor crudo persistido acá mostraría incorrectamente en su propio `/me`
+   * los roles profesionales anteriores de una cuenta desactivada en vez del estado PENDING_APPROVAL
+   * al que realmente está restringida.
    */
 
   /**
-   * Self-service password change. Requires the current password, enforces a minimal policy, revokes
-   * every refresh token of the account (other devices are signed out) and returns a fresh session
-   * so the caller stays signed in. At most 5 wrong current passwords per 15 minutes per account.
+   * Cambio de contraseña autoservicio. Requiere la contraseña actual, aplica una política mínima, revoca
+   * todos los refresh tokens de la cuenta (se cierra sesión en otros dispositivos) y devuelve una sesión nueva
+   * para que el llamante siga con la sesión iniciada. Máximo 5 contraseñas actuales erróneas cada 15 minutos por cuenta.
    */
   public TokenResponse changePassword(
       TokenService.Claims claims, String currentPassword, String newPassword) {
@@ -864,8 +864,8 @@ public class AuthService {
   }
 
   /**
-   * Same effective-roles rationale as {@link #currentUser} — /settings is reachable while
-   * PENDING_APPROVAL too.
+   * Mismo fundamento de roles efectivos que {@link #currentUser} — /settings es accesible también con
+   * PENDING_APPROVAL.
    */
   public UserResponse updateSettings(TokenService.Claims claims, SettingsRequest request) {
     DoctorAccount account =
@@ -892,10 +892,10 @@ public class AuthService {
   }
 
   /**
-   * Legacy endpoint kept only for frontend compatibility (see AuthController) — it now delegates to
-   * the exact same domain operation as institutional activation, so it can no longer bypass
-   * last-ADMIN protection, demo blocking, fail-closed persistence, session revocation, or challenge
-   * invalidation the way it used to. Deprecated: pending removal once the frontend migrates to
+   * Endpoint legacy mantenido solo por compatibilidad con el frontend (ver AuthController) — ahora delega en
+   * la misma operación de dominio que la activación institucional, por lo que ya no puede eludir
+   * la protección del último ADMIN, el bloqueo de demo, la persistencia fail-closed, la revocación de sesiones ni la invalidación
+   * de desafíos como antes. Deprecado: se eliminará cuando el frontend migre a
    * /activation (P10-C).
    */
   @Deprecated
@@ -911,12 +911,12 @@ public class AuthService {
   }
 
   /**
-   * "Institutional manual activation" — an ADMIN vouches for a professional account outside of any
-   * email-verification flow. This is deliberately NOT the same thing as email verification: it does
-   * not claim an email was sent or confirmed, and it never issues a token. Activating never grants
-   * ADMIN (the request DTO itself only carries email+activated, so there is nothing to smuggle in
-   * from the caller) and, as of P10-B.2, never replaces an existing professional role set either —
-   * see {@link #resolveActivationRoles}.
+   * "Activación institucional manual" — un ADMIN avala una cuenta profesional por fuera de cualquier
+   * flujo de verificación por email. Deliberadamente NO es lo mismo que la verificación por email: no
+   * afirma que se haya enviado ni confirmado un email, y nunca emite un token. Activar nunca otorga
+   * ADMIN (el DTO del request solo lleva email+activated, así que no hay nada para colar
+   * desde el llamante) y, desde P10-B.2, tampoco reemplaza nunca un conjunto de roles profesionales existente —
+   * ver {@link #resolveActivationRoles}.
    */
   public ProfessionalActivationResponse activateProfessional(
       TokenService.Claims claims, String emailValue, boolean activated) {
@@ -924,14 +924,14 @@ public class AuthService {
   }
 
   /**
-   * The single domain operation both /approval (legacy) and /activation delegate to — see
-   * class-level P10-A.2.1 notes. There is exactly one implementation of "change a professional's
-   * active status" in this service.
+   * La única operación de dominio a la que delegan tanto /approval (legacy) como /activation — ver
+   * las notas P10-A.2.1 a nivel de clase. Existe exactamente una implementación de "cambiar el
+   * estado activo de un profesional" en este servicio.
    *
-   * <p>This is a PROFESSIONAL flow only: an account that already carries ADMIN can never be touched
-   * here, in either direction (activated=true or activated=false) — its roles, approved/verified
-   * flags, password, and everything else stay untouched. Administrator management belongs to a
-   * separate, dedicated flow.
+   * <p>Este es un flujo SOLO para PROFESIONALES: una cuenta que ya lleva ADMIN nunca puede tocarse
+   * acá, en ninguna dirección (activated=true o activated=false) — sus roles, flags approved/verified,
+   * contraseña y todo lo demás quedan intactos. La gestión de administradores corresponde a un
+   * flujo separado y dedicado.
    */
   private ProfessionalActivationResponse setProfessionalActivation(
       TokenService.Claims claims, String emailValue, boolean activated) {
@@ -968,11 +968,11 @@ public class AuthService {
   }
 
   /**
-   * P10-B.2: activation changes account *status* only — it must never replace an already-meaningful
-   * role set with the default DOCTOR+REVIEWER pair. The default is only used the very first time an
-   * account is approved (its roles are still exactly the {@code PENDING_APPROVAL} placeholder from
-   * registration, or empty/corrupt) — any real role set already on the account (a single role, a
-   * restricted subset, an extra role) survives activation/reactivation unchanged, byte for byte.
+   * P10-B.2: la activación cambia solo el *estado* de la cuenta — nunca debe reemplazar un conjunto de roles ya significativo
+   * por el par por defecto DOCTOR+REVIEWER. El valor por defecto se usa solo la primera vez que una
+   * cuenta se aprueba (sus roles son todavía exactamente el placeholder {@code PENDING_APPROVAL} del
+   * registro, o están vacíos/corruptos) — cualquier conjunto real de roles ya presente en la cuenta (un solo rol, un
+   * subconjunto restringido, un rol extra) sobrevive a la activación/reactivación sin cambios, byte por byte.
    */
   private List<String> resolveActivationRoles(List<String> currentRoles) {
     List<String> real =
@@ -983,18 +983,18 @@ public class AuthService {
   }
 
   /**
-   * Deactivation + session revocation happen inside a single Postgres transaction
-   * (PostgresAuthStoreService.deactivateProfessionalAndRevokeSessions) — the in-memory
-   * cache/refresh-token map are only mutated after that call returns successfully, so a failure
-   * never leaves the account looking deactivated locally while Postgres still has it active (or
-   * vice versa).
+   * La desactivación + revocación de sesiones ocurren dentro de una única transacción de Postgres
+   * (PostgresAuthStoreService.deactivateProfessionalAndRevokeSessions) — el
+   * cache en memoria y el mapa de refresh tokens solo se modifican después de que esa llamada retorna con éxito, así que una falla
+   * nunca deja la cuenta desactivada localmente mientras Postgres la sigue teniendo activa (o
+   * viceversa).
    *
-   * <p>P10-B.2: deactivation changes account *status* only — roles are read back and persisted
-   * completely unchanged (never replaced with PENDING_APPROVAL). Access is still correctly
-   * restricted while deactivated: AuthAccountStateService derives the request's *effective* roles
-   * from verified/approved, not from this roles column (see its class docs), and
-   * AuthService.issueTokens does the same when minting any new token for this account while it
-   * remains unapproved.
+   * <p>P10-B.2: la desactivación cambia solo el *estado* de la cuenta — los roles se releen y se persisten
+   * sin cambios (nunca se reemplazan por PENDING_APPROVAL). El acceso sigue correctamente
+   * restringido mientras está desactivada: AuthAccountStateService deriva los roles *efectivos* del request
+   * de verified/approved, no de esta columna de roles (ver sus docs de clase), y
+   * AuthService.issueTokens hace lo mismo al emitir cualquier token nuevo para esta cuenta mientras
+   * siga sin aprobar.
    */
   private ProfessionalActivationResponse deactivate(
       TokenService.Claims claims, DoctorAccount account) {
@@ -1015,7 +1015,7 @@ public class AuthService {
   }
 
   /**
-   * Best-effort, never throws — used only for the ADMIN diagnostics summary flag, not for gating.
+   * Best-effort, nunca lanza excepción — se usa solo para el flag del resumen de diagnóstico de ADMIN, no para autorizar.
    */
   public boolean hasConfiguredAdminSafe() {
     try {
@@ -1033,11 +1033,11 @@ public class AuthService {
   }
 
   /**
-   * When Postgres is enabled, this is a security decision and must be fail-closed: an inability to
-   * count administrators blocks the operation (via LastAdminProtectionException) rather than
-   * assuming other admins exist. Outside Postgres (in-memory/dev/test mode), falls back to the
-   * in-memory cache — acceptable there because Postgres is required in production by
-   * SecurityStartupValidator anyway.
+   * Con Postgres habilitado, esta es una decisión de seguridad y debe ser fail-closed: la imposibilidad de
+   * contar administradores bloquea la operación (vía LastAdminProtectionException) en lugar de
+   * asumir que existen otros admins. Sin Postgres (modo memoria/dev/test), recurre al
+   * cache en memoria — aceptable ahí porque SecurityStartupValidator exige Postgres en
+   * producción de todos modos.
    */
   private long countOtherNonDemoAdmins(String excludedEmail) {
     if (postgresAuthStore.enabled()) {
@@ -1059,11 +1059,11 @@ public class AuthService {
   }
 
   /**
-   * P10-B.1 §9: actorId/entityId are technical UUIDs, never an email — {@code claims.subject()} is
-   * the acting ADMIN's account id (post-revalidation, since {@code claims} here always comes from
-   * an already-authenticated/authorized caller), {@code account.id()} is the target account's id.
-   * traceId comes from the current request's MDC (set by TraceIdFilter), not an empty string.
-   * AuditService.record() is itself fail-safe (never throws), so no try/catch is needed here.
+   * P10-B.1 §9: actorId/entityId son UUIDs técnicos, nunca un email — {@code claims.subject()} es
+   * el id de cuenta del ADMIN que actúa (tras la revalidación, ya que {@code claims} acá siempre proviene de
+   * un llamante ya autenticado/autorizado), {@code account.id()} es el id de la cuenta objetivo.
+   * traceId proviene del MDC del request actual (seteado por TraceIdFilter), no es un string vacío.
+   * AuditService.record() es en sí fail-safe (nunca lanza excepción), por lo que acá no hace falta try/catch.
    */
   private void auditActivation(
       TokenService.Claims claims,
@@ -1090,11 +1090,11 @@ public class AuthService {
   }
 
   /**
-   * Issues a fully-approved ADMIN/DOCTOR/REVIEWER token with no credential check at all. Refused
-   * (404, to avoid advertising the endpoint's existence) whenever demo mode is not effectively
-   * enabled — i.e. always in production, and locally unless PFI_AUTH_DEMO_ENABLED=true was
-   * explicitly set. This check is enforced here at the service layer regardless of how the request
-   * reached this method (AuthFilter only controls whether a token is *required* to reach it).
+   * Emite un token ADMIN/DOCTOR/REVIEWER totalmente aprobado sin ningún chequeo de credenciales. Se rechaza
+   * (404, para no anunciar la existencia del endpoint) siempre que el modo demo no esté efectivamente
+   * habilitado — es decir, siempre en producción, y en local salvo que se haya seteado explícitamente
+   * PFI_AUTH_DEMO_ENABLED=true. Este chequeo se aplica acá en la capa de servicio sin importar cómo
+   * llegó el request a este método (AuthFilter solo controla si se *requiere* un token para llegar).
    */
   public TokenResponse seedDemoDoctor() {
     if (!isDemoEffectivelyEnabled()) {
@@ -1164,8 +1164,8 @@ public class AuthService {
   }
 
   /**
-   * Blocks the known demo account identity whenever demo mode is not effectively enabled —
-   * regardless of whatever roles it may already carry in a persisted store.
+   * Bloquea la identidad de la cuenta demo conocida siempre que el modo demo no esté efectivamente habilitado —
+   * sin importar qué roles pueda llevar ya en un store persistido.
    */
   private boolean isDemoAccountBlocked(String emailValue) {
     return DEMO_ACCOUNT_EMAIL.equals(normalizeEmail(emailValue)) && !isDemoEffectivelyEnabled();
@@ -1226,7 +1226,7 @@ public class AuthService {
         exposeCodes ? code : null);
   }
 
-  /** At most 1 code per 30 s and 5 per hour per address, so the endpoint cannot be used to spam. */
+  /** Máximo 1 código cada 30 s y 5 por hora por dirección, para que el endpoint no pueda usarse para spam. */
   private void throttleCodeRequests(String email) {
     java.util.ArrayDeque<Instant> sends =
         codeSends.computeIfAbsent(email, k -> new java.util.ArrayDeque<>());
@@ -1246,13 +1246,13 @@ public class AuthService {
   }
 
   /**
-   * P10-B.2: always mints the access token — and the UserResponse embedded alongside it — from
-   * *effective* roles (verified && approved ? account.roles() : PENDING_APPROVAL), never the
-   * account's raw stored roles directly. This matters because roles are no longer wiped on
-   * deactivation (they're preserved for reactivation) — without this, a login or refresh for a
-   * still-unapproved/ deactivated account would mint a token (and show a response body) carrying
-   * its real professional roles. The account's raw roles in storage are otherwise untouched; this
-   * only affects what this one response embeds.
+   * P10-B.2: siempre genera el access token — y el UserResponse embebido junto a él — a partir de los roles
+   * *efectivos* (verified && approved ? account.roles() : PENDING_APPROVAL), nunca de los
+   * roles crudos almacenados de la cuenta. Esto importa porque los roles ya no se borran al
+   * desactivar (se preservan para la reactivación) — sin esto, un login o refresh de una cuenta
+   * todavía sin aprobar/desactivada generaría un token (y mostraría un body de respuesta) con
+   * sus roles profesionales reales. Los roles crudos de la cuenta en el almacenamiento no se tocan; esto
+   * solo afecta lo que embebe esta respuesta puntual.
    */
   private TokenResponse issueTokens(DoctorAccount account) {
     List<String> effectiveRoles = effectiveRoles(account);
@@ -1279,16 +1279,16 @@ public class AuthService {
   }
 
   /**
-   * ADMIN-facing / self-activation-result views: shows the account's raw persisted roles (useful —
-   * e.g. an ADMIN can see a deactivated account's preserved roles).
+   * Vistas para ADMIN / resultado de autoactivación: muestran los roles crudos persistidos de la cuenta (útil —
+   * p. ej. un ADMIN puede ver los roles preservados de una cuenta desactivada).
    */
   private UserResponse toUser(DoctorAccount account) {
     return toUser(account, account.roles());
   }
 
   /**
-   * {@code /me} and {@code /settings} use this with the caller's *effective* roles instead — see
-   * call sites.
+   * {@code /me} y {@code /settings} usan esto con los roles *efectivos* del llamante — ver
+   * los sitios de llamada.
    */
   private UserResponse toUser(DoctorAccount account, List<String> roles) {
     return new UserResponse(
@@ -1306,8 +1306,8 @@ public class AuthService {
   }
 
   /**
-   * verified && approved ? account.roles() : PENDING_APPROVAL — see issueTokens/currentUser for why
-   * this must never be the raw roles column directly.
+   * verified && approved ? account.roles() : PENDING_APPROVAL — ver issueTokens/currentUser para entender por qué
+   * esto nunca debe ser la columna de roles cruda directamente.
    */
   private List<String> effectiveRoles(DoctorAccount account) {
     if (!(account.verified() && account.approved())) return List.of("PENDING_APPROVAL");

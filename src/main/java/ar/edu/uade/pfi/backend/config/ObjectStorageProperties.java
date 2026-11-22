@@ -5,8 +5,8 @@ import org.springframework.boot.context.properties.bind.ConstructorBinding;
 
 /**
  * {@code PFI_STORAGE_PROVIDER} / {@code PFI_STORAGE_LOCAL_ROOT} / {@code PFI_STORAGE_GCS_BUCKET}.
- * Mirrors the AI module's own env var names so an operator configures both services the
- * same way (docs/CLOUD_ENVIRONMENT_VARIABLES.md in the AI repo).
+ * Replica los nombres de variables de entorno del propio módulo de IA para que un operador configure ambos servicios
+ * de la misma forma (docs/CLOUD_ENVIRONMENT_VARIABLES.md en el repo de IA).
  */
 @ConfigurationProperties(prefix = "pfi.storage")
 public record ObjectStorageProperties(String provider, String localRoot, String gcsBucket) {

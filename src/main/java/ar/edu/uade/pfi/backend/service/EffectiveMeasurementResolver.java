@@ -11,14 +11,14 @@ import java.util.Map;
 import org.springframework.stereotype.Component;
 
 /**
- * Stage 84: extracted, verbatim-unchanged, from {@link LongitudinalComparisonService} (Stage 79)
- * so a new N-Study measurement series (Stage 84-L: "reutilizar exactamente la key de Stage 79 --
- * NO duplicar lógica") and the two-Study comparison can share the exact same effective-value
- * resolution and matching-key logic, instead of each having its own copy.
+ * Etapa 84: extraído, sin cambios textuales, de {@link LongitudinalComparisonService} (Etapa 79)
+ * para que una nueva serie de mediciones de N Studies (Etapa 84-L: "reutilizar exactamente la key de Stage 79 --
+ * NO duplicar lógica") y la comparación de dos Studies puedan compartir exactamente la misma resolución
+ * de valor efectivo y la misma lógica de clave de emparejamiento, en lugar de que cada una tenga su propia copia.
  *
- * <p>This is a pure extract-method/class refactor: {@link LongitudinalComparisonService}'s own
- * {@code LongitudinalComparisonServiceTest} suite is unchanged and still exercises the identical
- * behavior through {@code compare(...)}.
+ * <p>Esto es un refactor puro de extraer método/clase: la propia suite {@code LongitudinalComparisonServiceTest}
+ * de {@link LongitudinalComparisonService} no cambia y sigue ejercitando el mismo
+ * comportamiento a través de {@code compare(...)}.
  */
 @Component
 public class EffectiveMeasurementResolver {
@@ -30,7 +30,7 @@ public class EffectiveMeasurementResolver {
         this.repository = repository;
     }
 
-    /** One field of one measurement, resolved to its effective (corrected-if-any, else AI) value. */
+    /** Un campo de una medición, resuelto a su valor efectivo (el corregido si lo hay, si no el de la IA). */
     public record EffectiveMeasurement(
         String level,
         String plane,
@@ -45,19 +45,19 @@ public class EffectiveMeasurementResolver {
     }
 
     /**
-     * Stage 79-E / 84-L: the exact matching key -- {@code (level, plane, structure, metric)}.
-     * {@code unit} is deliberately excluded from the key itself (it is fixed per {@code metric}
-     * server-side, see {@link #unitFor}, so it can never disagree within one key) but is still
-     * carried on {@link EffectiveMeasurement} for display.
+     * Etapa 79-E / 84-L: la clave de emparejamiento exacta -- {@code (level, plane, structure, metric)}.
+     * {@code unit} se excluye deliberadamente de la clave misma (es fija por {@code metric} del lado
+     * del servidor, ver {@link #unitFor}, así que nunca puede discrepar dentro de una misma clave) pero igual se
+     * lleva en {@link EffectiveMeasurement} para mostrar.
      */
     public record MatchKey(String level, String plane, String structure, String metric) {
     }
 
     /**
-     * Stage 79-B/79-O: for each measurement field, the latest correction (by {@code createdAt})
-     * for that exact {@code measurementId}+{@code field} pair wins -- corrections are never
-     * summed, and the AI's own value is never overwritten (it is read fresh from
-     * {@link AiMeasurementResult} every time, independent of any correction).
+     * Etapa 79-B/79-O: para cada campo de medición, la última corrección (por {@code createdAt})
+     * para ese par exacto {@code measurementId}+{@code field} gana -- las correcciones nunca se
+     * suman, y el valor propio de la IA nunca se sobrescribe (se lee fresco de
+     * {@link AiMeasurementResult} cada vez, independientemente de cualquier corrección).
      */
     public List<EffectiveMeasurement> effectiveMeasurements(AiProductAnalysisRun run) {
         List<AiMeasurementResult> measurements = repository.findAiMeasurementResultsByAnalysisRunId(run.id());
@@ -70,7 +70,7 @@ public class EffectiveMeasurementResolver {
             for (String field : MEASUREMENT_FIELDS) {
                 Double automatic = valueFor(measurement, field);
                 AiMeasurementCorrection correction = latestCorrections.get(measurement.id() + "|" + field);
-                if (automatic == null && correction == null) continue; // nothing to report for this field
+                if (automatic == null && correction == null) continue; // nada que informar para este campo
                 Double corrected = correction == null ? null : correction.correctedValue();
                 Double effective = corrected != null ? corrected : automatic;
                 String source = corrected != null ? "professional_correction" : "ai_original";
@@ -83,7 +83,7 @@ public class EffectiveMeasurementResolver {
         return result;
     }
 
-    /** Stage 79-E / 84-K: a {@code level=null} measurement never has a valid MatchKey -- callers must check first. */
+    /** Etapa 79-E / 84-K: una medición con {@code level=null} nunca tiene un MatchKey válido -- quienes llaman deben chequear primero. */
     public MatchKey matchKey(EffectiveMeasurement measurement) {
         return new MatchKey(measurement.level(), measurement.plane(), measurement.structure(), measurement.metric());
     }
@@ -109,7 +109,7 @@ public class EffectiveMeasurementResolver {
         };
     }
 
-    /** Fixed per field, matching stage 78's own `unitFor` -- never derived from any external input. */
+    /** Fijo por campo, igual que el `unitFor` de la etapa 78 -- nunca derivado de ningún input externo. */
     private String unitFor(String field) {
         return "areaMm2".equals(field) ? "mm2" : "mm";
     }

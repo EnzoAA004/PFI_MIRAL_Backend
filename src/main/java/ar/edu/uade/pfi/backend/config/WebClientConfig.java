@@ -49,11 +49,11 @@ public class WebClientConfig {
 
         return WebClient.builder()
             /*
-             * Spring's default codec limit is 256 KB, and a raw slice is larger than
-             * that: 384x384 int16 is 294 KB. The limit turned every raw-slice request
-             * into a 502 while the smaller PNG previews went through, which read like
-             * an AI Module outage rather than a buffer ceiling. 16 MB covers a slice
-             * with room to spare and still bounds a runaway response.
+             * El límite de codec por defecto de Spring es 256 KB, y un slice raw es más grande que
+             * eso: 384x384 int16 son 294 KB. El límite convertía cada request de slice raw
+             * en un 502 mientras los previews PNG más chicos pasaban, lo que parecía
+             * una caída del módulo de IA y no un tope de buffer. 16 MB cubre un slice
+             * con margen de sobra y aun así acota una respuesta descontrolada.
              */
             .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(16 * 1024 * 1024))
             .baseUrl(properties.resolvedBaseUrl())
@@ -64,8 +64,8 @@ public class WebClientConfig {
     }
 
     /**
-     * Stage 80: a separate bean/connection pool from {@code aiWebClient} — the LLM provider is a
-     * distinct upstream with its own timeout floor.
+     * Etapa 80: un bean/pool de conexiones separado de {@code aiWebClient} — el proveedor de LLM es un
+     * upstream distinto con su propio piso de timeout.
      *
      * <p>No lleva el filtro de autorizacion del modulo de IA a proposito: el LLM self-hosted es
      * otro upstream y no se le manda el ID token dirigido a la audience de Cloud Run.

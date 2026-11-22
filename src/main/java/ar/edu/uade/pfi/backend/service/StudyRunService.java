@@ -61,7 +61,7 @@ public class StudyRunService {
         ));
     }
 
-    /** Registers the trusted AI Module catalogue before returning uploaded input IDs to a client. */
+    /** Registra el catálogo confiable del módulo de IA antes de devolver al cliente los IDs de los inputs subidos. */
     public Study registerUploadedStudy(StudyUploadResponseDto upload) {
         if (upload == null || upload.caseId() == null || upload.caseId().isBlank()) {
             throw new IllegalArgumentException("caseId de la carga es obligatorio");
@@ -197,12 +197,12 @@ public class StudyRunService {
     }
 
     /**
-     * Registers one series of the study, analysed or not.
+     * Registra una serie del estudio, analizada o no.
      *
-     * <p>The catalogue holds every series the archive carried, because that is what the
-     * doctor reads. {@code analyzable} is what separates the two the models run on from
-     * the rest; it is not derivable from the plane, since a sagittal T1 has a plane the
-     * registry accepts and still is not what was inferred.
+     * <p>El catálogo contiene todas las series que traía el archivo, porque eso es lo que lee el
+     * médico. {@code analyzable} es lo que separa a las dos sobre las que corren los modelos del
+     * resto; no se puede derivar del plano, ya que un T1 sagital tiene un plano que el
+     * registro acepta y aun así no es lo que se infirió.
      */
     public InputResource createInput(
         Study study,

@@ -206,9 +206,9 @@ public class AiMultiplanarController {
             ? null
             : persistenceService.prepareStudyMetadata(request.caseId(), request.studyMetadata());
     MultiplanarRunRequestDto normalized = normalizedRequest(request, preparedMetadata);
-    // AiServiceClient already resolves the contract version, calls exactly one
-    // endpoint, validates strict real_baseline requests, and returns the canonical
-    // model — this controller no longer touches AI Module DTOs directly.
+    // AiServiceClient ya resuelve la versión de contrato, llama exactamente a un
+    // endpoint, valida los requests real_baseline estrictos y devuelve el modelo
+    // canónico — este controller ya no toca directamente los DTOs del módulo de IA.
     CanonicalMultiplanarRun canonical;
     try {
       canonical = aiServiceClient.runMultiplanar(normalized);
@@ -225,7 +225,7 @@ public class AiMultiplanarController {
     return presented;
   }
 
-  /** Public callers identify uploaded files by opaque registry IDs, never by container paths. */
+  /** Los llamantes públicos identifican los archivos subidos por IDs de registro opacos, nunca por paths de contenedor. */
   private void requireSafePublicInputReferences(MultiplanarRunApiRequestDto request) {
     boolean strictReal = "real_baseline".equalsIgnoreCase(
         request.metadata() == null ? "" : String.valueOf(request.metadata().get("inferenceMode")))
@@ -241,8 +241,8 @@ public class AiMultiplanarController {
     if (normalizedId != null && normalizedPath != null) {
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Enviar solamente inputId o inputPath, no ambos.");
     }
-    // Keep the fixed local demo fixture alias working; it is not a filesystem path. All real
-    // inputs, including strict real_baseline, must be registered and addressed by inputId.
+    // Mantener funcionando el alias del fixture demo local fijo; no es un path del filesystem. Todos los
+    // inputs reales, incluido real_baseline estricto, deben registrarse y direccionarse por inputId.
     String safeDemoAlias = "demo/" + caseId + "/" + plane;
     if (!strictReal && safeDemoAlias.equals(normalizedPath)) return;
     if (normalizedId == null && normalizedPath == null && "axial".equals(plane)) return;
@@ -397,8 +397,8 @@ public class AiMultiplanarController {
   }
 
   /**
-   * Model key/version live under different map keys depending on the upstream contract: v2 stores
-   * the wire names "key"/"version" as-is, v1 stores "modelKey"/"modelVersion".
+   * La key/versión del modelo viven bajo distintas keys del mapa según el contrato upstream: v2 guarda
+   * los nombres wire "key"/"version" tal cual, v1 guarda "modelKey"/"modelVersion".
    */
   private String modelKey(Map<String, Object> model) {
     Object value = model.containsKey("key") ? model.get("key") : model.get("modelKey");

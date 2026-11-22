@@ -33,20 +33,20 @@ public class TokenService {
   }
 
   /**
-   * Embeds the account's raw {@code roles()} as-is — see the overload below for the production
-   * login/refresh/verify path, which must embed *effective* roles instead.
+   * Embebe los {@code roles()} crudos de la cuenta tal cual — ver el overload de abajo para el camino de producción de
+   * login/refresh/verify, que debe embeber roles *efectivos*.
    */
   public String issueAccessToken(DoctorAccount account) {
     return issueAccessToken(account, account.roles());
   }
 
   /**
-   * P10-B.2: lets the caller mint a token with an explicit roles list, distinct from whatever
-   * {@code account.roles()} currently holds. {@code AuthService.issueTokens} uses this to embed the
-   * account's *effective* roles (PENDING_APPROVAL whenever the account isn't verified+approved)
-   * rather than its raw persisted roles — so a deactivated account's next login/refresh never mints
-   * a token carrying its old professional roles, even though those roles are now correctly
-   * preserved (not wiped) in storage for when the account is reactivated.
+   * P10-B.2: permite a quien llama generar un token con una lista explícita de roles, distinta de lo que
+   * contenga actualmente {@code account.roles()}. {@code AuthService.issueTokens} lo usa para embeber los roles
+   * *efectivos* de la cuenta (PENDING_APPROVAL siempre que la cuenta no esté verified+approved)
+   * en lugar de sus roles persistidos crudos — así el próximo login/refresh de una cuenta desactivada nunca genera
+   * un token con sus antiguos roles profesionales, aunque esos roles ahora se preserven correctamente
+   * (no se borren) en el almacenamiento para cuando la cuenta se reactive.
    */
   public String issueAccessToken(DoctorAccount account, List<String> roles) {
     Instant now = Instant.now();
@@ -65,9 +65,9 @@ public class TokenService {
   }
 
   /**
-   * The signature is always recomputed with our own HMAC-SHA256 key and compared in constant time;
-   * the token's own "alg" header is never trusted or branched on, so algorithm-confusion attacks
-   * (e.g. a forged "alg":"none" token) are not possible regardless of what the header claims.
+   * La firma siempre se recalcula con nuestra propia clave HMAC-SHA256 y se compara en tiempo constante;
+   * el header "alg" del propio token nunca se confía ni se usa para ramificar, de modo que los ataques de confusión de algoritmo
+   * (p. ej. un token falsificado con "alg":"none") no son posibles sin importar lo que declare el header.
    */
   public Claims verify(String token) {
     if (token == null || token.isBlank()) {
@@ -93,10 +93,10 @@ public class TokenService {
         return null;
       }
       Object rolesValue = payload.get("roles");
-      // Authorities are only ever taken from this signed payload; a client can never
-      // inject roles out-of-band (e.g. via a header) because AuthFilter/RoleAuthorizationService
-      // only read TokenService.Claims. A token missing/malformed "roles" gets no
-      // authorities at all rather than a default privileged role.
+      // Las authorities se toman únicamente de este payload firmado; un cliente nunca puede
+      // inyectar roles por fuera de banda (p. ej. vía un header) porque AuthFilter/RoleAuthorizationService
+      // solo leen TokenService.Claims. Un token sin "roles" o con "roles" malformado no recibe
+      // ninguna authority en lugar de un rol privilegiado por defecto.
       List<String> roles =
           rolesValue instanceof List<?> list
               ? list.stream().map(Object::toString).toList()

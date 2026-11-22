@@ -6,7 +6,7 @@ import java.util.Locale;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-/** Fail-closed validation for private self-hosted LLM runtimes. */
+/** Validación fail-closed para runtimes de LLM autoalojados privados. */
 @Component
 public class LlmServiceStartupValidator {
     private final String authMode;

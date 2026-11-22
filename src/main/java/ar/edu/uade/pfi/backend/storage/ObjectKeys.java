@@ -3,9 +3,9 @@ package ar.edu.uade.pfi.backend.storage;
 import java.util.regex.Pattern;
 
 /**
- * Builds and validates object keys. No PHI (patient name, DNI) may appear in a key —
- * only opaque studyId/runId/reportId/assetId values already used as database primary
- * keys elsewhere in the backend.
+ * Arma y valida object keys. Ningún dato PHI (nombre del paciente, DNI) puede aparecer en una key —
+ * solo valores opacos studyId/runId/reportId/assetId ya usados como primary keys
+ * de base de datos en otros lugares del backend.
  */
 public final class ObjectKeys {
 

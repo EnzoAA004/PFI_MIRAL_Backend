@@ -19,7 +19,7 @@ public interface PatientRepository {
 
   Optional<Patient> updateReference(String patientId, String patientReference, Instant updatedAt);
 
-  /** Like {@link #search} but hides disabled patients unless {@code includeInactive}. */
+  /** Como {@link #search} pero oculta los pacientes deshabilitados salvo que {@code includeInactive}. */
   default List<Patient> search(String query, int limit, boolean includeInactive) {
     return search(query, limit).stream().filter(p -> includeInactive || p.active()).toList();
   }

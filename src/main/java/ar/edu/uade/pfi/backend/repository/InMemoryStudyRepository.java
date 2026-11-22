@@ -460,7 +460,7 @@ public class InMemoryStudyRepository implements StudyRepository {
             .toList();
     }
 
-    // ---- Stage 76: pfi.ai-product-result.v1 structured persistence ----
+    // ---- Etapa 76: persistencia estructurada de pfi.ai-product-result.v1 ----
 
     @Override
     public AiProductAnalysisRun saveAiProductAnalysisRun(AiProductAnalysisRun run, List<AiDiscLevelResult> discLevels, List<AiMeasurementResult> measurements) {
@@ -495,7 +495,7 @@ public class InMemoryStudyRepository implements StudyRepository {
         return aiMeasurementResultsByRunId.getOrDefault(analysisRunId, List.of());
     }
 
-    // ---- Stage 78: professional review / correction workflow ----
+    // ---- Etapa 78: flujo de revisión / corrección profesional ----
 
     @Override
     public AiProductAnalysisRunReview upsertAiProductAnalysisRunReview(String analysisRunId, String reviewStatus, String reviewComment, String reviewedBy, Instant reviewedAt) {
@@ -550,7 +550,7 @@ public class InMemoryStudyRepository implements StudyRepository {
         return aiMeasurementCorrectionsByRunId.getOrDefault(analysisRunId, List.of());
     }
 
-    // ---- EXT-04B2: visual evidence regions ----
+    // ---- EXT-04B2: regiones de evidencia visual ----
 
     @Override
     public AiEvidenceRegion saveAiEvidenceRegion(AiEvidenceRegion region) {
@@ -582,7 +582,7 @@ public class InMemoryStudyRepository implements StudyRepository {
         return aiEvidenceRegionCorrectionsByRunId.getOrDefault(analysisRunId, List.of());
     }
 
-    // ---- EXT-07D: professional feedback capture (never training) ----
+    // ---- EXT-07D: captura de feedback profesional (nunca entrenamiento) ----
 
     @Override
     public ProfessionalFeedbackCandidate saveProfessionalFeedbackCandidate(ProfessionalFeedbackCandidate candidate) {
@@ -674,7 +674,7 @@ public class InMemoryStudyRepository implements StudyRepository {
         findingDecisions.remove(studyId + "|" + runId + "|" + findingKey);
     }
 
-    // ---- Stage 80: contextual chat ----
+    // ---- Etapa 80: chat contextual ----
 
     @Override
     public ChatConversation saveChatConversation(ChatConversation conversation) {

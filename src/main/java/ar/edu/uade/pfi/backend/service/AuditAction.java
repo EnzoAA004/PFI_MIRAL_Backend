@@ -1,12 +1,12 @@
 package ar.edu.uade.pfi.backend.service;
 
 /**
- * Stable catalog of audit actions for new/critical operations. Existing historical literal action
- * strings (e.g. {@code "asset.snapshot.stored"}, {@code "auth.login.completed"}, {@code
- * "access.denied"}) are intentionally NOT migrated wholesale — P10-B does not require breaking
- * compatibility with anything already consuming those strings. New critical operations, and any
- * call site touched going forward, should use this catalog via {@link #name()} instead of inventing
- * another ad hoc literal.
+ * Catálogo estable de acciones de auditoría para operaciones nuevas/críticas. Los strings literales históricos de acciones ya existentes
+ * (p. ej. {@code "asset.snapshot.stored"}, {@code "auth.login.completed"}, {@code
+ * "access.denied"}) intencionalmente NO se migran en bloque — P10-B no exige romper
+ * la compatibilidad con nada que ya consuma esos strings. Las operaciones críticas nuevas, y cualquier
+ * sitio de llamada que se toque de aquí en adelante, deberían usar este catálogo vía {@link #name()} en lugar de inventar
+ * otro literal ad hoc.
  */
 public enum AuditAction {
   AUTH_LOGIN_SUCCEEDED,

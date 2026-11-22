@@ -6,15 +6,15 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * EXT-07D: a structured, traceable CAPTURE of one professional correction (of a measurement or
- * an evidence region) or one professional-authored finding the AI never suggested — candidate
- * material for a future, entirely separate curation/offline-retraining process. This record
- * never trains anything itself; see {@link ar.edu.uade.pfi.backend.service.ProfessionalFeedbackCaptureService}
- * for the read-only capture step that produces these rows from data that already exists
- * (append-only) elsewhere.
+ * EXT-07D: una CAPTURA estructurada y trazable de una corrección profesional (de una medición o
+ * una región de evidencia) o de un hallazgo de autoría profesional que la IA nunca sugirió — material
+ * candidato para un proceso futuro, completamente separado, de curación/reentrenamiento offline. Este record
+ * nunca entrena nada por sí mismo; ver {@link ar.edu.uade.pfi.backend.service.ProfessionalFeedbackCaptureService}
+ * para el paso de captura de solo lectura que produce estas filas a partir de datos que ya existen
+ * (append-only) en otro lugar.
  *
- * <p>{@code status} moves only by an explicit human-issued call — never automatically, and never
- * to a "ready for training" value, which this product does not model at all (see
+ * <p>{@code status} solo se mueve mediante una llamada explícita emitida por una persona — nunca automáticamente, y nunca
+ * a un valor "listo para entrenar", que este producto no modela en absoluto (ver
  * {@code ALLOWED_STATUSES}).
  */
 public record ProfessionalFeedbackCandidate(
@@ -24,14 +24,14 @@ public record ProfessionalFeedbackCandidate(
     String analysisRunId,
     /** {@code "measurement" | "evidence_region" | "professional_new_finding" | "rejected_ai_suggestion"}. */
     String source,
-    /** The correction row (or, for {@code professional_new_finding}, the region row itself) this was captured from. */
+    /** La fila de corrección (o, para {@code professional_new_finding}, la propia fila de región) de la que se capturó esto. */
     String correctionId,
     String level,
     String plane,
     String structure,
-    /** Populated for {@code source="measurement"} only. */
+    /** Se completa solo para {@code source="measurement"}. */
     String metric,
-    /** Populated for {@code source="evidence_region"}/{@code "professional_new_finding"} only. */
+    /** Se completa solo para {@code source="evidence_region"}/{@code "professional_new_finding"}. */
     String geometryType,
     Double aiOriginalValue,
     Map<String, Object> aiOriginalGeometry,
@@ -40,17 +40,17 @@ public record ProfessionalFeedbackCandidate(
     String modelId,
     String modelSha256,
     String pipelineVersion,
-    /** Internal only — never serialized to the public feedback-candidate API (EXT-04A precedent). */
+    /** Solo interno — nunca se serializa a la API pública de candidatos de feedback (precedente EXT-04A). */
     String reviewedBy,
     String note,
     String status,
     Instant correctedAt,
     Instant capturedAt,
-    /** EXT-05: internal only, same rule as {@code reviewedBy} — never serialized. Who made the *curation* decision (distinct from who reviewed/corrected the original AI output). */
+    /** EXT-05: solo interno, misma regla que {@code reviewedBy} — nunca se serializa. Quién tomó la decisión de *curación* (distinto de quién revisó/corrigió la salida original de la IA). */
     String curatorId,
-    /** EXT-05: when the current {@code status} was set by a curation decision; null while still {@code "captured"}. */
+    /** EXT-05: cuándo se fijó el {@code status} actual mediante una decisión de curación; null mientras siga en {@code "captured"}. */
     Instant curatedAt,
-    /** EXT-05: only meaningful when {@code status="excluded"}; a free-text reason a curator gave for excluding this candidate. */
+    /** EXT-05: solo tiene sentido cuando {@code status="excluded"}; un motivo en texto libre que dio un curador para excluir a este candidato. */
     String exclusionReason
 ) {
     private static final List<String> SOURCES = List.of("measurement", "evidence_region", "professional_new_finding", "rejected_ai_suggestion");

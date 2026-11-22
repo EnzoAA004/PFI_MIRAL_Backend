@@ -4,19 +4,19 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
- * Stage 84-I: one measurement's value across N Studies of the same patient (identified by
- * {@code subjectRef}). Reuses Stage 79's exact matching key and effective-value semantics
- * ({@link ar.edu.uade.pfi.backend.service.EffectiveMeasurementResolver}) — this is a
- * deterministic aggregation over already-persisted data, never a new AI/ML computation and never
- * a clinical trend judgment (84-N: no "improved"/"worsened"/"progression").
+ * Etapa 84-I: el valor de una medición a lo largo de N Studies del mismo paciente (identificado por
+ * {@code subjectRef}). Reutiliza la clave de emparejamiento exacta y la semántica de valor efectivo de la Etapa 79
+ * ({@link ar.edu.uade.pfi.backend.service.EffectiveMeasurementResolver}) — es una
+ * agregación determinística sobre datos ya persistidos, nunca un nuevo cómputo de IA/ML y nunca
+ * un juicio de tendencia clínica (84-N: sin "improved"/"worsened"/"progression").
  */
 public record MeasurementSeriesDto(MeasurementSeriesKeyDto key, List<Point> points) {
 
-    /** {@code (level, plane, structure, metric)} — the exact Stage-79 matching key, plus {@code unit} for display. */
+    /** {@code (level, plane, structure, metric)} — la clave de emparejamiento exacta de la Etapa 79, más {@code unit} para mostrar. */
     public record MeasurementSeriesKeyDto(String level, String plane, String structure, String metric, String unit) {
     }
 
-    /** One Study's point in the series — the AI's original value is always present, even when a correction exists. */
+    /** El punto de un Study en la serie — el valor original de la IA siempre está presente, aun cuando exista una corrección. */
     public record Point(
         String caseId,
         LocalDate studyDate,

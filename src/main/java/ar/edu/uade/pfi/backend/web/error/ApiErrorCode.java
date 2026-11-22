@@ -3,28 +3,28 @@ package ar.edu.uade.pfi.backend.web.error;
 import java.util.Locale;
 
 /**
- * Central, stable catalog of every `code` value the API can return. Existing codes are
- * preserved exactly as the frontend already consumes them — this is a catalog of what
- * already exists plus a place to classify it, not a renaming exercise.
+ * Catálogo central y estable de cada valor de `code` que la API puede devolver. Los códigos existentes se
+ * preservan exactamente como el frontend ya los consume — esto es un catálogo de lo que
+ * ya existe más un lugar donde clasificarlo, no un ejercicio de renombrado.
  *
- * Each entry carries its {@link ApiErrorCategory}, whether it is transient-by-default
- * (see {@link ApiErrorWriter} for how that combines with HTTP status and the
- * inference-POST override to produce the final `retryable` flag), and a fixed public
- * message used instead of any dynamic/upstream-derived message on a 5xx (P10-B.1 §1/§6).
+ * Cada entrada lleva su {@link ApiErrorCategory}, si es transitoria por defecto
+ * (ver {@link ApiErrorWriter} para saber cómo eso se combina con el status HTTP y el
+ * override de POST de inferencia para producir el flag final `retryable`), y un mensaje
+ * público fijo usado en lugar de cualquier mensaje dinámico/derivado del upstream en un 5xx (P10-B.1 §1/§6).
  *
- * P10-B.1 audit note: this catalog was found incomplete after P10-B — several codes
- * genuinely thrown by {@code RunReviewException}, {@code StudyMetadataException}, and
- * {@code AiMultiplanarV2ErrorCodeMapper} were missing, meaning {@link #fromCode} silently
- * fell back to {@link #UNKNOWN} for them (wrong category/retryable, though the code
- * string itself still reached the response body correctly since the body always uses the
- * literal code, not this enum's name). All real, currently-emitted codes are now present
- * — see {@code ApiErrorCodeCoverageTest}. {@code AI_TIMEOUT} and {@code RUN_REVIEW_ERROR}
- * are kept as historical/reserved entries that are not currently emitted by any code path
- * (see the per-entry note) rather than removed, since removing an enum constant is a
- * needless compatibility risk for zero benefit.
+ * Nota de auditoría P10-B.1: este catálogo resultó incompleto tras P10-B — varios códigos
+ * efectivamente lanzados por {@code RunReviewException}, {@code StudyMetadataException} y
+ * {@code AiMultiplanarV2ErrorCodeMapper} faltaban, lo que hacía que {@link #fromCode} recurriera en silencio
+ * a {@link #UNKNOWN} para ellos (categoría/retryable incorrectos, aunque el string
+ * del código igual llegaba correctamente al body de la respuesta, ya que el body siempre usa el
+ * código literal, no el nombre de este enum). Todos los códigos reales que se emiten hoy están ahora presentes
+ * — ver {@code ApiErrorCodeCoverageTest}. {@code AI_TIMEOUT} y {@code RUN_REVIEW_ERROR}
+ * se mantienen como entradas históricas/reservadas que hoy no emite ningún camino de código
+ * (ver la nota de cada entrada) en lugar de eliminarse, ya que eliminar una constante de enum es un
+ * riesgo de compatibilidad innecesario sin ningún beneficio.
  *
- * {@code UNKNOWN} is a defensive fallback for any code string not (yet) present in this
- * catalog; it must never appear in a real response body under normal operation.
+ * {@code UNKNOWN} es un fallback defensivo para cualquier string de código que no esté (todavía) presente en este
+ * catálogo; nunca debe aparecer en el body de una respuesta real en operación normal.
  */
 public enum ApiErrorCode {
     AUTHENTICATION_REQUIRED(ApiErrorCategory.AUTHENTICATION, false, "Autenticacion requerida."),
@@ -44,27 +44,27 @@ public enum ApiErrorCode {
     DUPLICATE_PATIENT_REFERENCE(ApiErrorCategory.RESOURCE, false, "Ya existe un paciente con esa referencia."),
     PATIENT_ASSIGNMENT_CONFLICT(ApiErrorCategory.RESOURCE, false, "La asociacion del estudio cambio."),
     ASSET_CONTENT_UNAVAILABLE(ApiErrorCategory.RESOURCE, false, "Contenido del asset no disponible."),
-    /** Generic 409, e.g. duplicate registration — not a more specific domain code. */
+    /** 409 genérico, p. ej. registro duplicado — no es un código de dominio más específico. */
     CONFLICT(ApiErrorCategory.RESOURCE, false, "Conflicto de estado."),
     DATABASE_UNAVAILABLE(ApiErrorCategory.DATABASE, true, "Base de datos temporalmente no disponible."),
     UPSTREAM_UNAVAILABLE(ApiErrorCategory.AI_UPSTREAM, true, "El modulo de IA no esta disponible temporalmente."),
-    /** Reserved/historical: no current code path emits this literal code — AI_MODULE_TIMEOUT is what v2 timeouts actually use. Kept for catalog stability. */
+    /** Reservado/histórico: ningún camino de código actual emite este código literal — AI_MODULE_TIMEOUT es lo que realmente usan los timeouts v2. Se mantiene por estabilidad del catálogo. */
     AI_TIMEOUT(ApiErrorCategory.AI_UPSTREAM, true, "El modulo de IA no respondio a tiempo."),
     AI_CONTRACT_VIOLATION(ApiErrorCategory.AI_CONTRACT, false, "La respuesta del modulo de IA no cumple el contrato esperado."),
     AI_MULTIPLANAR_CONTRACT_VIOLATION(ApiErrorCategory.AI_CONTRACT, false, "La respuesta multiplanar no cumple el contrato esperado."),
-    /** Stage 75: schemaVersion/release.releaseId mismatch, or a missing required section, on POST /v1/product/analyze. */
+    /** Etapa 75: discrepancia de schemaVersion/release.releaseId, o falta una sección requerida, en POST /v1/product/analyze. */
     AI_PRODUCT_CONTRACT_VIOLATION(ApiErrorCategory.AI_CONTRACT, false, "La respuesta del analisis de producto no cumple el contrato esperado."),
-    /** Stage 75: autonomousDiagnosis=true, notClinicalDiagnosis=false, or humanReviewRequired=false. Fail closed — never relaxed. */
+    /** Etapa 75: autonomousDiagnosis=true, notClinicalDiagnosis=false o humanReviewRequired=false. Fail closed — nunca se relaja. */
     AI_PRODUCT_SAFETY_VIOLATION(ApiErrorCategory.AI_CONTRACT, false, "La respuesta del analisis de producto no cumple las condiciones de seguridad requeridas."),
-    /** Stage 76-B: Study has no analyzable sagittal/axial input to resolve — functional 422, not a contract/upstream failure. */
+    /** Etapa 76-B: el Study no tiene un input sagital/axial analizable para resolver — 422 funcional, no una falla de contrato/upstream. */
     AI_STUDY_INPUT_UNRESOLVED(ApiErrorCategory.VALIDATION, false, "El estudio no tiene entradas analizables disponibles."),
 
-    // ---- Stage 78: professional review / correction workflow on AiProductAnalysisRun ----
+    // ---- Etapa 78: flujo de revisión / corrección profesional sobre AiProductAnalysisRun ----
     AI_PRODUCT_REVIEW_INVALID_STATUS(ApiErrorCategory.VALIDATION, false, "El estado de revision no es valido."),
     AI_PRODUCT_REVIEW_COMMENT_INVALID(ApiErrorCategory.VALIDATION, false, "El comentario de revision no es valido."),
     AI_PRODUCT_CORRECTION_INVALID_VALUE(ApiErrorCategory.VALIDATION, false, "El valor de la correccion no es valido."),
 
-    // ---- Stage 79: longitudinal comparison between two Studies of the same patient ----
+    // ---- Etapa 79: comparación longitudinal entre dos Studies del mismo paciente ----
     LONGITUDINAL_SAME_STUDY(ApiErrorCategory.VALIDATION, false, "No se puede comparar un estudio consigo mismo."),
     LONGITUDINAL_NO_USABLE_ANALYSIS_BASELINE(ApiErrorCategory.VALIDATION, false, "El estudio de referencia no tiene un analisis utilizable."),
     LONGITUDINAL_NO_USABLE_ANALYSIS_CURRENT(ApiErrorCategory.VALIDATION, false, "El estudio actual no tiene un analisis utilizable."),
@@ -75,19 +75,19 @@ public enum ApiErrorCode {
     COMPARISON_NO_USABLE_MEASUREMENTS_CURRENT(ApiErrorCategory.VALIDATION, false, "El análisis inicial del estudio actual no tiene mediciones utilizables."),
     COMPARISON_NO_USABLE_MEASUREMENTS_REFERENCE(ApiErrorCategory.VALIDATION, false, "El análisis inicial del estudio de referencia no tiene mediciones utilizables."),
 
-    // ---- Stage 80: contextual chat / self-hosted LLM ----
+    // ---- Etapa 80: chat contextual / LLM autoalojado ----
     CHAT_QUESTION_REQUIRED(ApiErrorCategory.VALIDATION, false, "La pregunta no puede estar vacia."),
     CHAT_QUESTION_TOO_LONG(ApiErrorCategory.VALIDATION, false, "La pregunta supera el largo maximo permitido."),
     LLM_PROVIDER_DISABLED(ApiErrorCategory.AI_UPSTREAM, false, "El asistente conversacional no esta habilitado en este entorno."),
-    /** Not auto-retried (see ApiErrorWriter's non-idempotent-POST override) -- a chat call is not idempotent from the user's perspective. */
+    /** No se reintenta automáticamente (ver el override de POST no idempotente de ApiErrorWriter) -- una llamada de chat no es idempotente desde la perspectiva del usuario. */
     LLM_PROVIDER_UNAVAILABLE(ApiErrorCategory.AI_UPSTREAM, true, "El asistente conversacional no esta disponible en este momento."),
     LLM_PROVIDER_TIMEOUT(ApiErrorCategory.AI_UPSTREAM, true, "El asistente conversacional no respondio a tiempo."),
     LLM_CONTRACT_VIOLATION(ApiErrorCategory.AI_CONTRACT, false, "La respuesta del asistente conversacional no cumple el contrato esperado."),
     CHAT_CONVERSATION_NOT_FOUND(ApiErrorCategory.RESOURCE, false, "Conversacion no encontrada."),
     INPUT_TOO_LARGE(ApiErrorCategory.VALIDATION, false, "El archivo medico supera el tamano maximo permitido para carga."),
-    /** Reserved/historical: no current code path emits this literal code — RunReviewException always carries a more specific code (RUN_NOT_FOUND, INVALID_REVIEW_STATUS, ...). Kept as a generic fallback bucket. */
+    /** Reservado/histórico: ningún camino de código actual emite este código literal — RunReviewException siempre lleva un código más específico (RUN_NOT_FOUND, INVALID_REVIEW_STATUS, ...). Se mantiene como bucket de fallback genérico. */
     RUN_REVIEW_ERROR(ApiErrorCategory.RESOURCE, false, "No fue posible procesar la revision."),
-    /** Generic fallback for a ResponseStatusException with an unmapped 4xx status — message is computed dynamically by ApiExceptionHandler, not from this catalog. */
+    /** Fallback genérico para una ResponseStatusException con un status 4xx sin mapear — el mensaje lo calcula dinámicamente ApiExceptionHandler, no este catálogo. */
     CLIENT_ERROR(ApiErrorCategory.VALIDATION, false, "Solicitud invalida."),
     INTERNAL_ERROR(ApiErrorCategory.INTERNAL, false, "Error interno del backend."),
 
@@ -102,20 +102,20 @@ public enum ApiErrorCode {
     SUBJECT_REFERENCE_CONFLICT(ApiErrorCategory.RESOURCE, false, "El estudio ya tiene una referencia de-identificada distinta."),
     INVALID_REVIEW_PRIORITY(ApiErrorCategory.VALIDATION, false, "reviewPriority invalido."),
 
-    // ---- AI Module structured errors (AiMultiplanarV2ErrorCodeMapper → AiMultiplanarUpstreamException) ----
+    // ---- Errores estructurados del módulo de IA (AiMultiplanarV2ErrorCodeMapper → AiMultiplanarUpstreamException) ----
     AI_INVALID_REQUEST(ApiErrorCategory.VALIDATION, false, "La solicitud enviada al modulo de IA es invalida."),
     AI_NO_PLANE_REQUESTED(ApiErrorCategory.VALIDATION, false, "No se especifico ningun plano para la inferencia."),
     AI_INPUT_NOT_FOUND(ApiErrorCategory.RESOURCE, false, "El input solicitado no esta disponible."),
     AI_MODEL_NOT_FOUND(ApiErrorCategory.RESOURCE, false, "El modelo solicitado no esta disponible."),
     /**
-     * Documented classification choice: AI_CONTRACT rather than VALIDATION — a
-     * model/plane mismatch reflects the AI Module's own model registry disagreeing with
-     * the contract it was asked to fulfill, not a malformed caller request.
+     * Elección de clasificación documentada: AI_CONTRACT en lugar de VALIDATION — una
+     * discrepancia de modelo/plano refleja que el propio registro de modelos del módulo de IA no coincide con
+     * el contrato que se le pidió cumplir, no un request malformado de quien llama.
      */
     AI_MODEL_PLANE_MISMATCH(ApiErrorCategory.AI_CONTRACT, false, "El modelo solicitado no corresponde al plano solicitado."),
     AI_MODEL_NOT_READY(ApiErrorCategory.AI_UPSTREAM, false, "El modelo solicitado no esta listo para inferencia."),
     AI_CONTRACT_FALLBACK_DISABLED(ApiErrorCategory.AI_CONTRACT, false, "El modulo de IA no permite degradar el contrato solicitado."),
-    /** Not auto-retried on POST — see ApiErrorWriter's non-idempotent-inference-POST override. */
+    /** No se reintenta automáticamente en POST — ver el override de POST de inferencia no idempotente de ApiErrorWriter. */
     AI_REAL_INFERENCE_FAILED(ApiErrorCategory.AI_UPSTREAM, false, "La inferencia real del modulo de IA fallo."),
     AI_INVALID_RESPONSE(ApiErrorCategory.AI_CONTRACT, false, "La respuesta del modulo de IA es invalida."),
     AI_UNSUPPORTED_INFERENCE_MODE(ApiErrorCategory.VALIDATION, false, "El modo de inferencia solicitado no esta soportado."),
@@ -135,11 +135,11 @@ public enum ApiErrorCode {
     AI_SUBARTICULAR_CHECKPOINT_INVALID(ApiErrorCategory.AI_CONTRACT, false, "El modelo de hallazgos degenerativos no es el esperado."),
     AI_SUBARTICULAR_RUNTIME_ERROR(ApiErrorCategory.AI_UPSTREAM, false, "El clasificador de hallazgos degenerativos fallo."),
 
-    /** Transient by nature, but retryable is still forced false on a non-idempotent inference POST — see ApiErrorWriter. */
+    /** Transitorio por naturaleza, pero retryable igual se fuerza a false en un POST de inferencia no idempotente — ver ApiErrorWriter. */
     AI_MODULE_ERROR(ApiErrorCategory.AI_UPSTREAM, true, "El modulo de IA respondio con un error."),
     AI_MODULE_TIMEOUT(ApiErrorCategory.AI_UPSTREAM, true, "El modulo de IA no respondio a tiempo."),
 
-    /** Defensive fallback only — should never be observed in a real response. */
+    /** Solo fallback defensivo — nunca debería observarse en una respuesta real. */
     UNKNOWN(ApiErrorCategory.INTERNAL, false, "Error interno del backend.");
 
     private final ApiErrorCategory category;
@@ -156,12 +156,12 @@ public enum ApiErrorCode {
         return category;
     }
 
-    /** Whether this code is transient by nature, before the HTTP-status and inference-POST overrides apply. */
+    /** Si este código es transitorio por naturaleza, antes de que apliquen los overrides del status HTTP y del POST de inferencia. */
     public boolean transientByDefault() {
         return transientByDefault;
     }
 
-    /** Fixed public message — never derived from an exception's own message, an upstream body, or a stack trace. */
+    /** Mensaje público fijo — nunca derivado del mensaje propio de una excepción, de un body upstream ni de un stack trace. */
     public String publicMessage() {
         return publicMessage;
     }

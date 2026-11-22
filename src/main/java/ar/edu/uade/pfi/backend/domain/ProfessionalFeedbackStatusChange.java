@@ -4,17 +4,17 @@ import java.time.Instant;
 import java.util.Objects;
 
 /**
- * EXT-05: one append-only row per curation status change on a {@link ProfessionalFeedbackCandidate}.
- * The candidate row itself always reflects the *current* status (for cheap listing/filtering);
- * this table is the durable history — never updated or deleted, mirroring the same append-only
- * convention {@code AiEvidenceRegionCorrection} already established for geometry corrections.
+ * EXT-05: una fila append-only por cada cambio de estado de curación de un {@link ProfessionalFeedbackCandidate}.
+ * La fila del candidato siempre refleja el estado *actual* (para listar/filtrar barato);
+ * esta tabla es el historial durable — nunca se actualiza ni se borra, replicando la misma convención
+ * append-only que {@code AiEvidenceRegionCorrection} ya estableció para las correcciones de geometría.
  */
 public record ProfessionalFeedbackStatusChange(
     String id,
     String candidateId,
     String fromStatus,
     String toStatus,
-    /** Internal only — never serialized, same rule as {@code ProfessionalFeedbackCandidate.curatorId}. */
+    /** Solo interno — nunca se serializa, misma regla que {@code ProfessionalFeedbackCandidate.curatorId}. */
     String curatorId,
     String reason,
     String note,

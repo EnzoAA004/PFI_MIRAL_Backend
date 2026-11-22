@@ -15,34 +15,34 @@ public record AiPlaneMeasurementV2Dto(
     String plane,
     String level,
     /**
-     * What the measurement describes: a vertebral level or the study as a whole.
+     * Qué describe la medición: un nivel vertebral o el estudio como un todo.
      *
-     * <p>Separates "no level could be assigned" from "no level applies". Without it both arrive as
-     * a null level and the reading panel files them under the same heading, which in the second
-     * case blames the AI for a failure it did not have: the canal area has no level because the
-     * mask runs the length of the spine.
+     * <p>Separa "no se pudo asignar un nivel" de "no aplica ningún nivel". Sin esto ambos llegan como
+     * un nivel null y el panel de lectura los archiva bajo el mismo encabezado, lo que en el segundo
+     * caso le echa la culpa a la IA por una falla que no tuvo: el área del canal no tiene nivel porque la
+     * máscara recorre todo el largo de la columna.
      */
     String levelScope,
     /**
-     * The two endpoints the measurement was taken between, in the plane's coordinateSpace.
+     * Los dos extremos entre los que se tomó la medición, en el coordinateSpace del plano.
      *
-     * <p>It is what gives the number a place. Without it a reviewer sees "37.37 mm" and has no way
-     * to know from where to where, so they can neither verify the measurement nor correct it. Empty
-     * when the magnitude is not a distance.
+     * <p>Es lo que le da un lugar al número. Sin esto un revisor ve "37.37 mm" y no tiene forma
+     * de saber desde dónde hasta dónde, así que no puede ni verificar la medición ni corregirla. Vacío
+     * cuando la magnitud no es una distancia.
      */
     List<java.util.Map<String, Object>> points,
     /**
-     * Derived from other structures' geometry rather than from a mask of its own.
+     * Derivada de la geometría de otras estructuras y no de una máscara propia.
      *
-     * <p>Segmental angle and listhesis come from the axes of two neighbouring vertebral bodies.
-     * They are the two measurements a spine report carries that the model was not trained to
-     * produce, so they travel flagged: the viewer shows them on their own layer and the decision to
-     * use them stays with the reader.
+     * <p>El ángulo segmentario y la listesis salen de los ejes de dos cuerpos vertebrales vecinos.
+     * Son las dos mediciones que lleva un informe de columna para las que el modelo no fue entrenado
+     * para producir, por lo que viajan marcadas: el viewer las muestra en su propia capa y la decisión de
+     * usarlas queda en manos del lector.
      */
     Boolean experimental,
-    /** Second magnitude when the measurement has one, such as the Meyerding grade. */
+    /** Segunda magnitud cuando la medición la tiene, como el grado de Meyerding. */
     String detail,
-    /** Slice the measurement was taken on; without it a value cannot be located in the series. */
+    /** Slice en el que se tomó la medición; sin esto un valor no puede ubicarse en la serie. */
     Integer sliceIndex,
     String measurementBasis,
     List<String> linkedLandmarkIds) {}

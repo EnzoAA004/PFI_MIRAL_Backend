@@ -3,11 +3,11 @@ package ar.edu.uade.pfi.backend.dto;
 import java.util.Map;
 
 /**
- * EXT-04B5: request body to create a professional-authored evidence region — deliberately has
- * no {@code origin} field at all. {@code origin="professional"} is hardcoded server-side in
- * {@code ProfessionalAnnotationService}; a client can never fabricate {@code origin="ai"}
- * through this endpoint (AI-origin geometry only ever comes from the internal ingestion
- * pipeline, unrelated to this one).
+ * EXT-04B5: body del request para crear una región de evidencia de autoría profesional — deliberadamente no tiene
+ * ningún campo {@code origin}. {@code origin="professional"} está hardcodeado del lado del servidor en
+ * {@code ProfessionalAnnotationService}; un cliente nunca puede fabricar {@code origin="ai"}
+ * a través de este endpoint (la geometría de origen IA solo proviene del pipeline interno de
+ * ingesta, que no tiene relación con este).
  */
 public record CreateProfessionalEvidenceRegionRequestDto(
     String plane,

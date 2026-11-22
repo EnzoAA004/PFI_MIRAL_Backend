@@ -3,10 +3,10 @@ package ar.edu.uade.pfi.backend.client;
 import ar.edu.uade.pfi.backend.client.exception.AiMultiplanarContractViolationException;
 
 /**
- * Guards against the v2 request's body.traceId ever drifting from the X-Trace-Id header sent to the
- * AI Module. Both are sourced from the same MDC value in normal operation, so a mismatch here
- * indicates a code regression, not user input — hence the hard contract-violation failure rather
- * than silently picking one value.
+ * Protege contra que el body.traceId del request v2 se desvíe alguna vez del header X-Trace-Id enviado al
+ * módulo de IA. Ambos salen del mismo valor del MDC en operación normal, así que una discrepancia acá
+ * indica una regresión de código, no un input del usuario — de ahí la falla dura por violación de contrato en lugar de
+ * elegir silenciosamente un valor.
  */
 final class TraceIdConsistencyGuard {
   private TraceIdConsistencyGuard() {}

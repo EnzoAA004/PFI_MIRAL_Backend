@@ -20,20 +20,20 @@ import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.springframework.stereotype.Component;
 
 /**
- * EXT-04B4: the same PDFBox-based renderer this product has used since Stage 88, extended with
- * raster image support (base slice + geometry overlay, composed in memory by
- * {@link EvidenceOverlayComposer}) for the "Evidencia visual" and "Comparación con estudio
- * previo" sections. All pre-existing text sections are unchanged in content and order — only the
- * internal representation moved from a flat {@code List<String>} to a small {@link Block} model
- * so an image can reserve vertical space and trigger a page break the same way a text line
- * already does, never splitting an image across two pages (Phase 11).
+ * EXT-04B4: el mismo renderer basado en PDFBox que este producto usa desde la Etapa 88, extendido con
+ * soporte de imágenes raster (slice base + overlay de geometría, compuestos en memoria por
+ * {@link EvidenceOverlayComposer}) para las secciones "Evidencia visual" y "Comparación con estudio
+ * previo". Todas las secciones de texto preexistentes no cambian de contenido ni de orden — solo la
+ * representación interna pasó de una {@code List<String>} plana a un pequeño modelo {@link Block}
+ * para que una imagen pueda reservar espacio vertical y disparar un salto de página igual que lo hace una línea de texto,
+ * sin partir nunca una imagen entre dos páginas (Fase 11).
  *
- * <p>Every image fetch/composition failure (missing base image, 404 slice, invalid geometry,
- * undecodable asset) is caught here and degrades to a text fallback line — never a thrown
- * exception, so a report with N evidence items never fails to generate over one bad image
- * (Phase 12). No filesystem path is ever read; both {@link EvidenceImageSource} methods proxy
- * through the same already-validated, already-tested {@code AiBackendService} calls the REST
- * endpoints use, just in-process rather than over HTTP.
+ * <p>Toda falla de obtención/composición de imagen (imagen base faltante, slice 404, geometría inválida,
+ * asset no decodificable) se captura acá y degrada a una línea de texto de respaldo — nunca una excepción
+ * lanzada, de modo que un reporte con N ítems de evidencia nunca falle al generarse por una sola imagen mala
+ * (Fase 12). Nunca se lee ningún path del filesystem; ambos métodos de {@link EvidenceImageSource} hacen proxy
+ * a través de las mismas llamadas a {@code AiBackendService} ya validadas y testeadas que usan los endpoints REST,
+ * solo que en el mismo proceso en lugar de por HTTP.
  */
 @Component
 public class StudyReportPdfRenderer {
@@ -60,7 +60,7 @@ public class StudyReportPdfRenderer {
     private record TextBlock(String text, boolean title) implements Block {
     }
 
-    /** 1 image (a single evidence item) or 2 (a before/after pair) — never split across a page break. */
+    /** 1 imagen (un único ítem de evidencia) o 2 (un par antes/después) — nunca se parte entre un salto de página. */
     private record ImageRowBlock(List<byte[]> images) implements Block {
     }
 
@@ -98,7 +98,7 @@ public class StudyReportPdfRenderer {
         }
     }
 
-    /** Tracks the current page/cursor across the whole render loop; starts pages lazily on demand. */
+    /** Rastrea la página/cursor actual a lo largo de todo el loop de renderizado; inicia páginas de forma diferida bajo demanda. */
     private final class PageState {
         private final PDDocument document;
         private PDPage page;
@@ -127,8 +127,8 @@ public class StudyReportPdfRenderer {
                 float scale = Math.min(colWidth / image.getWidth(), IMAGE_ROW_HEIGHT / image.getHeight());
                 float drawWidth = image.getWidth() * scale;
                 float drawHeight = image.getHeight() * scale;
-                // Top-align within the row's fixed height box so two differently-shaped images
-                // (e.g. a wider MASK_REFERENCE asset next to a square slice) still line up.
+                // Alinear arriba dentro del box de altura fija de la fila para que dos imágenes de formas distintas
+                // (p. ej. un asset MASK_REFERENCE más ancho junto a un slice cuadrado) igual queden alineadas.
                 content.drawImage(image, x, state.y - drawHeight, drawWidth, drawHeight);
                 x += colWidth + gap;
             }
@@ -273,13 +273,13 @@ public class StudyReportPdfRenderer {
         return date == null ? "No disponible" : date.format(DATE_FORMAT);
     }
 
-    // ---- EXT-04B4: image resolution + composition, always fail-safe -----------------------
+    // ---- EXT-04B4: resolución + composición de imágenes, siempre fail-safe -----------------------
 
     /**
-     * Never throws: an unparseable geometry, a missing baseImage, a 404 slice/asset, or a
-     * decode failure all resolve to {@link Optional#empty()} — the caller falls back to a text
-     * line, and the rest of the PDF (and the rest of this one item's own text lines) is
-     * unaffected (Phase 12).
+     * Nunca lanza excepción: una geometría no parseable, un baseImage faltante, un slice/asset 404 o una
+     * falla de decodificación se resuelven todos a {@link Optional#empty()} — quien llama recurre a una línea
+     * de texto, y el resto del PDF (y el resto de las líneas de texto de este mismo ítem) no
+     * se ve afectado (Fase 12).
      */
     private Optional<byte[]> composedImageFor(StudyReportDto.VisualEvidenceSummary item) {
         try {
@@ -299,7 +299,7 @@ public class StudyReportPdfRenderer {
         }
     }
 
-    // ---- text helpers (unchanged behavior from Stage 88) -----------------------------------
+    // ---- helpers de texto (comportamiento sin cambios desde la Etapa 88) -----------------------------------
 
     private void title(List<Block> blocks, String text) {
         blocks.add(new TextBlock(text, true));

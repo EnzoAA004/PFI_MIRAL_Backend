@@ -229,9 +229,9 @@ public class StudyWorklistService {
 
   @SuppressWarnings("unchecked")
   private Map<String, Object> publishedMetricsSnapshot(StudyRun run) {
-    // Deep-copies out of run.metricsSnapshot() before returning: the persisted
-    // snapshot itself (probabilities included) is never mutated here, only the
-    // response projection is.
+    // Hace una copia profunda de run.metricsSnapshot() antes de retornar: el snapshot
+    // persistido en sí (probabilidades incluidas) nunca se muta acá, solo la
+    // proyección de la respuesta.
     Map<String, Object> snapshot = new LinkedHashMap<>(run.metricsSnapshot());
     Object threeD = snapshot.get("threeD");
     if (threeD instanceof Map<?, ?> map) {
@@ -278,10 +278,10 @@ public class StudyWorklistService {
     review.put("reviewedAt", run.reviewedAt() == null ? null : run.reviewedAt().toString());
     review.put("comments", blankToNull(run.comments()));
     canonical.put("review", review);
-    // No fabricated positive defaults: a legacy snapshot without a stored
-    // governance map yields humanReviewRequired/notClinicalDiagnosis=null
-    // here, never a fabricated true — the frontend already treats null as
-    // "not evaluable", exactly like a live run missing that field would.
+    // Sin defaults positivos fabricados: un snapshot legacy sin un mapa de
+    // gobernanza almacenado produce humanReviewRequired/notClinicalDiagnosis=null
+    // acá, nunca un true fabricado — el frontend ya trata null como
+    // "no evaluable", exactamente igual que lo haría una corrida en vivo a la que le faltara ese campo.
     Map<String, Object> governance =
         snapshot.get("governance") instanceof Map<?, ?> map ? (Map<String, Object>) map : Map.of();
     canonical.put("governance", governance);

@@ -11,34 +11,34 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
- * EXT-04B2: the minimal, explicit capture point for AI-suggested geometry — deliberately NOT
- * wired into any controller or the {@code /v1/product/analyze} ingestion path yet.
+ * EXT-04B2: el punto de captura mínimo y explícito para geometría sugerida por la IA — deliberadamente NO
+ * conectado todavía a ningún controller ni al camino de ingesta de {@code /v1/product/analyze}.
  *
- * <p>The EXT-04B1 audit found that the geometry a caller would want to ingest here
- * ({@code PlaneMaskV2.geometry}, {@code PlaneSegmentationV2}, {@code PlaneLandmarkV2}) is
- * emitted by the AI Module's <em>multiplanar v2</em> pipeline ({@code pfi.multiplanar-run.v2}),
- * while the review/report system this evidence must plug into
- * ({@code AiDiscLevelReview}/{@code AiProductAnalysisRunReview}, and {@code StudyReportDto})
- * is anchored to a DIFFERENT, separate pipeline: {@code AiProductAnalysisRun}/
- * {@code AiDiscLevelResult} built from {@code POST /v1/product/analyze}
- * ({@code pfi.ai-product-result.v1}), whose {@code AiProductAnalyzeResponseDto} carries
- * <strong>no geometry at all</strong> (confirmed: {@code segmentation.maskClasses} is a class
- * list, {@code morphometry} is a count, {@code measurements[]} are pure scalars).
+ * <p>La auditoría EXT-04B1 encontró que la geometría que alguien querría ingerir acá
+ * ({@code PlaneMaskV2.geometry}, {@code PlaneSegmentationV2}, {@code PlaneLandmarkV2}) la
+ * emite el pipeline <em>multiplanar v2</em> del módulo de IA ({@code pfi.multiplanar-run.v2}),
+ * mientras que el sistema de revisión/reporte al que debe conectarse esta evidencia
+ * ({@code AiDiscLevelReview}/{@code AiProductAnalysisRunReview}, y {@code StudyReportDto})
+ * está anclado a un pipeline DISTINTO y separado: {@code AiProductAnalysisRun}/
+ * {@code AiDiscLevelResult} construidos a partir de {@code POST /v1/product/analyze}
+ * ({@code pfi.ai-product-result.v1}), cuyo {@code AiProductAnalyzeResponseDto} no lleva
+ * <strong>ninguna geometría</strong> (confirmado: {@code segmentation.maskClasses} es una lista de
+ * clases, {@code morphometry} es un conteo, {@code measurements[]} son escalares puros).
  *
- * <p>Bridging those two pipelines automatically (matching a multiplanar-v2 plane run to an
- * {@code AiProductAnalysisRun}/{@code AiDiscLevelResult} by plane+level+slice) is a real,
- * separate piece of work this "Foundation" iteration does not attempt — doing so without a
- * demonstrated, tested mapping would risk silently pairing the wrong geometry with the wrong
- * finding. This is the contradiction flagged before writing the migration (see
+ * <p>Unir esos dos pipelines automáticamente (emparejando una corrida de plano multiplanar-v2 con un
+ * {@code AiProductAnalysisRun}/{@code AiDiscLevelResult} por plano+nivel+slice) es un trabajo real y
+ * separado que esta iteración "Foundation" no intenta — hacerlo sin un
+ * mapeo demostrado y testeado correría el riesgo de emparejar en silencio la geometría equivocada con el
+ * hallazgo equivocado. Esta es la contradicción señalada antes de escribir la migración (ver
  * docs/extensions/EXT_04B_BACKEND_FOUNDATION.md, "decisiones a revisar antes de frontend").
  *
- * <p>What this class DOES provide, per EXT-04B2's explicit ask ("implementar el punto mínimo de
- * captura/normalización necesario"): a single, narrow, already-guarded, already-tested method
- * that CAN persist AI-origin geometry against an existing {@code AiProductAnalysisRun}/
- * {@code AiDiscLevelResult} once the caller has already resolved which plane-run geometry
- * belongs to which disc level — the caller supplies the already-normalized 0..256 geometry (via
- * {@link ar.edu.uade.pfi.backend.domain.EvidenceCoordinateNormalizer} beforehand) plus the AI
- * governance flags this method refuses to bypass.
+ * <p>Lo que esta clase SÍ provee, según el pedido explícito de EXT-04B2 ("implementar el punto mínimo de
+ * captura/normalización necesario"): un único método, acotado, ya protegido y ya testeado
+ * que PUEDE persistir geometría de origen IA contra un {@code AiProductAnalysisRun}/
+ * {@code AiDiscLevelResult} existente una vez que quien llama ya resolvió qué geometría de plano-corrida
+ * pertenece a qué nivel de disco — quien llama provee la geometría 0..256 ya normalizada (mediante
+ * {@link ar.edu.uade.pfi.backend.domain.EvidenceCoordinateNormalizer} de antemano) más los flags de
+ * gobernanza de IA que este método se niega a eludir.
  */
 @Component
 public class EvidenceRegionIngestionService {
@@ -56,8 +56,8 @@ public class EvidenceRegionIngestionService {
     }
 
     /**
-     * Request shape mirrors {@link AiEvidenceRegion}'s own fields for the {@code origin="ai"}
-     * case, minus the ones this service fills in itself ({@code id}, {@code origin},
+     * La forma del request replica los campos propios de {@link AiEvidenceRegion} para el caso {@code origin="ai"},
+     * menos los que este servicio completa por sí mismo ({@code id}, {@code origin},
      * {@code createdAt}).
      */
     public record IngestAiGeometryRequest(
@@ -78,17 +78,17 @@ public class EvidenceRegionIngestionService {
         boolean experimental,
         String label,
         String comment,
-        /** Only set when this specific disc level's {@code degenerativeFindingsStatus} is known to the caller. */
+        /** Solo se setea cuando el {@code degenerativeFindingsStatus} de este nivel de disco específico es conocido por quien llama. */
         String degenerativeFindingsStatus,
-        /** Only set when this specific disc level's {@code axialPairingExperimental} is known to the caller. */
+        /** Solo se setea cuando el {@code axialPairingExperimental} de este nivel de disco específico es conocido por quien llama. */
         boolean axialPairingExperimental
     ) {
     }
 
     /**
-     * Persists one AI-origin {@link AiEvidenceRegion}, refusing to ingest geometry from a
-     * capability the EXT-04B1 audit found blocked (P10.7) or from an experimental capability
-     * (67C) not flagged as such.
+     * Persiste una {@link AiEvidenceRegion} de origen IA, negándose a ingerir geometría de una
+     * capacidad que la auditoría EXT-04B1 encontró bloqueada (P10.7) o de una capacidad experimental
+     * (67C) no marcada como tal.
      */
     public AiEvidenceRegion ingestAiGeometry(IngestAiGeometryRequest request) {
         EvidenceIngestionGuard.requireNotBlockedPathologyInference(request.degenerativeFindingsStatus());

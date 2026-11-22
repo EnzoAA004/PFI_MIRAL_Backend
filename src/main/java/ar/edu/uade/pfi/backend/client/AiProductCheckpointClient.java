@@ -22,11 +22,11 @@ import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Mono;
 
 /**
- * Versioned P10.9 client surface.
+ * Superficie de cliente versionada P10.9.
  *
- * <p>This class is intentionally small and additive: it leaves the proven P10.6 client paths
- * untouched while the new AI product checkpoint is still under E2E validation. It never forwards
- * browser credentials and never includes an upstream response body in a public exception.
+ * <p>Esta clase es intencionalmente pequeña y aditiva: deja intactos los caminos probados del cliente P10.6
+ * mientras el nuevo checkpoint de producto de IA sigue en validación E2E. Nunca reenvía
+ * credenciales del navegador y nunca incluye el body de una respuesta upstream en una excepción pública.
  */
 @Component
 public class AiProductCheckpointClient {

@@ -5,12 +5,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 
 /**
- * EXT-04B4: production {@link EvidenceImageSource} — delegates to the already-existing,
- * already-tested {@link AiBackendService} in-process (a plain Java method call, never an HTTP
- * round-trip back into this same Backend). Any failure (bad status, empty body, upstream
- * unreachable, invalid identifier) is swallowed into {@link Optional#empty()} here — the PDF
- * renderer's only job with that is to fall back to text, never to propagate a 500 for a
- * non-essential image (Phase 12).
+ * EXT-04B4: {@link EvidenceImageSource} de producción — delega en el {@link AiBackendService} ya existente y
+ * ya testeado dentro del mismo proceso (una llamada a método Java simple, nunca un round-trip
+ * HTTP de vuelta a este mismo Backend). Cualquier falla (status inválido, body vacío, upstream
+ * inalcanzable, identificador inválido) se traga a {@link Optional#empty()} acá — lo único que
+ * tiene que hacer el renderer del PDF con eso es recurrir al texto, nunca propagar un 500 por una
+ * imagen no esencial (Fase 12).
  */
 @Component
 public class AiBackendEvidenceImageSource implements EvidenceImageSource {

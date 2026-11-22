@@ -10,25 +10,25 @@ public record InputResource(
     String inputId,
     String format,
     long size,
-    /** Series description as the study declared it: {@code t2_tse_sag_384}. */
+    /** Descripción de la serie tal como la declaró el estudio: {@code t2_tse_sag_384}. */
     String description,
-    /** {@code t1}, {@code t2} or {@code unknown}. */
+    /** {@code t1}, {@code t2} o {@code unknown}. */
     String weighting,
     int sliceCount,
-    /** Series whose slices do not share a plane: a localizer. Not a volume. */
+    /** Series cuyos slices no comparten un plano: un localizador. No es un volumen. */
     boolean multiplanar,
-    /** A console screenshot or reformat rather than acquired image data. */
+    /** Una captura de consola o un reformateo en lugar de datos de imagen adquiridos. */
     boolean derived,
     /**
-     * Whether this series could be the input of an inference run.
+     * Si esta serie podría ser el input de una corrida de inferencia.
      *
-     * <p>False covers three reasons that look the same on screen and are not: there is no model for
-     * its weighting (axial T1), it is not a single-plane volume (a localizer), or it is not
-     * acquired data (a console capture).
+     * <p>False cubre tres motivos que se ven igual en pantalla y no lo son: no hay un modelo para
+     * su ponderación (T1 axial), no es un volumen de un solo plano (un localizador), o no son
+     * datos adquiridos (una captura de consola).
      */
     boolean analyzable,
     Instant createdAt) {
-  /** Pre-BE-015 shape: the two analysed planes, before the study kept every series. */
+  /** Forma previa a BE-015: los dos planos analizados, antes de que el estudio conservara todas las series. */
   public InputResource(
       String id,
       String studyId,

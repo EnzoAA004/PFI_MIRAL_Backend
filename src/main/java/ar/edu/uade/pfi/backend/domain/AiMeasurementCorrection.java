@@ -3,19 +3,19 @@ package ar.edu.uade.pfi.backend.domain;
 import java.time.Instant;
 
 /**
- * A professional correction of one field of an {@link AiMeasurementResult} — stage 78-D.
+ * Una corrección profesional de un campo de un {@link AiMeasurementResult} — etapa 78-D.
  *
- * <p>Append-only by design: {@code AiMeasurementResult} itself is never updated (it stays the
- * AI's original, immutable output — stage 76's own guarantee). Each correction is a new row
- * carrying both {@code originalValue} (a snapshot of the AI value at correction time) and
- * {@code correctedValue}, so "what the AI said" is never lost even if corrected more than once.
- * The current corrected value for a measurement is simply the latest row by {@code createdAt}.
+ * <p>Append-only por diseño: el propio {@code AiMeasurementResult} nunca se actualiza (sigue siendo la
+ * salida original e inmutable de la IA — la propia garantía de la etapa 76). Cada corrección es una fila nueva
+ * que lleva tanto {@code originalValue} (una instantánea del valor de la IA al momento de la corrección) como
+ * {@code correctedValue}, de modo que "lo que dijo la IA" nunca se pierde aunque se corrija más de una vez.
+ * El valor corregido vigente de una medición es simplemente la última fila por {@code createdAt}.
  *
- * <p>{@code field} is one of {@code areaMm2|majorAxisMm|minorAxisMm} — the only
- * {@code AiMeasurementResult} numeric fields this product actually exposes (stage 76 deliberately
- * has no {@code bboxHeightMm}/{@code bboxWidthMm}, so there is nothing to correct there either).
- * {@code unit} is derived server-side from {@code field} — never accepted from the client, so a
- * correction can't silently relabel {@code mm} as {@code mm2} or vice versa.
+ * <p>{@code field} es uno de {@code areaMm2|majorAxisMm|minorAxisMm} — los únicos campos numéricos de
+ * {@code AiMeasurementResult} que este producto realmente expone (la etapa 76 deliberadamente
+ * no tiene {@code bboxHeightMm}/{@code bboxWidthMm}, así que tampoco hay nada que corregir ahí).
+ * {@code unit} se deriva del lado del servidor a partir de {@code field} — nunca se acepta del cliente, para que una
+ * corrección no pueda reetiquetar en silencio {@code mm} como {@code mm2} o viceversa.
  */
 public record AiMeasurementCorrection(
     String id,

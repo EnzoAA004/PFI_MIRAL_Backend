@@ -14,12 +14,12 @@ import java.util.Map;
 import org.springframework.stereotype.Service;
 
 /**
- * Stage 84-I: a deterministic measurement value across N Studies of the same patient
- * ({@code subjectRef}) — never a new AI/ML computation, never persisted (84 "NO persistir series
- * calculadas", mirroring Stage 79-J's own "never persisted" decision for the two-Study
- * comparison). Reuses {@link EffectiveAnalysisRunSelector} (which run represents a Study) and
- * {@link EffectiveMeasurementResolver} (effective value + matching key) verbatim — this class
- * only adds the "across N Studies, not just two" iteration on top of both.
+ * Etapa 84-I: un valor de medición determinístico a lo largo de N Studies del mismo paciente
+ * ({@code subjectRef}) — nunca un nuevo cómputo de IA/ML, nunca persistido (84 "NO persistir series
+ * calculadas", replicando la propia decisión de "nunca persistido" de la Etapa 79-J para la comparación
+ * de dos Studies). Reutiliza textualmente {@link EffectiveAnalysisRunSelector} (qué corrida representa a un Study) y
+ * {@link EffectiveMeasurementResolver} (valor efectivo + clave de emparejamiento) — esta clase
+ * solo agrega la iteración "a lo largo de N Studies, no solo dos" por encima de ambos.
  */
 @Service
 public class PatientMeasurementSeriesService {
@@ -38,9 +38,9 @@ public class PatientMeasurementSeriesService {
     }
 
     /**
-     * Stage 84-M: only keys with at least 2 comparable points are returned — a single-Study
-     * "series" isn't a trend, and returning it would just add UI noise (the Frontend can already
-     * show a single Study's own measurements directly, no series needed).
+     * Etapa 84-M: solo se devuelven las claves con al menos 2 puntos comparables — una "serie" de un solo
+     * Study no es una tendencia, y devolverla solo sumaría ruido de UI (el Frontend ya puede
+     * mostrar directamente las mediciones propias de un único Study, sin necesidad de serie).
      */
     public List<MeasurementSeriesKeyDto> availableSeriesKeys(String subjectRef) {
         return availableSeriesKeys(subjectRef, null);
@@ -52,7 +52,7 @@ public class PatientMeasurementSeriesService {
         Map<EffectiveMeasurementResolver.MatchKey, String> unitByKey = new LinkedHashMap<>();
         for (Study study : accessibleStudies(normalized, accessibleCaseIds)) {
             for (EffectiveMeasurementResolver.EffectiveMeasurement measurement : effectiveMeasurementsFor(study)) {
-                if (measurement.level() == null) continue; // 84-K: null level never joins a series.
+                if (measurement.level() == null) continue; // 84-K: un nivel null nunca se une a una serie.
                 EffectiveMeasurementResolver.MatchKey key = measurementResolver.matchKey(measurement);
                 countByKey.merge(key, 1L, Long::sum);
                 unitByKey.putIfAbsent(key, measurement.unit());
@@ -65,9 +65,9 @@ public class PatientMeasurementSeriesService {
     }
 
     /**
-     * Stage 84-F: the series itself is chronological ascending (oldest first) — the opposite
-     * order from the studies-list endpoint (studyDate DESC), matching the stage brief's explicit
-     * distinction ("Para la lista: studyDate DESC. Para timeline visual: ASC cronológico").
+     * Etapa 84-F: la serie en sí es cronológica ascendente (la más vieja primero) — el orden opuesto
+     * al del endpoint de lista de estudios (studyDate DESC), siguiendo la distinción explícita del brief de la etapa
+     * ("Para la lista: studyDate DESC. Para timeline visual: ASC cronológico").
      */
     public MeasurementSeriesDto series(String subjectRef, String level, String plane, String structure, String metric) {
         return series(subjectRef, level, plane, structure, metric, null);
@@ -91,7 +91,7 @@ public class PatientMeasurementSeriesService {
                     study.caseId(), study.studyDate(),
                     measurement.automaticValue(), measurement.correctedValue(), measurement.effectiveValue(), measurement.source()
                 ));
-                break; // one point per Study for this key -- a Study never contributes two points to the same series.
+                break; // un punto por Study para esta clave -- un Study nunca aporta dos puntos a la misma serie.
             }
         }
         return new MeasurementSeriesDto(new MeasurementSeriesKeyDto(level, plane, structure, metric, unit), points);
@@ -114,7 +114,7 @@ public class PatientMeasurementSeriesService {
         return measurementResolver.effectiveMeasurements(run);
     }
 
-    /** 84-F: deterministic tie-breaker when two Studies share (or both lack) a studyDate. */
+    /** 84-F: desempate determinístico cuando dos Studies comparten (o ambos carecen de) un studyDate. */
     private Comparator<Study> studyDateAscendingThenCaseId() {
         return Comparator
             .comparing(Study::studyDate, Comparator.nullsFirst(Comparator.naturalOrder()))

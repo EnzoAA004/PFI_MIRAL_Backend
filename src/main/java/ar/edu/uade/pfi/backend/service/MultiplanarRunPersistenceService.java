@@ -19,9 +19,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
- * Persists a CanonicalMultiplanarRun (produced by AiServiceClient for either contract version).
- * There is no v1/v2 branching here: by the time a run reaches this service it has already been
- * adapted to the canonical shape, so persistence logic is uniform.
+ * Persiste un CanonicalMultiplanarRun (producido por AiServiceClient para cualquiera de las dos versiones de contrato).
+ * Acá no hay ramificación v1/v2: para cuando una corrida llega a este servicio ya fue
+ * adaptada a la forma canónica, por lo que la lógica de persistencia es uniforme.
  */
 @Service
 public class MultiplanarRunPersistenceService {
@@ -111,11 +111,11 @@ public class MultiplanarRunPersistenceService {
   }
 
   /**
-   * The run's metricsSnapshot (with threeD.enabled=true, computed from the AI Module's own
-   * response) is persisted before the workspace mesh is actually downloaded/validated/stored — that
-   * download can still fail afterward. If it does, this rewrites threeD to an honest blocked state
-   * so the backend never publishes threeD.enabled=true with a URL that points at unavailable
-   * content (no rollback of the whole run: sagittal/axial planes remain valid and reviewable).
+   * El metricsSnapshot de la corrida (con threeD.enabled=true, calculado a partir de la propia
+   * respuesta del módulo de IA) se persiste antes de que la malla del workspace se descargue/valide/almacene de verdad — esa
+   * descarga todavía puede fallar después. Si falla, esto reescribe threeD a un estado bloqueado honesto
+   * para que el backend nunca publique threeD.enabled=true con una URL que apunte a un
+   * contenido no disponible (sin rollback de toda la corrida: los planos sagital/axial siguen siendo válidos y revisables).
    */
   @SuppressWarnings("unchecked")
   private void downgradeThreeDIfMeshUnavailable(
@@ -133,12 +133,12 @@ public class MultiplanarRunPersistenceService {
   }
 
   /**
-   * Records the rest of the study's series: the ones no model runs on.
+   * Registra el resto de las series del estudio: aquellas sobre las que no corre ningún modelo.
    *
-   * <p>Runs after the two analysed planes on purpose. Both write to the same table keyed by {@code
-   * input_id}, so a series that is also an analysed plane arrives here second and its upsert fills
-   * in the description, weighting and slice count that {@link #registerInput} does not know —
-   * instead of the plane row winning and leaving the catalogue entry blank.
+   * <p>Corre después de los dos planos analizados a propósito. Ambos escriben en la misma tabla con clave {@code
+   * input_id}, así que una serie que además es un plano analizado llega acá en segundo lugar y su upsert completa
+   * la descripción, la ponderación y la cantidad de slices que {@link #registerInput} no conoce —
+   * en lugar de que la fila del plano gane y deje en blanco la entrada del catálogo.
    */
   private void registerStudySeries(Study study, MultiplanarRunRequestDto request) {
     List<StudyUploadSeriesDto> series = request.studySeries();
@@ -232,9 +232,9 @@ public class MultiplanarRunPersistenceService {
   }
 
   /**
-   * Enforces the v2 asset-metadata contract before it is trusted for persistence: generated must be
-   * true, relativePath must be a same-origin relative asset path (never a filesystem-absolute path,
-   * a foreign host, or a directory traversal) and must reference the plane it claims to belong to.
+   * Aplica el contrato de metadata de assets v2 antes de confiar en él para la persistencia: generated debe ser
+   * true, relativePath debe ser un path de asset relativo del mismo origen (nunca un path absoluto del filesystem,
+   * un host ajeno ni un directory traversal) y debe referenciar el plano al que dice pertenecer.
    */
   private boolean isValidAssetMetadata(Map<String, Object> asset, String planeRunId, String plane) {
     String assetName = text(asset.get("assetName"));
@@ -255,9 +255,9 @@ public class MultiplanarRunPersistenceService {
   }
 
   /**
-   * Per-class segmentation mask ({@code mask-vertebra_group.png}). Cannot live in a fixed list
-   * because the classes depend on the model. The pattern only accepts the shape of a class name —
-   * lowercase, digits and underscore — so it admits no path separators and no arbitrary extension.
+   * Máscara de segmentación por clase ({@code mask-vertebra_group.png}). No puede vivir en una lista fija
+   * porque las clases dependen del modelo. El patrón solo acepta la forma del nombre de una clase —
+   * minúsculas, dígitos y guion bajo — por lo que no admite separadores de path ni extensiones arbitrarias.
    */
   private static final java.util.regex.Pattern CLASS_MASK_NAME =
       java.util.regex.Pattern.compile("^mask-[a-z][a-z0-9_]{0,31}\\.png$");
@@ -341,10 +341,10 @@ public class MultiplanarRunPersistenceService {
   }
 
   /**
-   * Transforms the AI Module's raw v2 measurement list into the shape consumed by
-   * worklist/history/frontend. Only fields the AI Module actually provided are carried through —
-   * level, reviewer values and clinical labels (e.g. "L4-L5") are never invented here. Reviewer
-   * corrections live separately in domain_review_corrections.
+   * Transforma la lista cruda de mediciones v2 del módulo de IA a la forma consumida por
+   * worklist/history/frontend. Solo se transportan los campos que el módulo de IA efectivamente proveyó —
+   * el nivel, los valores del revisor y las etiquetas clínicas (p. ej. "L4-L5") nunca se inventan acá. Las
+   * correcciones del revisor viven por separado en domain_review_corrections.
    */
   private List<Map<String, Object>> transformMeasurements(CanonicalPlaneRun plane) {
     List<Map<String, Object>> result = new ArrayList<>();
@@ -376,17 +376,17 @@ public class MultiplanarRunPersistenceService {
   }
 
   /**
-   * Accepts a measurement's level only when it names a vertebral level.
+   * Acepta el nivel de una medición solo cuando nombra un nivel vertebral.
    *
-   * <p>Older AI Module runs put the plane ("sagittal") in this field, which is not a vertebral
-   * level at all; letting that through would file every measurement under a level that does not
-   * exist.
+   * <p>Las corridas más viejas del módulo de IA ponían el plano ("sagittal") en este campo, que no es un nivel
+   * vertebral en absoluto; dejar pasar eso archivaría cada medición bajo un nivel que no
+   * existe.
    *
-   * <p>The check is on shape and not on a fixed list of five disc spaces. That list was silently
-   * destroying data the AI Module had got right: a disc the model identified as T12-L1 and a
-   * vertebral body it named L4 both arrived here and left as null, so the reviewer saw "unassigned"
-   * — which reads as "the AI could not tell" — for a level it had in fact determined. The shape
-   * still rejects "sagittal", which is what this filter exists for.
+   * <p>El chequeo es sobre la forma y no sobre una lista fija de cinco espacios discales. Esa lista estaba
+   * destruyendo en silencio datos que el módulo de IA había resuelto bien: un disco que el modelo identificó como T12-L1 y un
+   * cuerpo vertebral que nombró L4 llegaban ambos acá y salían como null, así que el revisor veía "sin asignar"
+   * — lo que se lee como "la IA no pudo distinguirlo" — para un nivel que en realidad había determinado. La forma
+   * sigue rechazando "sagittal", que es para lo que existe este filtro.
    */
   private String vertebralLevel(Object value) {
     if (!(value instanceof String text)) return null;
@@ -394,7 +394,7 @@ public class MultiplanarRunPersistenceService {
     return VERTEBRAL_LEVEL.matcher(normalized).matches() ? normalized : null;
   }
 
-  /** A vertebral body ({@code L4}, {@code T12}, {@code S1}) or a space between two. */
+  /** Un cuerpo vertebral ({@code L4}, {@code T12}, {@code S1}) o un espacio entre dos. */
   private static final java.util.regex.Pattern VERTEBRAL_LEVEL =
       java.util.regex.Pattern.compile("^[CTLS]\\d{1,2}(-[CTLS]\\d{1,2})?$");
 
@@ -407,8 +407,8 @@ public class MultiplanarRunPersistenceService {
   }
 
   /**
-   * Model key lives under different map keys depending on the upstream contract: v2 stores the wire
-   * name "key" as-is, v1 stores it as "modelKey".
+   * La key del modelo vive bajo distintas keys del mapa según el contrato upstream: v2 guarda el nombre
+   * wire "key" tal cual, v1 lo guarda como "modelKey".
    */
   private String modelKey(CanonicalPlaneRun plane) {
     if (plane == null) return "";

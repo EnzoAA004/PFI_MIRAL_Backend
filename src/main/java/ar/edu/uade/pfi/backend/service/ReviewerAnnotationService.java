@@ -13,13 +13,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * Reads and replaces the reviewer's annotations for a run.
+ * Lee y reemplaza las anotaciones del revisor de una corrida.
  *
- * <p>The reviewer's annotations are their own clinical work product, so nothing here derives,
- * completes or reinterprets them: a payload that cannot be placed on an image (slice scope without
- * a slice, an unknown scope, a bad timestamp) is rejected with 400 rather than coerced into
- * something storable. The domain record enforces the same invariants, which is what keeps a
- * malformed annotation out of the database even if it arrives through another path.
+ * <p>Las anotaciones del revisor son su propio producto de trabajo clínico, así que nada acá las deriva,
+ * completa ni reinterpreta: un payload que no puede ubicarse en una imagen (alcance slice sin
+ * un slice, un alcance desconocido, un timestamp inválido) se rechaza con 400 en lugar de forzarse a
+ * algo almacenable. El record de dominio aplica los mismos invariantes, que es lo que mantiene una
+ * anotación malformada fuera de la base de datos aunque llegue por otro camino.
  */
 @Service
 public class ReviewerAnnotationService {
@@ -72,12 +72,12 @@ public class ReviewerAnnotationService {
   }
 
   /**
-   * Keeps the client's id when it is a UUID, mints one otherwise.
+   * Conserva el id del cliente cuando es un UUID, genera uno en caso contrario.
    *
-   * <p>The reading room creates annotations locally (ids like {@code measure-<ts>}) and only
-   * persists on save, so the first round trip legitimately carries a non-UUID id. Minting silently
-   * in that case is safe — the client reconciles against the response — while forcing the client to
-   * pre-generate UUIDs would break the local-first flow for no gain.
+   * <p>La sala de lectura crea anotaciones localmente (ids como {@code measure-<ts>}) y solo
+   * persiste al guardar, así que el primer ida y vuelta legítimamente trae un id que no es UUID. Generarlo en silencio
+   * en ese caso es seguro — el cliente concilia contra la respuesta — mientras que obligar al cliente a
+   * pregenerar UUIDs rompería el flujo local-first sin ninguna ganancia.
    */
   private String identifier(String id) {
     if (id == null || id.isBlank()) return UUID.randomUUID().toString();

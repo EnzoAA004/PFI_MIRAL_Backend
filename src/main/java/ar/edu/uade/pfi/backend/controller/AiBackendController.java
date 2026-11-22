@@ -52,10 +52,10 @@ public class AiBackendController {
     }
 
     /**
-     * No longer publicly reachable (see AuthFilter.PUBLIC_LIVENESS_PATHS): any
-     * authenticated, non-pending user (professional or ADMIN) may call this — it is
-     * gated purely by AuthFilter's default "authenticated" requirement, no extra role
-     * check needed here.
+     * Ya no es accesible públicamente (ver AuthFilter.PUBLIC_LIVENESS_PATHS): cualquier
+     * usuario autenticado y no pendiente (profesional o ADMIN) puede llamarlo — lo
+     * controla únicamente el requisito "autenticado" por defecto de AuthFilter, sin necesidad de
+     * un chequeo de rol adicional acá.
      */
     @GetMapping("/health")
     public Map<String, Object> health() {
@@ -63,8 +63,8 @@ public class AiBackendController {
     }
 
     /**
-     * Technical diagnostic with no documented professional consumer today — ADMIN-only
-     * per P10-A.1 (was previously reachable by any authenticated professional).
+     * Diagnóstico técnico sin consumidor profesional documentado hoy — solo ADMIN
+     * según P10-A.1 (antes era accesible para cualquier profesional autenticado).
      */
     @GetMapping("/readiness")
     public Map<String, Object> readiness(HttpServletRequest request) {
@@ -72,15 +72,15 @@ public class AiBackendController {
         return aiBackendService.readiness();
     }
 
-    /** Same as /health: gated purely by AuthFilter's default "authenticated" requirement. */
+    /** Igual que /health: controlado únicamente por el requisito "autenticado" por defecto de AuthFilter. */
     @GetMapping("/models")
     public Object models() {
         return aiBackendService.models();
     }
 
     /**
-     * Technical diagnostic with no documented professional consumer today — ADMIN-only
-     * per P10-A.1 (was previously reachable by any authenticated professional).
+     * Diagnóstico técnico sin consumidor profesional documentado hoy — solo ADMIN
+     * según P10-A.1 (antes era accesible para cualquier profesional autenticado).
      */
     @GetMapping("/models/verify")
     public Map<String, Object> verifyModels(HttpServletRequest request) {
@@ -140,8 +140,8 @@ public class AiBackendController {
     }
 
     /**
-     * Reprocesses a study from its durably persisted DICOM input, without asking the
-     * client to upload the ZIP again. Cloud P0B durable-storage evidence endpoint.
+     * Reprocesa un estudio a partir de su input DICOM persistido de forma durable, sin pedirle al
+     * cliente que suba el ZIP de nuevo. Endpoint de evidencia de almacenamiento durable de Cloud P0B.
      */
     @PostMapping("/studies/{studyId}/reprocess")
     public StudyUploadResponseDto reprocessStudy(

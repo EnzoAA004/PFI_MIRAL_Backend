@@ -22,9 +22,9 @@ public record CanonicalPlaneRun(
     List<Map<String, Object>> landmarks,
     List<Map<String, Object>> measurements,
     /**
-     * Instance label map for the inferred slice (RLE), carried through opaquely. The viewer paints
-     * it: colour, visibility and opacity are presentation decisions, and shipping a rendered PNG
-     * would freeze all three in the backend.
+     * Mapa de etiquetas de instancia del slice inferido (RLE), transportado de forma opaca. El viewer lo
+     * pinta: color, visibilidad y opacidad son decisiones de presentación, y enviar un PNG ya renderizado
+     * congelaría las tres en el backend.
      */
     Map<String, Object> segmentation,
     Map<String, Object> quality) {
@@ -43,10 +43,10 @@ public record CanonicalPlaneRun(
   }
 
   /**
-   * A plane without an instance label map.
+   * Un plano sin mapa de etiquetas de instancia.
    *
-   * <p>Valid on purpose: the v1 contract never carried one, and a synthetic run has nothing to map.
-   * Those planes fall back to the composite overlay, which is what they actually produced.
+   * <p>Válido a propósito: el contrato v1 nunca traía uno, y una corrida sintética no tiene nada que mapear.
+   * Esos planos recurren al overlay compuesto, que es lo que realmente produjeron.
    */
   public CanonicalPlaneRun(
       String planeRunId,

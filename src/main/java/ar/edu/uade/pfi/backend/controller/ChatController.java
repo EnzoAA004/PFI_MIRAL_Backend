@@ -17,9 +17,9 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.beans.factory.annotation.Autowired;
 
 /**
- * Stage 80. Same {@code /api/studies/{caseId}/...} sub-resource convention as every other
- * controller in this family. Read endpoints are ungated (same convention as stage 76/79's GET
- * history/detail) — chat itself carries no elevated privilege beyond viewing the Study.
+ * Etapa 80. La misma convención de subrecurso {@code /api/studies/{caseId}/...} que todo otro
+ * controller de esta familia. Los endpoints de lectura no están restringidos (misma convención que los GET de
+ * historial/detalle de las etapas 76/79) — el chat en sí no conlleva ningún privilegio elevado más allá de ver el Study.
  */
 @RestController
 @RequestMapping("/api/studies/{caseId}")

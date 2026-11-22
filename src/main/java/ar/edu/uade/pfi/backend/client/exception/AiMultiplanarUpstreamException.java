@@ -3,9 +3,9 @@ package ar.edu.uade.pfi.backend.client.exception;
 import org.springframework.http.HttpStatus;
 
 /**
- * A structured error surfaced by the AI Module's pfi.multiplanar-run.v2 contract
- * (AiStructuredErrorV2Dto), translated to a stable backend error code. Never carries the upstream
- * stack trace or full response body.
+ * Un error estructurado expuesto por el contrato pfi.multiplanar-run.v2 del módulo de IA
+ * (AiStructuredErrorV2Dto), traducido a un código de error estable del backend. Nunca lleva el stack trace
+ * upstream ni el body completo de la respuesta.
  */
 public class AiMultiplanarUpstreamException extends RuntimeException {
   private final HttpStatus status;

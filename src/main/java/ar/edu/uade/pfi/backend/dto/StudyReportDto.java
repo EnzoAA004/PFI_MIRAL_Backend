@@ -5,7 +5,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
-/** Stage 88: backend-authoritative, on-demand report/export contract. */
+/** Etapa 88: contrato de reporte/exportación a demanda con autoridad en el backend. */
 public record StudyReportDto(
     String schemaVersion,
     Instant generatedAt,
@@ -22,21 +22,21 @@ public record StudyReportDto(
     LongitudinalComparisonResultDto longitudinalComparison,
     LongitudinalHistorySummary longitudinalHistory,
     /**
-     * EXT-04B2: additive, backward-compatible — always present (an empty list when there is no
-     * evidence to show, never omitted), so a consumer that only knows about pre-EXT-04B2 fields
-     * keeps working unchanged. Never a diagnostic claim: see {@link VisualEvidenceSummary}.
+     * EXT-04B2: aditivo y retrocompatible — siempre presente (una lista vacía cuando no hay
+     * evidencia para mostrar, nunca omitido), de modo que un consumidor que solo conoce los campos previos a EXT-04B2
+     * siga funcionando sin cambios. Nunca una afirmación diagnóstica: ver {@link VisualEvidenceSummary}.
      */
     List<VisualEvidenceSummary> visualEvidence,
     /**
-     * EXT-04B4: additive, backward-compatible — always present (empty when there is no
-     * comparable previous study, never omitted). One entry per
-     * {@code longitudinalHistory.comparisons[]} row (same cap, same source of truth for the
-     * numeric values/deltas — never recomputed here), each optionally paired with a matching
-     * {@link VisualEvidenceSummary} on either side when one exists at the same level/plane/
-     * structure. Consumed by the PDF's "Comparación con estudio previo" section; the JSON/UI
-     * report already has this information split across {@code longitudinalHistory} and
-     * {@code visualEvidence} separately, so this field exists purely to save the PDF renderer
-     * from re-deriving the same pairing the Frontend already does client-side (EXT-07B).
+     * EXT-04B4: aditivo y retrocompatible — siempre presente (vacío cuando no hay un
+     * estudio previo comparable, nunca omitido). Una entrada por cada
+     * fila de {@code longitudinalHistory.comparisons[]} (mismo tope, misma fuente de verdad para los
+     * valores/deltas numéricos — nunca se recalculan acá), cada una opcionalmente emparejada con un
+     * {@link VisualEvidenceSummary} coincidente de cada lado cuando existe uno en el mismo nivel/plano/
+     * estructura. Lo consume la sección "Comparación con estudio previo" del PDF; el reporte JSON/UI
+     * ya tiene esta información repartida entre {@code longitudinalHistory} y
+     * {@code visualEvidence} por separado, así que este campo existe puramente para ahorrarle al renderer del PDF
+     * volver a derivar el mismo emparejamiento que el Frontend ya hace del lado del cliente (EXT-07B).
      */
     List<BeforeAfterEvidencePairDto> beforeAfterEvidence,
     SafetySummary safety,
@@ -158,17 +158,17 @@ public record StudyReportDto(
     }
 
     /**
-     * EXT-04B2: one visual region of interest — never a diagnostic claim. {@code geometry} is
-     * always the already-resolved EFFECTIVE geometry (corrected-if-any, else the AI's or the
-     * professional's own), in the canonical normalised 0..256 basis; for
-     * {@code geometryType="MASK_REFERENCE"} it only carries {@code {runId, plane, assetName}},
-     * resolved through the existing {@code /api/ai/assets/{runId}/{plane}/{assetName}} endpoint
-     * — never a filesystem path, bucket path, or DICOM UID.
+     * EXT-04B2: una región visual de interés — nunca una afirmación diagnóstica. {@code geometry} es
+     * siempre la geometría EFECTIVA ya resuelta (la corregida si la hay, si no la de la IA o la
+     * del propio profesional), en la base normalizada canónica 0..256; para
+     * {@code geometryType="MASK_REFERENCE"} solo lleva {@code {runId, plane, assetName}},
+     * resuelto mediante el endpoint existente {@code /api/ai/assets/{runId}/{plane}/{assetName}}
+     * — nunca un path del filesystem, path de bucket ni UID DICOM.
      *
-     * <p>{@code source} is one of {@code ai_suggested|ai_validated|professional_corrected|
-     * professional_drawn} — the same four EXT-04B1 concepts, always DERIVED (never an
-     * independently-persisted enum). {@code reviewedBy}/{@code authoredBy} are never exposed
-     * here — same rule EXT-04A already applies to the run/disc-level review summaries.
+     * <p>{@code source} es uno de {@code ai_suggested|ai_validated|professional_corrected|
+     * professional_drawn} — los mismos cuatro conceptos de EXT-04B1, siempre DERIVADOS (nunca un
+     * enum persistido de forma independiente). {@code reviewedBy}/{@code authoredBy} nunca se exponen
+     * acá — la misma regla que EXT-04A ya aplica a los resúmenes de revisión de corrida/nivel de disco.
      */
     public record VisualEvidenceSummary(
         String evidenceId,
@@ -183,34 +183,34 @@ public record StudyReportDto(
         String warning,
         boolean experimental,
         /**
-         * EXT-04B3.5: additive, nullable — how Frontend fetches a real base image for this
-         * region, reusing the existing, already-tested {@code GET /api/ai/series/{inputId}/
-         * slices/{index}} endpoint (Stage 87/89) rather than a new asset mechanism. {@code null}
-         * when the region's own analysis run has no per-plane inputId for {@code plane}, or when
-         * the region itself carries no {@code sliceIndex} — a fail-safe absence, never a
-         * fabricated reference. See {@link BaseImageRef}.
+         * EXT-04B3.5: aditivo, admite null — cómo el Frontend obtiene una imagen base real para esta
+         * región, reutilizando el endpoint existente y ya testeado {@code GET /api/ai/series/{inputId}/
+         * slices/{index}} (Stage 87/89) en lugar de un nuevo mecanismo de assets. {@code null}
+         * cuando la corrida de análisis de la propia región no tiene un inputId por plano para {@code plane}, o cuando
+         * la región misma no lleva {@code sliceIndex} — una ausencia fail-safe, nunca una
+         * referencia fabricada. Ver {@link BaseImageRef}.
          */
         BaseImageRef baseImage
     ) {
     }
 
     /**
-     * EXT-04B3.5: {@code inputId} is the Backend's own opaque per-upload identifier (the same
-     * shape already used by {@code /inputs} and {@code AiProductAnalysisRun.sagittalInputId}/
-     * {@code axialInputId} — never a filesystem path, host, bucket, or DICOM UID) and
-     * {@code sliceIndex} is the same 0-based index {@code AiBackendService.getSeriesSlice}
-     * already validates. No {@code plane} field here: an {@code inputId} is already per-plane
-     * (one per {@code AiProductAnalysisRun} plane), so it would be redundant with
+     * EXT-04B3.5: {@code inputId} es el identificador opaco por upload propio del Backend (la misma
+     * forma ya usada por {@code /inputs} y {@code AiProductAnalysisRun.sagittalInputId}/
+     * {@code axialInputId} — nunca un path del filesystem, host, bucket ni UID DICOM) y
+     * {@code sliceIndex} es el mismo índice base 0 que {@code AiBackendService.getSeriesSlice}
+     * ya valida. No hay campo {@code plane} acá: un {@code inputId} ya es por plano
+     * (uno por plano de {@code AiProductAnalysisRun}), así que sería redundante con
      * {@code VisualEvidenceSummary.plane}.
      */
     public record BaseImageRef(String inputId, Integer sliceIndex) {
     }
 
     /**
-     * EXT-04B4: one "Anterior vs Actual" row — the numeric fields are copied verbatim from the
-     * matching {@link LongitudinalHistoryComparison} row (never recomputed), and
-     * {@code previousEvidence}/{@code currentEvidence} are {@code null} (never fabricated) when
-     * no {@link VisualEvidenceSummary} exists at the same level/plane/structure on that side.
+     * EXT-04B4: una fila "Anterior vs Actual" — los campos numéricos se copian textualmente de la
+     * fila {@link LongitudinalHistoryComparison} correspondiente (nunca se recalculan), y
+     * {@code previousEvidence}/{@code currentEvidence} son {@code null} (nunca fabricados) cuando
+     * no existe ningún {@link VisualEvidenceSummary} en el mismo nivel/plano/estructura de ese lado.
      */
     public record BeforeAfterEvidencePairDto(
         String level,

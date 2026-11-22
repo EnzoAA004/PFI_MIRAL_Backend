@@ -5,26 +5,26 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * A professional correction of the geometry of an {@code origin="ai"} {@link AiEvidenceRegion}
- * — EXT-04B2, mirroring {@link AiMeasurementCorrection} exactly: append-only, the root row is
- * never mutated, and each correction is a new row carrying both a snapshot of the AI geometry
- * at correction time ({@code originalGeometryType}/{@code originalGeometry}) and the corrected
- * geometry. The current corrected geometry for a region is simply the latest row by
- * {@code createdAt} (same rule {@link ar.edu.uade.pfi.backend.service.EffectiveMeasurementResolver}
- * already uses for scalar corrections).
+ * Una corrección profesional de la geometría de un {@link AiEvidenceRegion} con {@code origin="ai"}
+ * — EXT-04B2, replicando exactamente {@link AiMeasurementCorrection}: append-only, la fila raíz
+ * nunca se muta, y cada corrección es una fila nueva que lleva tanto una instantánea de la geometría de la IA
+ * al momento de la corrección ({@code originalGeometryType}/{@code originalGeometry}) como la geometría
+ * corregida. La geometría corregida vigente de una región es simplemente la última fila por
+ * {@code createdAt} (la misma regla que ya usa {@link ar.edu.uade.pfi.backend.service.EffectiveMeasurementResolver}
+ * para las correcciones escalares).
  *
- * <p>Only meaningful for regions whose root {@link AiEvidenceRegion#origin()} is {@code "ai"} —
- * a professional revising their own hand-drawn region is a product decision left open for a
- * future iteration (see EXT-04B2 limitations); this table does not attempt to model that case
- * yet, and nothing here enforces it at the database level (the same light-touch convention
- * {@code domain_ai_measurement_corrections} already uses — trusted at the service layer, not by
- * a cross-table DB constraint).
+ * <p>Solo tiene sentido para regiones cuyo {@link AiEvidenceRegion#origin()} raíz es {@code "ai"} —
+ * que un profesional revise su propia región dibujada a mano es una decisión de producto que queda abierta para una
+ * iteración futura (ver limitaciones de EXT-04B2); esta tabla todavía no intenta modelar ese caso,
+ * y nada acá lo hace cumplir a nivel de base de datos (la misma convención liviana que ya usa
+ * {@code domain_ai_measurement_corrections} — se confía en la capa de servicio, no en
+ * un constraint de DB entre tablas).
  */
 public record AiEvidenceRegionCorrection(
     String id,
     String evidenceRegionId,
     String analysisRunId,
-    /** Nullable together with {@code originalGeometry}: absent only if the caller genuinely has no snapshot to offer. */
+    /** Admite null junto con {@code originalGeometry}: ausente solo si quien llama realmente no tiene una instantánea para ofrecer. */
     String originalGeometryType,
     Map<String, Object> originalGeometry,
     String correctedGeometryType,
@@ -40,7 +40,7 @@ public record AiEvidenceRegionCorrection(
         Objects.requireNonNull(correctedGeometryType, "correctedGeometryType");
         Objects.requireNonNull(correctedGeometry, "correctedGeometry");
         Objects.requireNonNull(createdAt, "createdAt");
-        // Validates both shapes eagerly, same discipline as AiEvidenceRegion's own constructor.
+        // Valida ambas formas de forma anticipada, con la misma disciplina que el constructor propio de AiEvidenceRegion.
         EvidenceGeometry.fromMap(correctedGeometryType, correctedGeometry);
         if (originalGeometryType != null || originalGeometry != null) {
             Objects.requireNonNull(originalGeometryType, "originalGeometryType");

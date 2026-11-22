@@ -14,10 +14,10 @@ import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
 /**
- * SMTP implementation of {@link EmailDeliveryService}, active only with {@code
- * pfi.auth.email-delivery=smtp}. Configuration is read from {@code pfi.mail.*} (env {@code
- * PFI_MAIL_*}); the application refuses to start if a required value is missing so a half-configured
- * deployment can never claim to have sent a code.
+ * Implementación SMTP de {@link EmailDeliveryService}, activa solo con {@code
+ * pfi.auth.email-delivery=smtp}. La configuración se lee de {@code pfi.mail.*} (env {@code
+ * PFI_MAIL_*}); la aplicación se niega a arrancar si falta un valor requerido, para que un
+ * despliegue a medio configurar nunca pueda afirmar haber enviado un código.
  */
 @Service
 @ConditionalOnProperty(name = "pfi.auth.email-delivery", havingValue = "smtp")
@@ -131,7 +131,7 @@ public class SmtpEmailDeliveryService implements EmailDeliveryService {
   @Override
   public void sendVerificationCode(String toEmail, String purpose, String code, Duration validFor) {
     try {
-      InternetAddress to = new InternetAddress(toEmail, true); // strict: rejects CR/LF and groups
+      InternetAddress to = new InternetAddress(toEmail, true); // estricto: rechaza CR/LF y grupos
       MimeMessage message = sender.createMimeMessage();
       MimeMessageHelper helper = new MimeMessageHelper(message, StandardCharsets.UTF_8.name());
       helper.setFrom(from);
@@ -141,7 +141,7 @@ public class SmtpEmailDeliveryService implements EmailDeliveryService {
       sender.send(message);
       log.info("Verification e-mail handed to SMTP server (purpose={})", purpose);
     } catch (Exception e) {
-      // Never include the code, the recipient or the SMTP password in logs or exceptions.
+      // Nunca incluir el código, el destinatario ni la contraseña SMTP en logs ni excepciones.
       log.warn(
           "Verification e-mail could not be sent (purpose={}): {}",
           purpose,

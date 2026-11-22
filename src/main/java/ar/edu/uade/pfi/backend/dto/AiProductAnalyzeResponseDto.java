@@ -4,16 +4,16 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.List;
 
 /**
- * Response contract for POST /v1/product/analyze — pfi.ai-product-result.v1, release
- * post-e50-ai-product-freeze-v1. Modeled directly from
- * docs/contracts/ai-product-result-v1.schema.json in the AI Module repo (the source of truth),
- * not invented on the Backend side.
+ * Contrato de respuesta para POST /v1/product/analyze — pfi.ai-product-result.v1, release
+ * post-e50-ai-product-freeze-v1. Modelado directamente a partir de
+ * docs/contracts/ai-product-result-v1.schema.json en el repo del módulo de IA (la fuente de verdad),
+ * no inventado del lado del Backend.
  *
- * <p>Every type here is {@code ignoreUnknown = true}: the AI Module's contract is allowed to grow
- * new fields (nested objects in the schema do not declare {@code additionalProperties: false|
- * true}), and this Backend must keep working when it does, without a re-deploy just to add a
- * getter. Fields the schema declares as nullable (most notably {@link DiscLevel#level()}) are
- * plain nullable Java fields here — never defaulted, never coerced to a placeholder string.
+ * <p>Todo tipo acá es {@code ignoreUnknown = true}: se permite que el contrato del módulo de IA agregue
+ * campos nuevos (los objetos anidados del schema no declaran {@code additionalProperties: false|
+ * true}), y este Backend debe seguir funcionando cuando lo haga, sin un re-deploy solo para agregar un
+ * getter. Los campos que el schema declara como nullable (sobre todo {@link DiscLevel#level()}) son
+ * campos Java nullable simples acá — nunca con valor por defecto, nunca forzados a un string placeholder.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record AiProductAnalyzeResponseDto(
@@ -68,9 +68,9 @@ public record AiProductAnalyzeResponseDto(
     }
 
     /**
-     * One disc level in the absolute L1-L2..L5-S1 sequence. {@code level} is nullable by
-     * contract: {@code null} is the valid, expected shape when {@link Localization#status()} is
-     * {@code abstained} or {@code unavailable} — never replace it with a placeholder.
+     * Un nivel de disco en la secuencia absoluta L1-L2..L5-S1. {@code level} admite null por
+     * contrato: {@code null} es la forma válida y esperada cuando {@link Localization#status()} es
+     * {@code abstained} o {@code unavailable} — nunca lo reemplaces por un placeholder.
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record DiscLevel(
@@ -82,7 +82,7 @@ public record AiProductAnalyzeResponseDto(
     ) {
     }
 
-    /** {@code status}: {@code localized | abstained | adapter_pending | unavailable | not_requested}. Source: 67B2. */
+    /** {@code status}: {@code localized | abstained | adapter_pending | unavailable | not_requested}. Fuente: 67B2. */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Localization(
         String status,
@@ -94,7 +94,7 @@ public record AiProductAnalyzeResponseDto(
     ) {
     }
 
-    /** {@code status}: {@code paired | adapter_pending | experimental | unavailable | rejected | not_requested}. Source: 67C. */
+    /** {@code status}: {@code paired | adapter_pending | experimental | unavailable | rejected | not_requested}. Fuente: 67C. */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record AxialPairing(
         String status,
@@ -119,7 +119,7 @@ public record AiProductAnalyzeResponseDto(
     ) {
     }
 
-    /** {@code status} is currently always {@code blocked_preprocessing_parity} — never a negative finding. See P10.7 handling notes. */
+    /** {@code status} es actualmente siempre {@code blocked_preprocessing_parity} — nunca un hallazgo negativo. Ver las notas de manejo de P10.7. */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record DegenerativeFindings(String status, Boolean automaticInferenceEnabled, String checkpointSha256, Boolean reviewRequired) {
     }

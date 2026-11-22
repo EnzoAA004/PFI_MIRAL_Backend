@@ -100,9 +100,9 @@ public class SystemDiagnosticsService {
         result.put("backend", Map.of("available", true, "status", "ok", "service", "pfi-backend"));
         result.put("aiModule", aiModule);
         result.put("database", database);
-        // 81-T: LLM/chat is an optional capability -- its status never factors into the overall
-        // "status" (aiOk && dbOk) above, so a stopped/misconfigured LLM never marks the whole
-        // Backend degraded (81-U: "producto debe funcionar si LLM disabled").
+        // 81-T: el LLM/chat es una capacidad opcional -- su estado nunca entra en el "status"
+        // general (aiOk && dbOk) de arriba, así que un LLM detenido/mal configurado nunca marca a todo el
+        // Backend como degradado (81-U: "producto debe funcionar si LLM disabled").
         result.put("llm", checkLlmProvider());
         result.put("assetStorage", assetStorageDiagnostics());
         result.put("auth", authEnabled ? authService.diagnostics() : Map.of("enabled", false, "status", "disabled"));
@@ -120,10 +120,10 @@ public class SystemDiagnosticsService {
     }
 
     /**
-     * In-memory, fixed-shape counters only — see docs/P10_B_ERRORS_AUDIT_OBSERVABILITY.md
-     * for the honest limitations (resets on restart, not Cloud Monitoring). Never
-     * includes emails, actorIds, caseIds, runIds, individual traceIds, URLs, secrets,
-     * paths, file names, or stack traces — every field here is a fixed counter/average.
+     * Solo contadores en memoria y de forma fija — ver docs/P10_B_ERRORS_AUDIT_OBSERVABILITY.md
+     * para las limitaciones reconocidas (se reinicia con el restart, no es Cloud Monitoring). Nunca
+     * incluye emails, actorIds, caseIds, runIds, traceIds individuales, URLs, secretos,
+     * paths, nombres de archivo ni stack traces — cada campo acá es un contador/promedio fijo.
      */
     private Map<String, Object> observability() {
         if (metrics == null) {
@@ -133,10 +133,10 @@ public class SystemDiagnosticsService {
     }
 
     /**
-     * Stage 81-T: distinguishes "disabled" (config, {@code pfi.llm.enabled=false} -- the default)
-     * from "enabled but unreachable" (a live {@code checkAvailability()} probe) from
-     * "enabled and reachable" -- never leaks {@code resolvedBaseUrl()}, matching the same
-     * base-URL-omission precedent as {@code multiplanarContractDiagnostics()}.
+     * Etapa 81-T: distingue "disabled" (config, {@code pfi.llm.enabled=false} -- el valor por defecto)
+     * de "enabled pero inalcanzable" (un probe {@code checkAvailability()} en vivo) de
+     * "enabled y alcanzable" -- nunca filtra {@code resolvedBaseUrl()}, siguiendo el mismo
+     * precedente de omisión de la URL base que {@code multiplanarContractDiagnostics()}.
      */
     private Map<String, Object> checkLlmProvider() {
         if (llmProperties == null || llmProvider == null) {
@@ -245,9 +245,9 @@ public class SystemDiagnosticsService {
     }
 
     /**
-     * Never includes the AI Module base URL (may be sensitive infra info) — only the
-     * contract version, the endpoint path it resolves to, and the schemaVersion the
-     * backend expects back, which is all that's needed to verify a v1/v2 rollout.
+     * Nunca incluye la URL base del módulo de IA (puede ser información sensible de infra) — solo la
+     * versión del contrato, el path del endpoint al que resuelve y el schemaVersion que el
+     * backend espera de vuelta, que es todo lo necesario para verificar un rollout v1/v2.
      */
     private Map<String, Object> multiplanarContractDiagnostics() {
         boolean isV2 = multiplanarContractVersion == AiMultiplanarContractVersion.V2;

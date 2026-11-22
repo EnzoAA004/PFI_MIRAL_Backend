@@ -19,16 +19,16 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * Fail-closed authentication gate. Anything not explicitly listed in PUBLIC_AUTH_PATHS
- * (or an OPTIONS preflight) requires a valid Bearer JWT; there is no wildcard fallback
- * that treats unrecognized paths as public.
+ * Gate de autenticación fail-closed. Todo lo que no esté listado explícitamente en PUBLIC_AUTH_PATHS
+ * (o sea un preflight OPTIONS) requiere un JWT Bearer válido; no hay wildcard de respaldo
+ * que trate rutas no reconocidas como públicas.
  */
 @Component
 public class AuthFilter extends OncePerRequestFilter {
     public static final String AUTH_CLAIMS_ATTRIBUTE = "pfi.auth.claims";
-    /** Technical actor id (JWT subject, post-revalidation) — set here so TraceIdFilter can log it without depending on controllers. */
+    /** Id técnico del actor (subject del JWT, tras la revalidación) — se setea acá para que TraceIdFilter lo loguee sin depender de los controllers. */
     public static final String ACTOR_ID_ATTRIBUTE = "pfi.auth.actorId";
-    /** Technical, effective roles (post-revalidation) — same rationale as ACTOR_ID_ATTRIBUTE. */
+    /** Roles técnicos y efectivos (tras la revalidación) — misma razón que ACTOR_ID_ATTRIBUTE. */
     public static final String ACTOR_ROLES_ATTRIBUTE = "pfi.auth.actorRoles";
     private static final Set<String> KNOWN_ROLES = Set.of("ADMIN", "DOCTOR", "REVIEWER", "PENDING_APPROVAL", "READ_ONLY");
     private static final String DEMO_DOCTOR_PATH = "/api/auth/demo-doctor";
@@ -42,7 +42,7 @@ public class AuthFilter extends OncePerRequestFilter {
         "/api/auth/refresh",
         "/api/auth/logout"
     );
-    /** Only a minimal, no-detail liveness endpoint is anonymously reachable — see P10-A.1 §7. */
+    /** Solo un endpoint de liveness mínimo y sin detalle es accesible anónimamente — ver P10-A.1 §7. */
     private static final Set<String> PUBLIC_LIVENESS_PATHS =
         Set.of("/api/system/health", "/api/system/runtime-diagnostics");
 
@@ -161,7 +161,7 @@ public class AuthFilter extends OncePerRequestFilter {
         if (metrics != null) metrics.incrementAuthenticationFailures();
     }
 
-    /** Only ever logs/exposes roles from the known, fixed set — never an arbitrary claim value. */
+    /** Solo loguea/expone roles del conjunto conocido y fijo — nunca un valor de claim arbitrario. */
     private String technicalRoles(List<String> roles) {
         if (roles == null || roles.isEmpty()) return "";
         return roles.stream().filter(KNOWN_ROLES::contains).sorted().reduce((a, b) -> a + "," + b).orElse("");
@@ -170,9 +170,9 @@ public class AuthFilter extends OncePerRequestFilter {
     private static final Set<String> RECOGNIZED_ACTIVE_ROLES = Set.of("DOCTOR", "REVIEWER", "ADMIN");
 
     /**
-     * A pending/inactive account: explicitly PENDING_APPROVAL, or carrying no
-     * recognized professional/admin role at all (covers accounts with an empty or
-     * unrecognized role set the same way PENDING_APPROVAL is covered).
+     * Cuenta pendiente/inactiva: PENDING_APPROVAL explícito, o sin
+     * ningún rol profesional/admin reconocido (cubre cuentas con un conjunto de roles vacío o
+     * no reconocido igual que se cubre PENDING_APPROVAL).
      */
     private boolean isRestrictedAccount(TokenService.Claims claims) {
         List<String> roles = claims.roles();
@@ -215,7 +215,7 @@ public class AuthFilter extends OncePerRequestFilter {
         return false;
     }
 
-    /** Demo seeding is only ever public when explicitly opted into locally AND not in production. */
+    /** El seed demo solo es público cuando se habilita explícitamente en local Y no es producción. */
     private boolean isDemoEffectivelyEnabled() {
         return demoEnabled && !isProductionProfile();
     }

@@ -8,19 +8,19 @@ import java.util.Map;
 import org.springframework.stereotype.Service;
 
 /**
- * EXT-01: "ConcordanceRuleSet v1" — versioned on purpose (a future v2 is a new class, never a
- * silent behavior change on this one, so a previously-computed {@link ConcordanceResult} stays
- * interpretable by whatever ruleVersion it recorded). Groups {@link EvidenceItem}s that are
- * genuinely comparable (same {@code phenomenon}, same {@code level}, same {@code side} when
- * either side declares one) and classifies each group. Never infers a diagnosis: the output is
- * always {@code state + reasonCode + comparedEvidence + ruleVersion}, nothing else.
+ * EXT-01: "ConcordanceRuleSet v1" — versionado a propósito (una futura v2 es una clase nueva, nunca un
+ * cambio de comportamiento silencioso en esta, de modo que un {@link ConcordanceResult} calculado previamente siga
+ * siendo interpretable por la ruleVersion que registró). Agrupa {@link EvidenceItem}s que son
+ * genuinamente comparables (mismo {@code phenomenon}, mismo {@code level}, mismo {@code side} cuando
+ * alguno de los lados declara uno) y clasifica cada grupo. Nunca infiere un diagnóstico: la salida es
+ * siempre {@code state + reasonCode + comparedEvidence + ruleVersion}, nada más.
  *
- * <p>Ordinal severity handling: for the only real ordinal contract this product has
- * ({@code normal_mild < moderate < severe}, from {@code DegenerativeFindingSeverityV1}), a
- * one-step disagreement is {@code PARTIALLY_CONCORDANT} ("consistencia informacional", per the
- * explicit instruction to never treat an ordinal difference as a clinical rule) and a two-step
- * disagreement is {@code DISCREPANT}. A {@code finding} string outside the known ordinal scale is
- * compared by exact equality only (no invented ordering).
+ * <p>Manejo de severidad ordinal: para el único contrato ordinal real que tiene este producto
+ * ({@code normal_mild < moderate < severe}, de {@code DegenerativeFindingSeverityV1}), un
+ * desacuerdo de un paso es {@code PARTIALLY_CONCORDANT} ("consistencia informacional", según la
+ * instrucción explícita de nunca tratar una diferencia ordinal como una regla clínica) y un desacuerdo
+ * de dos pasos es {@code DISCREPANT}. Un string {@code finding} fuera de la escala ordinal conocida se
+ * compara solo por igualdad exacta (sin orden inventado).
  */
 @Service
 public class ConcordanceRuleSetV1 {
@@ -51,19 +51,19 @@ public class ConcordanceRuleSetV1 {
             return new ConcordanceResult("INSUFFICIENT_EVIDENCE", "SINGLE_SOURCE_ONLY", ids, VERSION);
         }
 
-        // A group mixing a categorical finding with a bare numeric value under the same
-        // phenomenon/level/side key is a structural mismatch, not a lack of data — two different
-        // KINDS of evidence were normalized under one label, and forcing a verdict between "3.2"
-        // and "moderate" would invent a comparison that was never real. NOT_COMPARABLE, not
-        // INSUFFICIENT_EVIDENCE (which is reserved for "not enough of the SAME kind yet").
+        // Un grupo que mezcla un hallazgo categórico con un valor numérico suelto bajo la misma
+        // clave fenómeno/nivel/lado es una discrepancia estructural, no una falta de datos — dos
+        // TIPOS distintos de evidencia se normalizaron bajo una misma etiqueta, y forzar un veredicto entre "3.2"
+        // y "moderate" inventaría una comparación que nunca fue real. NOT_COMPARABLE, no
+        // INSUFFICIENT_EVIDENCE (que se reserva para "todavía no hay suficiente del MISMO tipo").
         boolean allCategorical = group.stream().allMatch(item -> item.finding() != null);
         boolean allNumeric = group.stream().allMatch(item -> item.value() != null && item.finding() == null);
         if (!allCategorical && !allNumeric) {
             return new ConcordanceResult("NOT_COMPARABLE", "MIXED_CATEGORICAL_AND_NUMERIC_EVIDENCE", ids, VERSION);
         }
         if (allNumeric) {
-            // v1 does not define a numeric concordance rule (no agreed tolerance band exists in
-            // this product yet) -- named explicitly rather than inventing a threshold.
+            // v1 no define una regla de concordancia numérica (todavía no existe una banda de tolerancia acordada en
+            // este producto) -- se nombra explícitamente en lugar de inventar un umbral.
             return new ConcordanceResult("INSUFFICIENT_EVIDENCE", "NUMERIC_CONCORDANCE_RULE_NOT_DEFINED_IN_V1", ids, VERSION);
         }
 

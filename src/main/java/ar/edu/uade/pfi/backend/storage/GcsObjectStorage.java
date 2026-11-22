@@ -13,15 +13,15 @@ import java.util.HexFormat;
 import java.util.Optional;
 
 /**
- * Cloud Storage provider. Code-ready, not deployed: no code path in this backend
- * calls it in production yet, and this class performs no GCS calls until a request
- * actually needs the {@code gcs} provider.
+ * Proveedor de Cloud Storage. Listo a nivel de código, no desplegado: ningún camino de código de este backend
+ * lo llama todavía en producción, y esta clase no realiza llamadas a GCS hasta que un request
+ * realmente necesite el proveedor {@code gcs}.
  *
- * <p>Auth is Application Default Credentials only — never a service-account JSON key
- * file — via {@link StorageOptions#getDefaultInstance()}. The constructor fails closed:
- * a blank bucket name throws immediately rather than silently falling back to the
- * filesystem provider, so a misconfigured deployment cannot pass durability checks
- * while actually writing nowhere durable.
+ * <p>La autenticación es solo con Application Default Credentials — nunca un archivo de clave JSON
+ * de service account — vía {@link StorageOptions#getDefaultInstance()}. El constructor falla de forma cerrada:
+ * un nombre de bucket en blanco lanza excepción de inmediato en lugar de recurrir en silencio al
+ * proveedor de filesystem, de modo que un despliegue mal configurado no pueda pasar los chequeos de durabilidad
+ * mientras en realidad escribe en ningún lugar durable.
  */
 public class GcsObjectStorage implements ObjectStorage {
 

@@ -9,11 +9,11 @@ public record StudyUploadResponseDto(
     StudyUploadInputDto sagittal,
     StudyUploadInputDto axial,
     /**
-     * Sagittal T1 and T2 as two independently registered, independently analyzable inputs (P10.7
-     * treats them as separate modalities, never pixel-registered to each other). {@code sagittal}
-     * above stays the single-plane winner used by the legacy {@code /api/ai/multiplanar/run}
-     * contract; these are for the P10.9 full-series and disc-degenerative-findings product routes,
-     * which need both when both exist.
+     * T1 y T2 sagitales como dos inputs registrados de forma independiente y analizables de forma independiente (P10.7
+     * los trata como modalidades separadas, nunca registradas píxel a píxel entre sí). {@code sagittal}
+     * más arriba sigue siendo el ganador de un solo plano usado por el contrato legacy {@code /api/ai/multiplanar/run};
+     * estos son para las rutas de producto de serie completa P10.9 y de hallazgos degenerativos de disco,
+     * que necesitan ambos cuando ambos existen.
      */
     StudyUploadInputDto sagittalT1,
     StudyUploadInputDto sagittalT2,

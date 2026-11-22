@@ -20,12 +20,12 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * Single source of truth for CORS (there used to be a second, overlapping CorsFilter bean too,
- * which risked emitting duplicate Access-Control-* headers). Origins come exclusively from
- * PFI_CORS_ALLOWED_ORIGINS (pfi.cors.allowed-origins) and the optional
- * PFI_CORS_ALLOWED_ORIGIN_PATTERNS (pfi.cors.allowed-origin-patterns, "*" glob only, e.g.
- * "https://*.vercel.app" for preview deployments) — no production domain is hardcoded in Java.
- * Because credentials are allowed, a literal "*" is never honored in either list.
+ * Única fuente de verdad para CORS (antes había también un segundo bean CorsFilter superpuesto,
+ * que corría el riesgo de emitir headers Access-Control-* duplicados). Los origins provienen exclusivamente de
+ * PFI_CORS_ALLOWED_ORIGINS (pfi.cors.allowed-origins) y del opcional
+ * PFI_CORS_ALLOWED_ORIGIN_PATTERNS (pfi.cors.allowed-origin-patterns, solo glob "*", p. ej.
+ * "https://*.vercel.app" para despliegues de preview) — ningún dominio de producción está hardcodeado en Java.
+ * Como se permiten credenciales, un "*" literal nunca se respeta en ninguna de las dos listas.
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 1)

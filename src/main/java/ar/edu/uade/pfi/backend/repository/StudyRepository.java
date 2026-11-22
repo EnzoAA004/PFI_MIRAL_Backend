@@ -36,7 +36,7 @@ public interface StudyRepository {
 
     Optional<Study> findStudyByCaseId(String caseId);
 
-    /** Atomically assigns the owner once. Existing/legacy studies are never claimed by a later caller. */
+    /** Asigna el owner de forma atómica una sola vez. Los estudios existentes/legacy nunca son reclamados por un llamante posterior. */
     default boolean claimStudyOwner(String caseId, String principalId) { return false; }
 
     default boolean hasStudyAccess(String caseId, String principalId, boolean write) { return false; }
@@ -49,7 +49,7 @@ public interface StudyRepository {
 
     default Optional<String> resolveStudyCaseId(String resourceId) { return Optional.empty(); }
 
-    /** Registers a pipeline result against an already persisted case without reassigning existing IDs. */
+    /** Registra el resultado de un pipeline contra un caso ya persistido sin reasignar los IDs existentes. */
     default boolean registerAiPipelineRunResource(String runId, String caseId) { return false; }
 
     List<Study> findStudiesBySubjectRef(String subjectRef);
@@ -75,9 +75,9 @@ public interface StudyRepository {
     RunArtifact updateArtifactStorage(String artifactId, String storageStatus, String storageKind, Long sizeBytes, String sha256);
 
     /**
-     * Overwrites the persisted metricsSnapshot for a run. Used to downgrade a
-     * run's threeD to a blocked state after the workspace mesh asset failed
-     * validation/storage post-persistence — never to fabricate new data.
+     * Sobrescribe el metricsSnapshot persistido de una corrida. Se usa para degradar el
+     * threeD de una corrida a un estado bloqueado luego de que el asset de malla del workspace falló la
+     * validación/almacenamiento posterior a la persistencia — nunca para fabricar datos nuevos.
      */
     StudyRun updateRunMetricsSnapshot(String multiplanarRunId, Map<String, Object> metricsSnapshot);
 
@@ -90,11 +90,11 @@ public interface StudyRepository {
     List<MeasurementCorrection> findCorrectionsByStudyRunId(String studyRunId);
 
     /**
-     * Replaces the reviewer's annotations for a run with the given list.
+     * Reemplaza las anotaciones del revisor de una corrida por la lista dada.
      *
-     * <p>Replace and not append: the client owns the full set it is editing, and an
-     * append-only endpoint would make deleting an annotation impossible without a
-     * second call that could half-apply.
+     * <p>Reemplazar y no agregar: el cliente es dueño del conjunto completo que está editando, y un
+     * endpoint solo de append haría imposible borrar una anotación sin una
+     * segunda llamada que podría aplicarse a medias.
      */
     List<ReviewerAnnotation> replaceAnnotations(String multiplanarRunId, List<ReviewerAnnotation> annotations);
 
@@ -136,13 +136,13 @@ public interface StudyRepository {
 
     List<DomainAuditEvent> findAuditEventsByStudyId(String studyId);
 
-    // ---- Stage 76: pfi.ai-product-result.v1 structured persistence ----
+    // ---- Etapa 76: persistencia estructurada de pfi.ai-product-result.v1 ----
 
     /**
-     * Persists one product-analysis run together with its disc-level results and measurements in
-     * a single transaction (stage 76-J) — never a half-persisted run. Each call creates a NEW
-     * run; there is no upsert-by-study semantics (stage 76-I/76-V: a Study can have many runs,
-     * each with its own identity).
+     * Persiste una corrida de product-analysis junto con los resultados de sus niveles de disco y sus mediciones en
+     * una única transacción (etapa 76-J) — nunca una corrida persistida a medias. Cada llamada crea una corrida NUEVA;
+     * no hay semántica de upsert por estudio (etapa 76-I/76-V: un Study puede tener muchas corridas,
+     * cada una con su propia identidad).
      */
     AiProductAnalysisRun saveAiProductAnalysisRun(AiProductAnalysisRun run, List<AiDiscLevelResult> discLevels, List<AiMeasurementResult> measurements);
 
@@ -154,12 +154,12 @@ public interface StudyRepository {
 
     List<AiMeasurementResult> findAiMeasurementResultsByAnalysisRunId(String analysisRunId);
 
-    // ---- Stage 78: professional review / correction workflow ----
+    // ---- Etapa 78: flujo de revisión / corrección profesional ----
 
     /**
-     * Insert-or-update: exactly one review row per run. Never appends a second row for the same
-     * {@code analysisRunId} — the profession's *current* decision, not a history (that lives in
-     * {@code domain_audit_events} via the caller).
+     * Insert-or-update: exactamente una fila de revisión por corrida. Nunca agrega una segunda fila para el mismo
+     * {@code analysisRunId} — la decisión *actual* del profesional, no un historial (ese vive en
+     * {@code domain_audit_events} a través de quien llama).
      */
     AiProductAnalysisRunReview upsertAiProductAnalysisRunReview(String analysisRunId, String reviewStatus, String reviewComment, String reviewedBy, Instant reviewedAt);
 
@@ -172,39 +172,39 @@ public interface StudyRepository {
     List<AiDiscLevelReview> findAiDiscLevelReviewsByAnalysisRunId(String analysisRunId);
 
     /**
-     * Always inserts a new row — {@code domain_ai_measurement_results} is never updated by a
-     * correction (stage 76's immutability guarantee). The "current" corrected value for a
-     * measurement/field pair is the latest row by {@code createdAt}.
+     * Siempre inserta una fila nueva — {@code domain_ai_measurement_results} nunca se actualiza por una
+     * corrección (la garantía de inmutabilidad de la etapa 76). El valor corregido "actual" de un
+     * par medición/campo es la última fila por {@code createdAt}.
      */
     AiMeasurementCorrection saveAiMeasurementCorrection(AiMeasurementCorrection correction);
 
     List<AiMeasurementCorrection> findAiMeasurementCorrectionsByAnalysisRunId(String analysisRunId);
 
-    // ---- EXT-04B2: visual evidence regions ----
+    // ---- EXT-04B2: regiones de evidencia visual ----
 
     /**
-     * Always inserts a new row — {@code domain_ai_evidence_regions} is a root that is never
-     * updated once created (same immutability guarantee as {@code AiMeasurementResult}).
+     * Siempre inserta una fila nueva — {@code domain_ai_evidence_regions} es una raíz que nunca se
+     * actualiza una vez creada (la misma garantía de inmutabilidad que {@code AiMeasurementResult}).
      */
     AiEvidenceRegion saveAiEvidenceRegion(AiEvidenceRegion region);
 
     List<AiEvidenceRegion> findAiEvidenceRegionsByAnalysisRunId(String analysisRunId);
 
     /**
-     * Always inserts a new row — {@code domain_ai_evidence_regions} is never updated by a
-     * correction. The "current" corrected geometry for a region is the latest row by
+     * Siempre inserta una fila nueva — {@code domain_ai_evidence_regions} nunca se actualiza por una
+     * corrección. La geometría corregida "actual" de una región es la última fila por
      * {@code createdAt}.
      */
     AiEvidenceRegionCorrection saveAiEvidenceRegionCorrection(AiEvidenceRegionCorrection correction);
 
     List<AiEvidenceRegionCorrection> findAiEvidenceRegionCorrectionsByAnalysisRunId(String analysisRunId);
 
-    // ---- EXT-07D: professional feedback capture (never training) ----
+    // ---- EXT-07D: captura de feedback profesional (nunca entrenamiento) ----
 
     /**
-     * Idempotent at the caller's discretion via {@link #existsProfessionalFeedbackCandidate}
-     * (also enforced by a DB-level {@code UNIQUE(source, correctionId)} constraint) — capturing
-     * the same correction/new-finding twice must never duplicate a row.
+     * Idempotente a criterio de quien llama vía {@link #existsProfessionalFeedbackCandidate}
+     * (también reforzado por un constraint {@code UNIQUE(source, correctionId)} a nivel de DB) — capturar
+     * la misma corrección/nuevo hallazgo dos veces nunca debe duplicar una fila.
      */
     ProfessionalFeedbackCandidate saveProfessionalFeedbackCandidate(ProfessionalFeedbackCandidate candidate);
 
@@ -215,18 +215,18 @@ public interface StudyRepository {
     Optional<ProfessionalFeedbackCandidate> findProfessionalFeedbackCandidateById(String id);
 
     /**
-     * EXT-05: records one curation decision — updates the candidate's current
-     * {@code status}/{@code curatorId}/{@code curatedAt}/{@code exclusionReason} AND appends a
-     * row to the separate append-only history table. Every other field of a captured candidate
-     * (its AI-original/professional values, provenance, etc.) is immutable.
+     * EXT-05: registra una decisión de curación — actualiza {@code status}/{@code curatorId}/{@code curatedAt}/{@code exclusionReason}
+     * actuales del candidato Y agrega una
+     * fila a la tabla de historial append-only separada. Todo otro campo de un candidato capturado
+     * (sus valores originales de la IA/profesionales, procedencia, etc.) es inmutable.
      */
     ProfessionalFeedbackCandidate recordFeedbackCandidateStatusChange(String id, String toStatus, String curatorId, String reason, String note, java.time.Instant changedAt);
 
     List<ProfessionalFeedbackStatusChange> findFeedbackCandidateStatusChanges(String candidateId);
 
-    // ---- Stage 80: contextual chat ----
+    // ---- Etapa 80: chat contextual ----
 
-    /** Always inserts a new conversation — a Study can have many (80-U), never overwritten. */
+    /** Siempre inserta una conversación nueva — un Study puede tener muchas (80-U), nunca se sobrescribe. */
     ChatConversation saveChatConversation(ChatConversation conversation);
 
     ChatMessage saveChatMessage(ChatMessage message);
@@ -238,13 +238,13 @@ public interface StudyRepository {
     List<ChatMessage> findChatMessagesByConversationId(String conversationId);
 
     /**
-     * Stage 81-C/81-M: persists one chat turn (one USER message + its ASSISTANT reply)
-     * atomically. When {@code conversationToCreate} is non-null, the conversation row is
-     * inserted first in the same transaction (a brand-new conversation); when {@code null}, both
-     * messages are appended to an already-existing conversation. Fixes a Stage-80 gap where
-     * {@code saveChatConversation}/{@code saveChatMessage} were called as three independent
-     * writes — a failure between them could leave an orphan conversation with only a user turn
-     * and no assistant reply.
+     * Etapa 81-C/81-M: persiste un turno de chat (un mensaje USER + su respuesta ASSISTANT)
+     * de forma atómica. Cuando {@code conversationToCreate} no es null, la fila de conversación se
+     * inserta primero en la misma transacción (una conversación nueva); cuando es {@code null}, ambos
+     * mensajes se agregan a una conversación ya existente. Corrige una brecha de la Etapa 80 donde
+     * {@code saveChatConversation}/{@code saveChatMessage} se llamaban como tres
+     * escrituras independientes — una falla entre ellas podía dejar una conversación huérfana con solo un turno de usuario
+     * y sin respuesta del assistant.
      */
     void saveChatTurn(ChatConversation conversationToCreate, ChatMessage userMessage, ChatMessage assistantMessage);
 }

@@ -18,10 +18,10 @@ public record MultiplanarRunApiRequestDto(
     String axialModelKey,
     Boolean allowContractFallback,
     /**
-     * Every series the uploaded study carried, as returned by the study upload.
+     * Todas las series que traía el estudio subido, tal como las devuelve el upload del estudio.
      *
-     * <p>Optional: a run built from two per-plane uploads has no study behind it and sends nothing
-     * here. When present it is what lets the reading room show the series no model ran on.
+     * <p>Opcional: una corrida armada a partir de dos uploads por plano no tiene un estudio detrás y no envía nada
+     * acá. Cuando está presente es lo que le permite a la sala de lectura mostrar las series sobre las que no corrió ningún modelo.
      */
     @Valid List<StudyUploadSeriesDto> studySeries,
     Map<String, Object> metadata) {}

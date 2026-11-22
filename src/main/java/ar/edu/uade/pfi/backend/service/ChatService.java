@@ -29,13 +29,13 @@ import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 
 /**
- * Stage 80: orchestrates a chat turn — validate the question, resolve the Study, build context
- * (stage 76-79 data only), call the one configured {@link LlmProvider}, persist the exchange, and
- * return a response whose safety flags are set unconditionally here, never by the provider
+ * Etapa 80: orquesta un turno de chat — valida la pregunta, resuelve el Study, arma el contexto
+ * (solo datos de las etapas 76-79), llama al único {@link LlmProvider} configurado, persiste el intercambio y
+ * devuelve una respuesta cuyos flags de seguridad se setean incondicionalmente acá, nunca por el proveedor
  * (80-L).
  *
- * <p>No AI/FastAPI call happens in this class — {@link LlmProvider} only ever talks to the LLM
- * runtime, never to FastAPI, and the context comes entirely from already-persisted rows.
+ * <p>En esta clase no ocurre ninguna llamada a IA/FastAPI — {@link LlmProvider} solo habla con el runtime
+ * del LLM, nunca con FastAPI, y el contexto proviene por completo de filas ya persistidas.
  */
 @Service
 public class ChatService {
@@ -86,8 +86,8 @@ public class ChatService {
         }
         Study study = repository.findStudyByCaseId(caseId).orElseThrow(() -> new StudyNotFoundException(caseId));
 
-        // Stage 81-C: an existing conversationId must belong to this Study -- same cross-Study
-        // IDOR convention as every other lookup in this codebase (404, never 403).
+        // Etapa 81-C: un conversationId existente debe pertenecer a este Study -- la misma convención IDOR
+        // entre Studies que cualquier otro lookup de este código (404, nunca 403).
         String requestedConversationId = request.conversationId();
         ChatConversation existingConversation = requestedConversationId == null ? null
             : repository.findChatConversationById(requestedConversationId)
@@ -96,8 +96,8 @@ public class ChatService {
 
         ChatContextResult context = contextBuilder.build(study, request.analysisId(), request.baselineCaseId());
         String contextJson = writeContextJson(context);
-        // Resolved (and IDOR/same-patient-checked) as a side effect of context building above --
-        // findStudyByCaseId here only recovers the internal UUID id for FK storage, never re-validates.
+        // Resuelto (y chequeado por IDOR/mismo paciente) como efecto secundario del armado de contexto de arriba --
+        // findStudyByCaseId acá solo recupera el id UUID interno para guardarlo como FK, nunca revalida.
         String baselineStudyId = request.baselineCaseId() == null
             ? null
             : repository.findStudyByCaseId(request.baselineCaseId()).map(Study::id).orElse(null);
@@ -121,8 +121,8 @@ public class ChatService {
             assistantMessageId, conversationId, "ASSISTANT", result.content(), now, result.model(), result.provider(),
             ChatSystemPrompts.CURRENT_VERSION, request.analysisId(), baselineStudyId, context.study() == null ? null : context.study().contextVersion()
         );
-        // 81-M: both messages (and the conversation row, if new) are written in one transaction --
-        // a Stage-80 gap where three independent writes could leave an orphan user-only turn.
+        // 81-M: ambos mensajes (y la fila de conversación, si es nueva) se escriben en una transacción --
+        // una brecha de la Etapa 80 donde tres escrituras independientes podían dejar un turno huérfano solo de usuario.
         repository.saveChatTurn(conversationToCreate, userMessage, assistantMessage);
 
         audit("chat.answered", study.id(), traceId, context.contextSources());
@@ -176,11 +176,11 @@ public class ChatService {
     }
 
     /**
-     * Stage 81-C: the last {@code resolvedHistoryWindowTurns()} turns (USER+ASSISTANT pairs) of
-     * an existing conversation, mapped to the provider's role vocabulary. Never includes a
-     * historical system-prompt message (81: "NO incluir system prompts históricos completos") --
-     * only the current {@link ChatSystemPrompts#V1} (added separately, once, by the caller) is
-     * ever sent as the system role.
+     * Etapa 81-C: los últimos {@code resolvedHistoryWindowTurns()} turnos (pares USER+ASSISTANT) de
+     * una conversación existente, mapeados al vocabulario de roles del proveedor. Nunca incluye un
+     * mensaje de system prompt histórico (81: "NO incluir system prompts históricos completos") --
+     * solo el {@link ChatSystemPrompts#V1} actual (agregado por separado, una vez, por quien llama) es
+     * enviado como rol system.
      */
     private List<LlmChatMessage> historyWindow(String conversationId) {
         List<ChatMessage> all = repository.findChatMessagesByConversationId(conversationId);
@@ -219,7 +219,7 @@ public class ChatService {
         try {
             auditService.record("system", action, studyId, traceId == null || traceId.isBlank() ? "unavailable" : traceId, Map.of("contextSources", contextSources));
         } catch (RuntimeException ignored) {
-            // Chat must not fail just because audit persistence is unavailable.
+            // El chat no debe fallar solo porque la persistencia de auditoría no esté disponible.
         }
     }
 }

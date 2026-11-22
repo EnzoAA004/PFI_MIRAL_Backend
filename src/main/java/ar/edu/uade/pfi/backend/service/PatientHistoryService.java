@@ -78,17 +78,17 @@ public class PatientHistoryService {
         item.put("corrections", latestRun == null ? List.of() : corrections(latestRun.id()));
         item.put("createdAt", study.createdAt().toString());
         item.put("updatedAt", study.updatedAt().toString());
-        // Stage 84-C: the post-e50 AI product analysis summary (Stage 76/78/79's own concept,
-        // distinct from the legacy StudyRun above) always uses EffectiveAnalysisRunSelector --
-        // the exact same rule Stage 79's comparison and Stage 80's chat already use -- so a
-        // Study's "current" analysis is never a second, divergent selection rule.
+        // Etapa 84-C: el resumen de análisis de producto de IA post-e50 (concepto propio de las Etapas 76/78/79,
+        // distinto del StudyRun legacy de arriba) siempre usa EffectiveAnalysisRunSelector --
+        // exactamente la misma regla que ya usan la comparación de la Etapa 79 y el chat de la Etapa 80 -- de modo que el análisis
+        // "actual" de un Study nunca sea una segunda regla de selección divergente.
         item.put("productAnalysis", productAnalysisSummary(study));
         return item;
     }
 
     /**
-     * Stage 84-D: {@code null} when the Study has no effective run yet -- this is a normal state
-     * ("Sin análisis"), never an error, and the Study is never hidden because of it.
+     * Etapa 84-D: {@code null} cuando el Study todavía no tiene una corrida efectiva -- este es un estado normal
+     * ("Sin análisis"), nunca un error, y el Study nunca se oculta por eso.
      */
     private Map<String, Object> productAnalysisSummary(Study study) {
         return runSelector.selectEffectiveRun(study.id()).map(this::toProductAnalysisSummary).orElse(null);
@@ -108,9 +108,9 @@ public class PatientHistoryService {
         summary.put("reviewStatus", reviewStatus);
         summary.put("measurementCount", measurements.size());
         summary.put("correctedMeasurementCount", (int) correctedMeasurementCount);
-        // 84-H: the warnings are shown, never reinterpreted (e.g. 67B2_RUNTIME_PARITY_NOT_PROVEN
-        // stays exactly that string -- the Frontend, per Stage 77's convention, is the only layer
-        // that maps it to human-readable text).
+        // 84-H: las advertencias se muestran, nunca se reinterpretan (p. ej. 67B2_RUNTIME_PARITY_NOT_PROVEN
+        // sigue siendo exactamente ese string -- el Frontend, según la convención de la Etapa 77, es la única capa
+        // que lo mapea a texto legible).
         summary.put("warnings", run.warnings());
         summary.put("humanReviewRequired", run.humanReviewRequired());
         summary.put("notClinicalDiagnosis", run.notClinicalDiagnosis());

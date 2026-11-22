@@ -4,15 +4,15 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.Map;
 
 /**
- * Public request body for {@code POST /api/studies/{caseId}/product-analysis}. {@code caseId}
- * comes from the path, not the body — this is a sub-resource of a study, matching the
- * {@code /api/studies/{caseId}/...} convention already used elsewhere in this controller family.
+ * Body del request público de {@code POST /api/studies/{caseId}/product-analysis}. {@code caseId}
+ * viene del path, no del body — este es un subrecurso de un estudio, siguiendo la convención
+ * {@code /api/studies/{caseId}/...} ya usada en el resto de esta familia de controllers.
  *
- * <p>Stage 76: {@code sagittalInputId}/{@code axialInputId} are deprecated and ignored. The
- * Backend now resolves both from the Study's own registered inputs via
- * {@code AiStudyInputResolver} — the Frontend only needs to send {@code caseId} (path) and
- * optional {@code metadata}. The fields are kept on the wire, rather than removed outright, only
- * so an existing caller that still sends them does not fail deserialization; they carry no effect.
+ * <p>Etapa 76: {@code sagittalInputId}/{@code axialInputId} están deprecados y se ignoran. El
+ * Backend ahora resuelve ambos a partir de los inputs registrados del propio Study vía
+ * {@code AiStudyInputResolver} — el Frontend solo necesita enviar {@code caseId} (path) y
+ * {@code metadata} opcional. Los campos se mantienen en el wire, en lugar de eliminarse del todo, solo
+ * para que un llamante existente que todavía los envía no falle en la deserialización; no tienen efecto.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record AiProductAnalysisApiRequestDto(

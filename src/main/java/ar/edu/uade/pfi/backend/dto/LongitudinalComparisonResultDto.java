@@ -5,11 +5,11 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
- * Stage 79: a deterministic, on-demand (never persisted — see stage 79-J) comparison of AI
- * measurements between two Studies of the SAME patient. Purely descriptive: this type and the
- * service that builds it never emit a clinical judgment ("improved"/"worsened"/a diagnosis) —
- * only the raw arithmetic delta between two already-persisted, already-reviewed-if-applicable
- * values (stage 79-G).
+ * Etapa 79: una comparación determinística y a demanda (nunca persistida — ver etapa 79-J) de las mediciones de la IA
+ * entre dos Studies del MISMO paciente. Puramente descriptiva: este tipo y el
+ * servicio que lo arma nunca emiten un juicio clínico ("mejoró"/"empeoró"/un diagnóstico) —
+ * solo el delta aritmético crudo entre dos valores ya persistidos y, si corresponde, ya revisados
+ * (etapa 79-G).
  */
 public record LongitudinalComparisonResultDto(
     String baselineCaseId,
@@ -25,9 +25,9 @@ public record LongitudinalComparisonResultDto(
 ) {
 
     /**
-     * One field of one measurement, matched by an exact
-     * {@code (level, plane, structure, metric)} key (stage 79-E) — never a looser match, and
-     * never two {@code level=null} entries paired with each other (stage 79-E "level null").
+     * Un campo de una medición, emparejado por una clave exacta
+     * {@code (level, plane, structure, metric)} (etapa 79-E) — nunca una coincidencia más laxa, y
+     * nunca dos entradas con {@code level=null} emparejadas entre sí (etapa 79-E "level null").
      */
     public record MeasurementComparison(
         String level,
@@ -39,17 +39,17 @@ public record LongitudinalComparisonResultDto(
         EffectiveValue current,
         Double deltaAbsolute,
         Double deltaPercent,
-        /** "increased" | "decreased" | "unchanged" | null — purely mathematical (stage 79-G), never clinical. */
+        /** "increased" | "decreased" | "unchanged" | null — puramente matemático (etapa 79-G), nunca clínico. */
         String trend,
-        /** "comparable" | "missing_baseline" | "missing_current" | "level_unresolved" | "unit_mismatch" (stage 79-Q). */
+        /** "comparable" | "missing_baseline" | "missing_current" | "level_unresolved" | "unit_mismatch" (etapa 79-Q). */
         String comparisonStatus
     ) {
     }
 
     /**
-     * Stage 78's correction always takes priority over the AI's own value when one exists
-     * (stage 79-B/79-N) — but the AI's original value is never omitted, even when a correction
-     * is in effect.
+     * La corrección de la etapa 78 siempre tiene prioridad sobre el valor propio de la IA cuando existe una
+     * (etapa 79-B/79-N) — pero el valor original de la IA nunca se omite, ni siquiera cuando hay una corrección
+     * vigente.
      */
     public record EffectiveValue(
         Double automaticValue,

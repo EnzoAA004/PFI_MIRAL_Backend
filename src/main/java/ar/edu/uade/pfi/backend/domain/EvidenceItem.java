@@ -3,15 +3,15 @@ package ar.edu.uade.pfi.backend.domain;
 import java.util.Objects;
 
 /**
- * EXT-01: a normalized, comparable unit of AI/professional evidence — the contract every
- * concordance rule operates on, regardless of which real product surface produced it (a
- * disc-level batch classifier run, an interactive subarticular-ROI classification, a
- * measurement, or a professional review outcome). Deliberately NOT tied to any one persistence
- * table: the two real, independently-computed sources this stage's audit found comparable are
- * both instances of the same `DegenerativeFindingsV1Dto` wire contract (Backend
- * `DegenerativeFindingTypeV1`/`DegenerativeFindingSeverityV1`) invoked from two different contexts
- * (batch disc-level analysis vs. on-demand subarticular-ROI classification) — see
- * `docs/extensions/EXT_01_CONCORDANCE.md` "Overlap matrix" for what was and was not judged
+ * EXT-01: una unidad de evidencia IA/profesional normalizada y comparable — el contrato sobre el que opera cada
+ * regla de concordancia, sin importar qué superficie real del producto la produjo (una
+ * corrida del clasificador por lote de niveles de disco, una clasificación interactiva de ROI subarticular, una
+ * medición, o un resultado de revisión profesional). Deliberadamente NO atada a ninguna tabla de persistencia:
+ * las dos fuentes reales, calculadas de forma independiente, que la auditoría de esta etapa encontró comparables son
+ * ambas instancias del mismo contrato wire `DegenerativeFindingsV1Dto` (Backend
+ * `DegenerativeFindingTypeV1`/`DegenerativeFindingSeverityV1`) invocado desde dos contextos distintos
+ * (análisis por lote de niveles de disco vs. clasificación de ROI subarticular a demanda) — ver
+ * `docs/extensions/EXT_01_CONCORDANCE.md` "Overlap matrix" para saber qué se juzgó y qué no
  * comparable.
  */
 public record EvidenceItem(
@@ -23,16 +23,16 @@ public record EvidenceItem(
     String level,
     String side,
     String plane,
-    /** What this item is actually a classification/measurement OF — e.g. "subarticular_stenosis". Only items sharing the same phenomenon are ever compared. */
+    /** DE QUÉ es realmente esta ítem una clasificación/medición — p. ej. "subarticular_stenosis". Solo se comparan ítems que comparten el mismo fenómeno. */
     String phenomenon,
-    /** The categorical label, when the phenomenon is ordinal/categorical (e.g. "normal_mild"/"moderate"/"severe"). Null for a purely numeric item. */
+    /** La etiqueta categórica, cuando el fenómeno es ordinal/categórico (p. ej. "normal_mild"/"moderate"/"severe"). Null para un ítem puramente numérico. */
     String finding,
-    /** The numeric value, when the phenomenon is a measurement. Null for a purely categorical item. */
+    /** El valor numérico, cuando el fenómeno es una medición. Null para un ítem puramente categórico. */
     Double value,
-    /** Only when the source model genuinely emits one — never fabricated. */
+    /** Solo cuando el modelo de origen realmente emite uno — nunca se fabrica. */
     Double confidence,
     boolean experimental,
-    /** "pending"/"accepted"/"observed"/"rejected", when this item has gone through a review flow; null otherwise. */
+    /** "pending"/"accepted"/"observed"/"rejected", cuando este ítem pasó por un flujo de revisión; null en caso contrario. */
     String reviewStatus
 ) {
     public EvidenceItem {

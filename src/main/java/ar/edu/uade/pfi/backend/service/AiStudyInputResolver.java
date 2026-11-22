@@ -10,9 +10,9 @@ import java.util.Optional;
 import org.springframework.stereotype.Component;
 
 /**
- * Resolves the {@code sagittalInputId}/{@code axialInputId} a product-analysis run needs from the
- * Study's own registered inputs (stage 76-B) — never from a Frontend-supplied path and never
- * fabricated. The Frontend only needs to know {@code caseId}; everything else is resolved here.
+ * Resuelve el {@code sagittalInputId}/{@code axialInputId} que necesita una corrida de product-analysis a partir de los
+ * inputs registrados del propio Study (etapa 76-B) — nunca de un path provisto por el Frontend y nunca
+ * fabricado. El Frontend solo necesita conocer {@code caseId}; todo lo demás se resuelve acá.
  */
 @Component
 public class AiStudyInputResolver {

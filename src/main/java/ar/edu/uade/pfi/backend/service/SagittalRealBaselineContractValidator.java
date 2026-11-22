@@ -124,7 +124,7 @@ public class SagittalRealBaselineContractValidator {
         try {
           return findSagittalItem(nested);
         } catch (AiContractViolationException ignored) {
-          // Continue searching nested structures.
+          // Continuar buscando en las estructuras anidadas.
         }
       }
     }
@@ -133,7 +133,7 @@ public class SagittalRealBaselineContractValidator {
         try {
           return findSagittalItem(nested);
         } catch (AiContractViolationException ignored) {
-          // Continue searching list items.
+          // Continuar buscando en los ítems de la lista.
         }
       }
     }

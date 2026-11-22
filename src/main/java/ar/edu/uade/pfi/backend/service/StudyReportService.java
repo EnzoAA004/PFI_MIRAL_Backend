@@ -314,14 +314,14 @@ public class StudyReportService {
     }
 
     /**
-     * EXT-04B2: only the currently-effective regions are surfaced in the report (mirrors
-     * {@code MeasurementSummary}, which also only ever shows the effective value, never a
-     * correction history) — rejected/still-blocked-pending regions remain queryable through
-     * their own persisted rows, but are not part of this "current view". Unreviewed AI
-     * suggestions ARE included (same precedent as {@code MeasurementSummary}, which shows
-     * AI-original measurements before any review too), each carrying its own
-     * {@code reviewStatus} and a neutral warning so the reader can tell it apart from a
-     * validated region.
+     * EXT-04B2: solo las regiones actualmente efectivas se muestran en el reporte (replica
+     * {@code MeasurementSummary}, que también muestra siempre solo el valor efectivo, nunca un
+     * historial de correcciones) — las regiones rechazadas/aún pendientes y bloqueadas siguen consultables a través de
+     * sus propias filas persistidas, pero no forman parte de esta "vista actual". Las sugerencias de IA
+     * sin revisar SÍ se incluyen (mismo precedente que {@code MeasurementSummary}, que muestra
+     * mediciones originales de la IA también antes de cualquier revisión), cada una con su propio
+     * {@code reviewStatus} y una advertencia neutral para que el lector pueda distinguirla de una
+     * región validada.
      */
     private List<StudyReportDto.VisualEvidenceSummary> visualEvidence(AiProductAnalysisRun run) {
         return annotationResolver.effectiveAnnotations(run, true).stream()
@@ -358,12 +358,12 @@ public class StudyReportService {
     }
 
     /**
-     * EXT-04B3.5: resolves a region's base-image reference from data that already exists on its
-     * {@link AiProductAnalysisRun} — never a new asset system, never a filesystem path. Fail-safe
-     * by design (89-CONT precedent: an absent capability returns {@code null}, it never fabricates
-     * a value): {@code null} when the region has no {@code sliceIndex}, when {@code plane} is
-     * neither {@code "sagittal"} nor {@code "axial"}, or when the run has no inputId for that
-     * plane (e.g. an axial-only region on a sagittal-only run).
+     * EXT-04B3.5: resuelve la referencia a la imagen base de una región a partir de datos que ya existen en su
+     * {@link AiProductAnalysisRun} — nunca un nuevo sistema de assets, nunca un path del filesystem. Fail-safe
+     * por diseño (precedente 89-CONT: una capacidad ausente devuelve {@code null}, nunca fabrica
+     * un valor): {@code null} cuando la región no tiene {@code sliceIndex}, cuando {@code plane} no es
+     * ni {@code "sagittal"} ni {@code "axial"}, o cuando la corrida no tiene inputId para ese
+     * plano (p. ej. una región solo axial en una corrida solo sagital).
      */
     private StudyReportDto.BaseImageRef baseImageRef(ar.edu.uade.pfi.backend.domain.AiEvidenceRegion region, AiProductAnalysisRun run) {
         if (region.sliceIndex() == null) return null;
@@ -376,16 +376,16 @@ public class StudyReportService {
         return new StudyReportDto.BaseImageRef(inputId, region.sliceIndex());
     }
 
-    /** Same cap the Frontend's own before/after section already applies (EXT-07B). */
+    /** El mismo tope que ya aplica la propia sección antes/después del Frontend (EXT-07B). */
     private static final int BEFORE_AFTER_LIMIT = 4;
 
     /**
-     * EXT-04B4: pairs each {@code longitudinalHistory.comparisons[]} row with a matching
-     * {@link StudyReportDto.VisualEvidenceSummary} on the previous/current side, when one exists
-     * at the same level/plane/structure — server-side equivalent of what the Frontend's own
-     * `beforeAfterDisplay.ts#matchingEvidence` already does client-side (EXT-07B), needed here
-     * because PDF generation has no client to do that matching for it. Numeric values/deltas are
-     * always copied verbatim from the row — never recomputed.
+     * EXT-04B4: empareja cada fila de {@code longitudinalHistory.comparisons[]} con un
+     * {@link StudyReportDto.VisualEvidenceSummary} coincidente del lado anterior/actual, cuando existe uno
+     * en el mismo nivel/plano/estructura — equivalente del lado del servidor de lo que el
+     * `beforeAfterDisplay.ts#matchingEvidence` del propio Frontend ya hace del lado del cliente (EXT-07B), necesario acá
+     * porque la generación del PDF no tiene un cliente que haga ese emparejamiento por ella. Los valores/deltas numéricos
+     * siempre se copian textualmente de la fila — nunca se recalculan.
      */
     private List<StudyReportDto.BeforeAfterEvidencePairDto> beforeAfterEvidence(
         StudyReportDto.LongitudinalHistorySummary history,

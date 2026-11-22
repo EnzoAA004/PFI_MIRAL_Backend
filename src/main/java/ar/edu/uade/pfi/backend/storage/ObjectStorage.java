@@ -3,12 +3,12 @@ package ar.edu.uade.pfi.backend.storage;
 import java.util.Optional;
 
 /**
- * Durable binary object storage contract used for raw study inputs, AI outputs and
- * reports. Object keys never carry PHI (patient name, DNI): only studyId/runId/reportId
- * plus a generated assetId, per {@link ObjectKeys}.
+ * Contrato de almacenamiento durable de objetos binarios usado para inputs de estudios crudos, salidas de IA y
+ * reportes. Las object keys nunca llevan PHI (nombre del paciente, DNI): solo studyId/runId/reportId
+ * más un assetId generado, según {@link ObjectKeys}.
  *
- * <p>Mirrors the AI module's {@code ObjectStorage} (ai_service/pfi_ai_service/object_storage.py)
- * so both services share one storage contract and can be restart-tested the same way.
+ * <p>Replica el {@code ObjectStorage} del módulo de IA (ai_service/pfi_ai_service/object_storage.py)
+ * para que ambos servicios compartan un único contrato de almacenamiento y puedan testearse tras un reinicio de la misma forma.
  */
 public interface ObjectStorage {
 
@@ -22,6 +22,6 @@ public interface ObjectStorage {
 
     void delete(String objectKey);
 
-    /** Provider identifier persisted alongside metadata: {@code filesystem} or {@code gcs}. */
+    /** Identificador del proveedor persistido junto a los metadatos: {@code filesystem} o {@code gcs}. */
     String providerName();
 }

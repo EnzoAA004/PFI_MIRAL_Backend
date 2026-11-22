@@ -3,11 +3,11 @@ package ar.edu.uade.pfi.backend.service;
 import java.util.Map;
 
 /**
- * EXT-04B4: the exact same four neutral labels the Frontend already renders
- * ({@code visualEvidenceDisplay.ts#displayEvidenceSource}) — kept in sync deliberately, never
- * "patología confirmada"/"lesión confirmada"/"diagnóstico". Duplicated here (not imported —
- * this is a separate Java/TypeScript codebase) rather than left to drift or reinvented with
- * different wording.
+ * EXT-04B4: exactamente las mismas cuatro etiquetas neutrales que el Frontend ya renderiza
+ * ({@code visualEvidenceDisplay.ts#displayEvidenceSource}) — mantenidas en sincronía deliberadamente, nunca
+ * "patología confirmada"/"lesión confirmada"/"diagnóstico". Duplicadas acá (no importadas —
+ * es una base de código Java/TypeScript separada) en lugar de dejarlas derivar o reinventarlas con
+ * otra redacción.
  */
 final class EvidenceReportText {
     private static final Map<String, String> SOURCE_LABELS = Map.of(

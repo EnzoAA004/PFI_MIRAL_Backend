@@ -10,11 +10,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
- * Presentation-layer compatibility mapper: converts the internal CanonicalMultiplanarRun (produced
- * by AiServiceClient for either contract version) back into the public MultiplanarRunResponseDto
- * wire shape that the P8 frontend already consumes. This keeps /api/ai/multiplanar/run's JSON
- * contract stable across the v1/v2 rollout — P9-C will migrate the frontend to the canonical shape
- * directly.
+ * Mapper de compatibilidad de la capa de presentación: convierte el CanonicalMultiplanarRun interno (producido
+ * por AiServiceClient para cualquiera de las dos versiones de contrato) de vuelta a la forma wire pública
+ * MultiplanarRunResponseDto que el frontend P8 ya consume. Esto mantiene estable el contrato JSON de /api/ai/multiplanar/run
+ * a lo largo del rollout v1/v2 — P9-C migrará el frontend directamente a la forma
+ * canónica.
  */
 @Component
 public class CanonicalMultiplanarRunLegacyPresenter {
@@ -90,9 +90,9 @@ public class CanonicalMultiplanarRunLegacyPresenter {
   }
 
   /**
-   * A plane counts as a "clean" real_baseline result only when nothing in the canonical run signals
-   * a fallback: the effective mode is real_baseline, the plane was not synthesized, and no
-   * fallbackReason was recorded.
+   * Un plano cuenta como resultado real_baseline "limpio" solo cuando nada en la corrida canónica señala
+   * un fallback: el modo efectivo es real_baseline, el plano no fue sintetizado y no se
+   * registró ningún fallbackReason.
    */
   private boolean isRealBaselineClean(CanonicalPlaneRun plane) {
     return "real_baseline".equals(plane.effectiveInferenceMode())
@@ -171,9 +171,9 @@ public class CanonicalMultiplanarRunLegacyPresenter {
   }
 
   /**
-   * Model key/version live under different map keys depending on the upstream contract: v2
-   * (AiMultiplanarV2ResponseAdapter) stores the wire names "key"/"version" as-is, while v1
-   * (AiMultiplanarV1ResponseAdapter) stores them as "modelKey"/"modelVersion".
+   * La key/versión del modelo viven bajo distintas keys del mapa según el contrato upstream: v2
+   * (AiMultiplanarV2ResponseAdapter) guarda los nombres wire "key"/"version" tal cual, mientras que v1
+   * (AiMultiplanarV1ResponseAdapter) los guarda como "modelKey"/"modelVersion".
    */
   private String modelKey(Map<String, Object> model) {
     Object value = model.containsKey("key") ? model.get("key") : model.get("modelKey");

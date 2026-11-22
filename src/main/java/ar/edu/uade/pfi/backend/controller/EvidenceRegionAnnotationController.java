@@ -16,10 +16,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * EXT-04B5: professional creation of a new evidence region, and append-only correction of an
- * existing one (AI-origin or professional-origin). Review (accept/observe/reject) is
- * deliberately not duplicated here — see {@link ProfessionalAnnotationService}'s own javadoc for
- * why {@code AiProductAnalysisController#reviewDiscLevel}/{@code #reviewRun} already cover it.
+ * EXT-04B5: creación profesional de una nueva región de evidencia, y corrección append-only de una
+ * existente (de origen IA o profesional). La revisión (aceptar/observar/rechazar) deliberadamente
+ * no se duplica acá — ver el javadoc propio de {@link ProfessionalAnnotationService} para saber
+ * por qué {@code AiProductAnalysisController#reviewDiscLevel}/{@code #reviewRun} ya la cubren.
  */
 @RestController
 @RequestMapping("/api/studies/{caseId}/product-analyses/{analysisId}/evidence-regions")
@@ -60,8 +60,8 @@ public class EvidenceRegionAnnotationController {
     }
 
     /**
-     * Never trusts a client-supplied identity (same rule {@code AiProductAnalysisController}
-     * already applies) — derived only from the authenticated principal's own JWT claims.
+     * Nunca confía en una identidad provista por el cliente (la misma regla que ya aplica {@code AiProductAnalysisController})
+     * — se deriva únicamente de los claims JWT propios del principal autenticado.
      */
     private String authoredBy(HttpServletRequest request) {
         Object value = request.getAttribute(AuthFilter.AUTH_CLAIMS_ATTRIBUTE);

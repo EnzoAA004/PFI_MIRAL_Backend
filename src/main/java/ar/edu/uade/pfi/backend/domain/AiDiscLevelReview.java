@@ -3,14 +3,14 @@ package ar.edu.uade.pfi.backend.domain;
 import java.time.Instant;
 
 /**
- * Professional review state for one {@link AiDiscLevelResult} — stage 78-C, the minimal granular
- * layer defensible beyond run-level review. One row per disc-level result (upserted).
+ * Estado de revisión profesional para un {@link AiDiscLevelResult} — etapa 78-C, la capa granular
+ * mínima defendible más allá de la revisión a nivel de corrida. Una fila por resultado de nivel de disco (upsert).
  *
- * <p>This NEVER changes {@link AiDiscLevelResult}'s own fields (level, localizationStatus,
- * axialPairingValidated, degenerativeFindingsStatus, ...) — those remain the AI's original,
- * immutable output. Accepting a 67C pairing here does not and cannot set
- * {@code axialPairingValidated=true}; that is a professional-review decision layered on top of,
- * never a substitute for, the AI method's own validation status.
+ * <p>Esto NUNCA cambia los campos propios de {@link AiDiscLevelResult} (level, localizationStatus,
+ * axialPairingValidated, degenerativeFindingsStatus, ...) — esos siguen siendo la salida original e
+ * inmutable de la IA. Aceptar acá un emparejamiento 67C no setea ni puede setear
+ * {@code axialPairingValidated=true}; esa es una decisión de revisión profesional que se apoya sobre el
+ * estado de validación propio del método de IA, y nunca lo reemplaza.
  */
 public record AiDiscLevelReview(
     String id,

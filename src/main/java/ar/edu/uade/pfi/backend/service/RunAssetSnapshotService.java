@@ -62,11 +62,11 @@ public class RunAssetSnapshotService {
   }
 
   /**
-   * Downloads, validates and stores every public artifact of the run. Returns false only when the
-   * workspace 3D mesh was present among the run's artifacts and ended up in any state other than
-   * "stored" — the caller (MultiplanarRunPersistenceService) uses this to downgrade an
-   * already-persisted threeD.enabled=true snapshot to a blocked state, so the mesh URL is never
-   * published pointing at unavailable content.
+   * Descarga, valida y almacena cada artefacto público de la corrida. Devuelve false solo cuando la
+   * malla 3D del workspace estaba presente entre los artefactos de la corrida y terminó en cualquier estado distinto de
+   * "stored" — quien llama (MultiplanarRunPersistenceService) lo usa para degradar un
+   * snapshot ya persistido con threeD.enabled=true a un estado bloqueado, de modo que la URL de la malla nunca se
+   * publique apuntando a contenido no disponible.
    */
   public boolean snapshot(StudyRun run) {
     if (run == null || storage == null || run.artifacts() == null) return true;
@@ -238,7 +238,7 @@ public class RunAssetSnapshotService {
       auditService.record(
           "backend", action, artifact.runId(), traceId == null ? "" : traceId, metadata);
     } catch (RuntimeException ignored) {
-      // Asset audit must never mask run persistence.
+      // La auditoría de assets nunca debe enmascarar la persistencia de la corrida.
     }
   }
 }

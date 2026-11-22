@@ -48,7 +48,7 @@ public class PostgresReviewStoreService {
     }
   }
 
-  /** Test convenience: builds its own small pool from a raw JDBC/connection URL. */
+  /** Conveniencia para tests: arma su propio pool chico a partir de una URL JDBC/de conexión cruda. */
   public PostgresReviewStoreService(ObjectMapper objectMapper, String persistenceMode, String databaseUrl) {
     this(objectMapper, persistenceMode, buildDataSourceOrNull(databaseUrl));
   }
@@ -125,7 +125,7 @@ public class PostgresReviewStoreService {
       statement.setTimestamp(5, Timestamp.from(review.updatedAt()));
       statement.executeUpdate();
     } catch (Exception ignored) {
-      // In-memory fallback remains the source of truth if Postgres is unavailable.
+      // El fallback en memoria sigue siendo la fuente de verdad si Postgres no está disponible.
     }
     return review;
   }
@@ -175,7 +175,7 @@ public class PostgresReviewStoreService {
         }
       }
     } catch (Exception ignored) {
-      // In-memory fallback remains active.
+      // El fallback en memoria sigue activo.
     }
     return measurements;
   }
@@ -196,7 +196,7 @@ public class PostgresReviewStoreService {
       statement.setTimestamp(5, Timestamp.from(event.timestamp()));
       statement.executeUpdate();
     } catch (Exception ignored) {
-      // In-memory fallback remains active.
+      // El fallback en memoria sigue activo.
     }
     return event;
   }
@@ -317,7 +317,7 @@ public class PostgresReviewStoreService {
                 )
                 """);
     } catch (Exception ignored) {
-      // Service stays available with in-memory fallback.
+      // El servicio sigue disponible con el fallback en memoria.
     }
   }
 

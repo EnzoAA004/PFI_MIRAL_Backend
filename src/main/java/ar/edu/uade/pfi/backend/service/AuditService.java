@@ -31,12 +31,12 @@ public class AuditService {
      * porque SENSITIVE_KEY_PARTS incluye "patient".
      */
     private static final Set<String> SAFE_PATIENT_ID_KEYS = Set.of("patientid", "frompatientid", "topatientid");
-    /** Defense-in-depth caps against accidental metadata growth — see P10-B §11. */
+    /** Topes de defensa en profundidad contra el crecimiento accidental de metadata — ver P10-B §11. */
     private static final int MAX_METADATA_ENTRIES = 40;
     private static final int MAX_DEPTH = 5;
     private static final int MAX_LIST_ELEMENTS = 20;
     private static final int MAX_STRING_LENGTH = 160;
-    /** P10-B.1 §10: the same field-level controls now apply to actor/entityId/traceId/action, not just metadata. */
+    /** P10-B.1 §10: los mismos controles a nivel de campo ahora aplican a actor/entityId/traceId/action, no solo a metadata. */
     private static final int MAX_IDENTIFIER_LENGTH = 100;
     private static final int MAX_TRACE_ID_LENGTH = 96;
     private static final Pattern SAFE_ACTION_PATTERN = Pattern.compile("^[A-Za-z0-9_.]{1,80}$");
@@ -65,12 +65,12 @@ public class AuditService {
     }
 
     /**
-     * Never lets an audit-persistence failure mask the caller's real operation: on any
-     * failure it logs a sanitized {@code event=audit_write_failed} line, increments the
-     * {@code auditWriteFailures} counter, and returns {@code null} instead of throwing —
-     * callers must treat audit as best-effort. This centralizes what used to be an
-     * inconsistent try/catch pattern repeated (or, in some call sites, entirely missing)
-     * across every caller.
+     * Nunca deja que una falla de persistencia de auditoría enmascare la operación real de quien llama: ante cualquier
+     * falla loguea una línea sanitizada {@code event=audit_write_failed}, incrementa el
+     * contador {@code auditWriteFailures} y devuelve {@code null} en lugar de lanzar excepción —
+     * quienes llaman deben tratar la auditoría como best-effort. Esto centraliza lo que antes era un
+     * patrón try/catch inconsistente repetido (o, en algunos sitios de llamada, directamente ausente)
+     * en cada llamador.
      */
     public AuditEventResponseDto record(String actor, String action, String entityId, String traceId, Map<String, Object> metadata) {
         String safeActor = sanitizeIdentifier(actor, "system");
@@ -137,9 +137,9 @@ public class AuditService {
             return toSafeList(values, depth);
         }
         String text = String.valueOf(value);
-        // Value-based detection: a Bearer token/JWT/password/path/email can appear in a
-        // metadata value even under an innocuous key (e.g. metadata["value"]) — key-name
-        // filtering above is not sufficient on its own.
+        // Detección basada en el valor: un Bearer token/JWT/password/path/email puede aparecer en un
+        // valor de metadata incluso bajo una clave inocua (p. ej. metadata["value"]) — el filtrado por
+        // nombre de clave de arriba no alcanza por sí solo.
         if (looksLikePath(text) || SafeLogSanitizer.isSensitive(text)) return "[redacted]";
         return text.length() > MAX_STRING_LENGTH ? text.substring(0, MAX_STRING_LENGTH) : text;
     }
@@ -171,10 +171,10 @@ public class AuditService {
     }
 
     /**
-     * actor/entityId: never an email, token, path, or URL — {@link SafeLogSanitizer}'s
-     * whole-value check redacts the entire identifier rather than trying to partially
-     * mask it (an identifier that's half-redacted is still not a safe technical id).
-     * Length-capped independently of the metadata string cap.
+     * actor/entityId: nunca un email, token, path ni URL — el chequeo de valor completo de {@link SafeLogSanitizer}
+     * redacta el identificador entero en lugar de intentar enmascararlo
+     * parcialmente (un identificador a medio redactar sigue sin ser un id técnico seguro).
+     * Con tope de longitud independiente del tope de string de metadata.
      */
     private String sanitizeIdentifier(String value, String fallback) {
         String text = safeText(value, fallback);
@@ -182,7 +182,7 @@ public class AuditService {
         return text.length() > MAX_IDENTIFIER_LENGTH ? text.substring(0, MAX_IDENTIFIER_LENGTH) : text;
     }
 
-    /** action: only a safe technical format (letters/digits/underscore/dot) — anything else has its unsafe characters stripped, never dropped/rejected outright. */
+    /** action: solo un formato técnico seguro (letras/dígitos/guion bajo/punto) — cualquier otra cosa tiene sus caracteres inseguros eliminados, nunca se descarta/rechaza de plano. */
     private String sanitizeAction(String value) {
         String text = safeText(value, "unknown");
         if (SAFE_ACTION_PATTERN.matcher(text).matches()) return text;
@@ -191,7 +191,7 @@ public class AuditService {
         return stripped.length() > 80 ? stripped.substring(0, 80) : stripped;
     }
 
-    /** Same sanitize-and-cap contract as TraceIdFilter's own incoming-header handling — kept consistent so an audited traceId always matches the one a caller could search logs for. */
+    /** El mismo contrato de sanitizar-y-acotar que el manejo del header entrante de TraceIdFilter — se mantiene consistente para que un traceId auditado siempre coincida con el que quien llama podría buscar en los logs. */
     private String sanitizeTraceId(String value) {
         if (value == null || value.isBlank()) return "";
         String sanitized = value.trim().replaceAll("[^a-zA-Z0-9._:-]", "-");

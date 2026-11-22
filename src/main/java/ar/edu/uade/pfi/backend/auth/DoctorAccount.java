@@ -115,12 +115,12 @@ public class DoctorAccount {
   }
 
   /**
-   * P10-B.2: sets ONLY the approval flag — never touches roles. Before this fix, this method
-   * silently overwrote roles to a hardcoded DOCTOR+REVIEWER/PENDING_APPROVAL pair as a side effect,
-   * which meant every activation/deactivation replaced whatever role set the account actually had
-   * (a single-role account, an account missing REVIEWER, etc.) with that fixed pair. Callers that
-   * need to change roles must call {@link #setRoles(List)} explicitly and separately — account
-   * status and account roles are two different concerns.
+   * P10-B.2: setea SOLO el flag de aprobación — nunca toca los roles. Antes de este fix, este método
+   * sobrescribía silenciosamente los roles con un par hardcodeado DOCTOR+REVIEWER/PENDING_APPROVAL como efecto secundario,
+   * lo que hacía que cada activación/desactivación reemplazara el conjunto de roles que la cuenta realmente tenía
+   * (una cuenta de un solo rol, una cuenta sin REVIEWER, etc.) por ese par fijo. Quienes
+   * necesiten cambiar roles deben llamar a {@link #setRoles(List)} explícita y separadamente — el estado
+   * de la cuenta y los roles de la cuenta son dos asuntos distintos.
    */
   public void approve(boolean approved) {
     this.approved = approved;

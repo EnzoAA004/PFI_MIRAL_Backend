@@ -5,14 +5,14 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 
 /**
- * Normalizes a Postgres connection string into a JDBC URL the driver accepts directly.
+ * Normaliza un connection string de Postgres a una URL JDBC que el driver acepta directamente.
  *
- * <p>Extracted from the eight near-identical private copies of this method that used to
- * live one per {@code PostgresXxx} class. A {@code jdbc:postgresql://...} value (plain
- * TCP, or the Cloud SQL Java Connector's {@code jdbc:postgresql:///{db}?cloudSqlInstance=...
- * &socketFactory=...} shape -- both start with this exact prefix) passes through
- * unchanged; a bare {@code postgres://user:pass@host/db} value (Heroku/Render-style, used
- * by {@code DATABASE_URL} in some environments) is rewritten into the same JDBC shape.
+ * <p>Extraído de las ocho copias privadas casi idénticas de este método que antes
+ * vivían una por cada clase {@code PostgresXxx}. Un valor {@code jdbc:postgresql://...} (TCP
+ * plano, o la forma {@code jdbc:postgresql:///{db}?cloudSqlInstance=...
+ * &socketFactory=...} del Cloud SQL Java Connector -- ambas empiezan con este mismo prefijo) pasa
+ * sin cambios; un valor {@code postgres://user:pass@host/db} pelado (estilo Heroku/Render, usado
+ * por {@code DATABASE_URL} en algunos entornos) se reescribe a la misma forma JDBC.
  */
 public final class JdbcUrlNormalizer {
 

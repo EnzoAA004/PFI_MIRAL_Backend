@@ -11,9 +11,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * Backend-only response headers. This API never serves the frontend's HTML, so the CSP here is
- * scoped to what a pure JSON/binary-asset API needs (no script/style directives that would only
- * matter for an HTML document) — the frontend's own CSP is configured separately on Vercel.
+ * Headers de respuesta solo del Backend. Esta API nunca sirve el HTML del frontend, por lo que el CSP acá está
+ * acotado a lo que necesita una API pura de JSON/assets binarios (sin directivas script/style que solo
+ * importarían para un documento HTML) — el CSP propio del frontend se configura por separado en Vercel.
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 2)

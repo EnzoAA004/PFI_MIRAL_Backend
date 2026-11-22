@@ -9,24 +9,24 @@ import java.util.Set;
 import org.springframework.stereotype.Component;
 
 /**
- * Stage 79-C: picks ONE {@link AiProductAnalysisRun} per Study to use for longitudinal
- * comparison, deterministically. No existing selection convention was found in the domain for
- * this (stage 79-A recon: greenfield) — this is the explicit rule chosen, documented here rather
- * than left implicit:
+ * Etapa 79-C: elige UNA {@link AiProductAnalysisRun} por Study para usar en la comparación
+ * longitudinal, de forma determinística. No se encontró ninguna convención de selección existente en el dominio para
+ * esto (reconocimiento de la etapa 79-A: terreno virgen) — esta es la regla explícita elegida, documentada acá en lugar
+ * de dejarla implícita:
  *
  * <ol>
- *   <li>Only {@code completed}/{@code partial} runs are ever eligible — {@code failed} is never
- *       usable, regardless of recency (stage 79-C point 3).</li>
- *   <li>Among eligible runs, if at least one has a run-level review of {@code accepted} or
- *       {@code observed} (stage 78), the most recent (by {@code createdAt}) SUCH run wins — a
- *       professionally reviewed run is preferred over a merely more recent unreviewed one.</li>
- *   <li>Otherwise, the most recent eligible run (by {@code createdAt}) wins, regardless of review
- *       state (including {@code pending} or {@code rejected}).</li>
+ *   <li>Solo las corridas {@code completed}/{@code partial} son elegibles — una {@code failed} nunca es
+ *       utilizable, sin importar cuán reciente sea (etapa 79-C punto 3).</li>
+ *   <li>Entre las corridas elegibles, si al menos una tiene una revisión a nivel de corrida {@code accepted} o
+ *       {@code observed} (etapa 78), gana la más reciente (por {@code createdAt}) de ESAS corridas — una
+ *       corrida revisada profesionalmente se prefiere a una simplemente más reciente sin revisar.</li>
+ *   <li>En caso contrario, gana la corrida elegible más reciente (por {@code createdAt}), sin importar el
+ *       estado de revisión (incluidos {@code pending} o {@code rejected}).</li>
  * </ol>
  *
- * A {@code rejected} review does not remove a run from eligibility — rejecting a review is a
- * professional judgment on the run's quality, not a statement that no analysis exists; stage 79
- * does not invent a stronger exclusion rule than the domain actually models.
+ * Una revisión {@code rejected} no saca a una corrida de la elegibilidad — rechazar una revisión es un
+ * juicio profesional sobre la calidad de la corrida, no una afirmación de que no exista análisis; la etapa 79
+ * no inventa una regla de exclusión más fuerte de la que el dominio realmente modela.
  */
 @Component
 public class EffectiveAnalysisRunSelector {

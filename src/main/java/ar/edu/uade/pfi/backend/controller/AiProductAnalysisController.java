@@ -21,8 +21,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Stage 75-H / 76-M-O / 78. The Frontend never sees the AI Module's URL, its resolved inputIds, or
- * any model SHA — it only sees this Backend-owned sub-resource of a study, addressed by
+ * Etapa 75-H / 76-M-O / 78. El Frontend nunca ve la URL del módulo de IA, sus inputIds resueltos ni
+ * ningún SHA de modelo — solo ve este subrecurso de un estudio propio del Backend, direccionado por
  * {@code caseId}.
  */
 @RestController
@@ -43,9 +43,9 @@ public class AiProductAnalysisController {
     }
 
     /**
-     * Stage 76-M: the request body no longer needs {@code sagittalInputId}/{@code axialInputId} —
-     * the Backend resolves both from the Study's own registered inputs. The fields are still
-     * accepted on the wire (deprecated) but have no effect.
+     * Etapa 76-M: el body del request ya no necesita {@code sagittalInputId}/{@code axialInputId} —
+     * el Backend resuelve ambos a partir de los inputs registrados del propio Study. Los campos todavía se
+     * aceptan en el wire (deprecados) pero no tienen efecto.
      */
     @PostMapping("/product-analysis")
     public AiProductAnalysisResultDto analyze(@PathVariable String caseId, @RequestBody(required = false) AiProductAnalysisApiRequestDto request, HttpServletRequest httpRequest) {
@@ -54,7 +54,7 @@ public class AiProductAnalysisController {
         return persistenceService.analyze(caseId, body.metadata());
     }
 
-    // Package-local service harness retained for the controller's focused unit tests; HTTP uses the secured overload above.
+    // Harness de servicio local al paquete conservado para los unit tests focalizados del controller; HTTP usa el overload asegurado de arriba.
     AiProductAnalysisResultDto analyze(String caseId, AiProductAnalysisApiRequestDto request) {
         AiProductAnalysisApiRequestDto body = request == null ? new AiProductAnalysisApiRequestDto(null, null, null) : request;
         return persistenceService.analyze(caseId, body.metadata());
@@ -76,7 +76,7 @@ public class AiProductAnalysisController {
 
     AiProductAnalysisResultDto detail(String caseId, String analysisId) { return persistenceService.detail(caseId, analysisId); }
 
-    /** Stage 78-B: accept/observe/reject the run as a whole. */
+    /** Etapa 78-B: aceptar/observar/rechazar la corrida como un todo. */
     @PatchMapping("/product-analyses/{analysisId}/review")
     public AiProductAnalysisResultDto reviewRun(
         @PathVariable String caseId,
@@ -89,7 +89,7 @@ public class AiProductAnalysisController {
         return reviewService.reviewRun(caseId, analysisId, request, reviewedBy(httpRequest), traceId(httpRequest));
     }
 
-    /** Stage 78-C: accept/observe/reject a single disc level, without affecting the run's own review. */
+    /** Etapa 78-C: aceptar/observar/rechazar un único nivel de disco, sin afectar la revisión propia de la corrida. */
     @PatchMapping("/product-analyses/{analysisId}/disc-levels/{discLevelId}/review")
     public AiProductAnalysisResultDto reviewDiscLevel(
         @PathVariable String caseId,
@@ -103,7 +103,7 @@ public class AiProductAnalysisController {
         return reviewService.reviewDiscLevel(caseId, analysisId, discLevelId, request, reviewedBy(httpRequest), traceId(httpRequest));
     }
 
-    /** Stage 78-D: append a correction for one measurement field; the AI's original value is never overwritten. */
+    /** Etapa 78-D: agregar una corrección para un campo de medición; el valor original de la IA nunca se sobrescribe. */
     @PostMapping("/product-analyses/{analysisId}/measurements/{measurementId}/corrections")
     public AiProductAnalysisResultDto correctMeasurement(
         @PathVariable String caseId,
@@ -118,9 +118,9 @@ public class AiProductAnalysisController {
     }
 
     /**
-     * Never trusts a client-supplied reviewer name (stage 78: "no inventar nombre de medico") —
-     * derived only from the authenticated principal's own claims, and {@code null} (not a
-     * placeholder) when no authenticated identity is available.
+     * Nunca confía en un nombre de revisor provisto por el cliente (etapa 78: "no inventar nombre de medico") —
+     * se deriva únicamente de los claims propios del principal autenticado, y es {@code null} (no un
+     * placeholder) cuando no hay una identidad autenticada disponible.
      */
     private String reviewedBy(HttpServletRequest request) {
         Object value = request.getAttribute(AuthFilter.AUTH_CLAIMS_ATTRIBUTE);

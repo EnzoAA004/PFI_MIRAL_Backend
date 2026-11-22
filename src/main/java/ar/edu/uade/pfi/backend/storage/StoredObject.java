@@ -1,6 +1,6 @@
 package ar.edu.uade.pfi.backend.storage;
 
-/** Metadata returned after a durable write, or by {@link ObjectStorage#stat}. */
+/** Metadatos devueltos tras una escritura durable, o por {@link ObjectStorage#stat}. */
 public record StoredObject(
     String objectKey,
     String contentType,

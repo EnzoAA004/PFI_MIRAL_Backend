@@ -7,11 +7,11 @@ import org.springframework.boot.jdbc.autoconfigure.JdbcTemplateAutoConfiguration
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 
 /**
- * Excludes Spring Boot's own DataSource autoconfiguration: this app manages its single
- * pooled DataSource itself (PfiDataSourceConfig, conditional on pfi.persistence.mode),
- * doesn't set spring.datasource.*, and doesn't use JdbcTemplate/a transaction manager.
- * Without the exclude, autoconfiguration can fail startup in memory mode (no URL to
- * configure an embedded/external DataSource from).
+ * Excluye la autoconfiguración de DataSource propia de Spring Boot: esta app administra su único
+ * DataSource con pool por su cuenta (PfiDataSourceConfig, condicional a pfi.persistence.mode),
+ * no define spring.datasource.* y no usa JdbcTemplate ni un transaction manager.
+ * Sin la exclusión, la autoconfiguración puede hacer fallar el arranque en modo memoria (no hay URL
+ * desde la cual configurar un DataSource embebido/externo).
  */
 @SpringBootApplication(exclude = {
     DataSourceAutoConfiguration.class,

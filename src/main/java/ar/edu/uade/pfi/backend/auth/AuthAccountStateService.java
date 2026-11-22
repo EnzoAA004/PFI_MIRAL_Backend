@@ -7,16 +7,16 @@ import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
 /**
- * Revalidates a request's persisted account state after JWT signature/expiry checks pass, so a
- * stale-but-unexpired access token cannot keep granting privileges a deactivated/role-changed
- * account no longer has. Split out of AuthFilter so the SQL lives in PostgresAuthStoreService, not
- * the servlet filter.
+ * Revalida el estado persistido de la cuenta de un request una vez superados los chequeos de firma/expiración del JWT, para que un
+ * access token viejo pero aún vigente no siga otorgando privilegios que una cuenta desactivada o con roles modificados
+ * ya no tiene. Separado de AuthFilter para que el SQL viva en PostgresAuthStoreService y no en
+ * el filtro de servlet.
  *
- * <p>Outside production, the JWT's own claims are trusted directly (no Postgres round trip) — this
- * preserves every existing dev/test flow, including the large body of tests that mint tokens for
- * accounts that were never persisted anywhere. In production, Postgres is the sole authority: any
- * inability to confirm the account's current state (disabled persistence, connection failure, query
- * failure) fails closed as STATE_UNAVAILABLE rather than falling back to the token's claims.
+ * <p>Fuera de producción, los claims del propio JWT se confían directamente (sin consulta a Postgres) — esto
+ * preserva todos los flujos dev/test existentes, incluido el gran conjunto de tests que generan tokens para
+ * cuentas que nunca se persistieron. En producción, Postgres es la única autoridad: cualquier
+ * imposibilidad de confirmar el estado actual de la cuenta (persistencia deshabilitada, falla de conexión, falla de
+ * consulta) falla de forma cerrada como STATE_UNAVAILABLE en lugar de recurrir a los claims del token.
  */
 @Component
 public class AuthAccountStateService {
@@ -28,10 +28,10 @@ public class AuthAccountStateService {
   }
 
   /**
-   * claims() already carries the effective roles for this request (PENDING_APPROVAL whenever
-   * verified/approved is false, regardless of whatever roles the persisted row still carries) —
-   * verified/approved are kept alongside for callers that need the account's raw authoritative
-   * state, not just its effective roles.
+   * claims() ya trae los roles efectivos para este request (PENDING_APPROVAL siempre que
+   * verified/approved sea false, sin importar qué roles conserve la fila persistida) —
+   * verified/approved se mantienen aparte para quienes necesitan el estado crudo y autoritativo
+   * de la cuenta, no solo sus roles efectivos.
    */
   public record Resolution(
       Status status, TokenService.Claims claims, boolean verified, boolean approved) {

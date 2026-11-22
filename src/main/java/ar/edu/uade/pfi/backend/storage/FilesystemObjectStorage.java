@@ -10,13 +10,13 @@ import java.util.Optional;
 import java.util.Properties;
 
 /**
- * Filesystem-backed {@link ObjectStorage}. The root must be a durable volume mounted
- * outside the container's ephemeral layer (a Docker named volume in compose) — this
- * class only enforces the storage contract, not where the volume is mounted.
+ * {@link ObjectStorage} respaldado por filesystem. La raíz debe ser un volumen durable montado
+ * fuera de la capa efímera del contenedor (un named volume de Docker en compose) — esta
+ * clase solo hace cumplir el contrato de almacenamiento, no dónde se monta el volumen.
  *
- * <p>Each object is written alongside a {@code .sha256} sidecar file so a later
- * {@code get}/{@code stat} can detect silent corruption and fail loudly instead of
- * serving truncated or bit-rotted content.
+ * <p>Cada objeto se escribe junto con un archivo sidecar {@code .sha256} para que un posterior
+ * {@code get}/{@code stat} pueda detectar corrupción silenciosa y fallar de forma ruidosa en lugar de
+ * servir contenido truncado o degradado por bit rot.
  */
 public class FilesystemObjectStorage implements ObjectStorage {
 

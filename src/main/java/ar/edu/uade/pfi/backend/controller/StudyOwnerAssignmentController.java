@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
-/** Explicit, auditable assignment path for legacy studies with no owner grant. */
+/** Camino de asignación explícito y auditable para estudios legacy sin grant de owner. */
 @RestController
 @RequestMapping("/api/admin/studies")
 public class StudyOwnerAssignmentController {

@@ -3,23 +3,23 @@ package ar.edu.uade.pfi.backend.util;
 import java.util.regex.Pattern;
 
 /**
- * Stateless redaction utility shared by logging, auditing, and error-response code. Two different
- * granularities are exposed on purpose:
+ * Utilidad de redacción sin estado compartida por el código de logging, auditoría y respuestas de error. Se exponen
+ * deliberadamente dos granularidades distintas:
  *
  * <ul>
- *   <li>{@link #redactValue(String)} — whole-value semantics: if the value as a whole looks
- *       sensitive (a bearer token, a JWT, a password-looking string, a path, an email, ...), the
- *       entire value becomes {@code "[redacted]"}. Use this for a single discrete field — a header
- *       value, an audit metadata value, a claim.
- *   <li>{@link #sanitizeMessage(String)} — substring-level redaction inside a longer free-text
- *       message (an exception message, a log line): known-sensitive substrings are individually
- *       replaced with {@code "[redacted]"}, the rest of the message is preserved. Use this for log
- *       lines where losing the whole message to a single matched token would destroy diagnostic
- *       value.
+ *   <li>{@link #redactValue(String)} — semántica de valor completo: si el valor como un todo parece
+ *       sensible (un bearer token, un JWT, un string con aspecto de contraseña, un path, un email, ...), el
+ *       valor entero pasa a ser {@code "[redacted]"}. Usar para un único campo discreto — el valor de un
+ *       header, el valor de metadata de auditoría, un claim.
+ *   <li>{@link #sanitizeMessage(String)} — redacción a nivel de subcadena dentro de un mensaje de
+ *       texto libre más largo (un mensaje de excepción, una línea de log): las subcadenas sensibles conocidas se
+ *       reemplazan individualmente por {@code "[redacted]"}, el resto del mensaje se preserva. Usar para líneas de
+ *       log donde perder el mensaje entero por un único token coincidente destruiría el valor
+ *       diagnóstico.
  * </ul>
  *
- * Both always cap the result length. Neither is a substitute for not logging sensitive data in the
- * first place — this is defense in depth, not the primary control.
+ * Ambos siempre acotan la longitud del resultado. Ninguno sustituye a no loguear datos sensibles en primer
+ * lugar — esto es defensa en profundidad, no el control principal.
  */
 public final class SafeLogSanitizer {
   public static final String REDACTED = "[redacted]";
@@ -31,8 +31,8 @@ public final class SafeLogSanitizer {
       Pattern.compile("\\beyJ[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]*\\b");
 
   /**
-   * Any jdbc: URL, credentials or not — the driver/host/port/database name themselves are infra
-   * info.
+   * Cualquier URL jdbc:, con credenciales o sin ellas — el driver/host/puerto/nombre de base de datos son en sí información
+   * de infra.
    */
   private static final Pattern JDBC_URL = Pattern.compile("(?i)jdbc:[a-z0-9]+://[^\\s\"']*");
 
@@ -40,8 +40,8 @@ public final class SafeLogSanitizer {
       Pattern.compile("(?i)\\b[a-z][a-z0-9+.-]*://[^\\s\"'/@]+:[^\\s\"'/@]+@[^\\s\"']*");
 
   /**
-   * Any http(s) URL at all — public or private, the point is a URL should never reach a
-   * log/body/audit verbatim.
+   * Cualquier URL http(s), pública o privada, lo importante es que una URL nunca debe llegar textual a un
+   * log/body/auditoría.
    */
   private static final Pattern HTTP_URL = Pattern.compile("(?i)\\bhttps?://[^\\s\"']+");
 
@@ -49,7 +49,7 @@ public final class SafeLogSanitizer {
       Pattern.compile(
           "(?i)\\b(localhost|127\\.0\\.0\\.1|0\\.0\\.0\\.0|host\\.docker\\.internal|[a-z0-9.-]*\\.trycloudflare\\.com|[a-z0-9.-]+\\.internal)\\b(?::\\d+)?");
 
-  /** RFC 1918 private IPv4 ranges: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16. */
+  /** Rangos IPv4 privados de RFC 1918: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16. */
   private static final Pattern PRIVATE_IPV4 =
       Pattern.compile(
           "\\b(?:10(?:\\.\\d{1,3}){3}|172\\.(?:1[6-9]|2\\d|3[01])(?:\\.\\d{1,3}){2}|192\\.168(?:\\.\\d{1,3}){2})(?::\\d+)?\\b");
@@ -59,8 +59,8 @@ public final class SafeLogSanitizer {
       Pattern.compile("(?<![\\w./])(?:/tmp|/app)(?:/[^\\s\"']*)?");
 
   /**
-   * Common Linux system directories, when they look like an absolute internal path (at least one
-   * more segment).
+   * Directorios comunes del sistema Linux, cuando parecen un path interno absoluto (al menos un
+   * segmento más).
    */
   private static final Pattern LINUX_INTERNAL_PATH =
       Pattern.compile("(?<![\\w./])(?:/var|/opt|/home|/etc|/usr|/srv|/data|/mnt|/root)/[^\\s\"']+");
@@ -93,7 +93,7 @@ public final class SafeLogSanitizer {
 
   private SafeLogSanitizer() {}
 
-  /** True if the raw value, taken as a whole, matches any known-sensitive pattern. */
+  /** True si el valor crudo, tomado como un todo, coincide con algún patrón sensible conocido. */
   public static boolean isSensitive(String value) {
     if (value == null || value.isBlank()) return false;
     for (Pattern pattern : WHOLE_VALUE_SENSITIVE_PATTERNS) {
@@ -102,14 +102,14 @@ public final class SafeLogSanitizer {
     return looksLikeBinary(value);
   }
 
-  /** Whole-value redaction: sensitive → "[redacted]"; otherwise the (length-capped) original. */
+  /** Redacción de valor completo: sensible → "[redacted]"; de lo contrario el original (con tope de longitud). */
   public static String redactValue(String value) {
     if (value == null) return null;
     if (isSensitive(value)) return REDACTED;
     return cap(value);
   }
 
-  /** Substring-level redaction for longer free-text messages/log lines. */
+  /** Redacción a nivel de subcadena para mensajes de texto libre/líneas de log más largas. */
   public static String sanitizeMessage(String message) {
     if (message == null || message.isBlank()) return message;
     String result = message;
@@ -131,8 +131,8 @@ public final class SafeLogSanitizer {
   }
 
   /**
-   * Best-effort heuristic: a long run of non-printable/high-entropy characters is treated as binary
-   * content.
+   * Heurística best-effort: una larga secuencia de caracteres no imprimibles/de alta entropía se trata como contenido
+   * binario.
    */
   private static boolean looksLikeBinary(String value) {
     if (value.length() < 24) return false;

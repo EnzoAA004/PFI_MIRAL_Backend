@@ -11,9 +11,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * Converts the backend's internal technical request (already stripped of studyMetadata and other
- * identifying fields by the controller) into the typed pfi.multiplanar-run.v2 wire contract. Never
- * forwards inputPath, free-form metadata, or backend trace bookkeeping.
+ * Convierte el request técnico interno del backend (al que el controller ya le quitó studyMetadata y otros
+ * campos identificatorios) en el contrato wire tipado pfi.multiplanar-run.v2. Nunca
+ * reenvía inputPath, metadata de formato libre ni el bookkeeping de trace del backend.
  */
 @Component
 public class AiMultiplanarV2RequestMapper {

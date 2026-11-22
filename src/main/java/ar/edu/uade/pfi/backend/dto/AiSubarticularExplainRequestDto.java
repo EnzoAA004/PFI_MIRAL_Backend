@@ -1,10 +1,10 @@
 package ar.edu.uade.pfi.backend.dto;
 
 /**
- * EXT-03: upstream request to the AI module's {@code POST
- * /degenerative-findings/subarticular/explain} — mirrors {@link AiSubarticularPredictRequestDto}
- * plus the one addition, an optional {@code targetClass} (defaults server-side to the model's own
- * predicted class when omitted).
+ * EXT-03: request upstream al {@code POST
+ * /degenerative-findings/subarticular/explain} del módulo de IA — replica {@link AiSubarticularPredictRequestDto}
+ * más la única adición, un {@code targetClass} opcional (por defecto, del lado del servidor, la clase
+ * predicha por el propio modelo cuando se omite).
  */
 public record AiSubarticularExplainRequestDto(
     String inputId,

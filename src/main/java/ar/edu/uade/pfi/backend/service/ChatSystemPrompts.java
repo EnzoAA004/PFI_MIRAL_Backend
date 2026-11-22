@@ -1,19 +1,19 @@
 package ar.edu.uade.pfi.backend.service;
 
 /**
- * Stage 80-F/80-G: the system prompt, versioned in one place instead of embedded/duplicated
- * across classes. {@code CURRENT_VERSION} is echoed back in every {@code ChatResponseDto} and
- * persisted per {@link ar.edu.uade.pfi.backend.domain.ChatMessage} for traceability — changing
- * the prompt text means bumping the version constant, never silently rewriting v1's meaning.
+ * Etapa 80-F/80-G: el system prompt, versionado en un solo lugar en lugar de embebido/duplicado
+ * entre clases. {@code CURRENT_VERSION} se devuelve en cada {@code ChatResponseDto} y se
+ * persiste por {@link ar.edu.uade.pfi.backend.domain.ChatMessage} para trazabilidad — cambiar
+ * el texto del prompt implica subir la constante de versión, nunca reescribir en silencio el significado de v1.
  */
 final class ChatSystemPrompts {
     static final String CURRENT_VERSION = "pfi.chat-system-prompt.v2-clinical-context";
 
     /**
-     * Stage 80-N (prompt injection defense): this text is the ONLY source of behavioral
-     * instructions the model receives — the context and the user's question are always sent as
-     * separate, clearly-labeled messages afterward, and this prompt explicitly tells the model to
-     * treat both as data, never as instructions to follow.
+     * Etapa 80-N (defensa contra prompt injection): este texto es la ÚNICA fuente de instrucciones
+     * de comportamiento que recibe el modelo — el contexto y la pregunta del usuario siempre se envían como
+     * mensajes separados y claramente etiquetados después, y este prompt le dice explícitamente al modelo que
+     * trate ambos como datos, nunca como instrucciones a seguir.
      */
     static final String V1 = """
         Sos un asistente técnico que resume información ya registrada en un sistema de análisis \

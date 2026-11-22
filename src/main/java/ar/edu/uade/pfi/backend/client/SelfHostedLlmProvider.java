@@ -18,15 +18,15 @@ import reactor.core.Exceptions;
 import reactor.core.publisher.Mono;
 
 /**
- * Stage 80-C: the only {@link LlmProvider} implementation for this stage — a self-hosted model
- * (Qwen2.5-7B-Instruct by default) served behind an OpenAI-chat-completions-shaped HTTP API
- * (typically vLLM's own compatible server). This class is the ONLY place that knows that wire
- * shape — {@code ChatService}/{@code StudyChatContextBuilder} never see it.
+ * Etapa 80-C: la única implementación de {@link LlmProvider} para esta etapa — un modelo autoalojado
+ * (Qwen2.5-7B-Instruct por defecto) servido detrás de una API HTTP con forma de chat-completions de OpenAI
+ * (típicamente el servidor compatible propio de vLLM). Esta clase es el ÚNICO lugar que conoce esa forma
+ * wire — {@code ChatService}/{@code StudyChatContextBuilder} nunca la ven.
  *
- * <p>Mirrors {@code AiServiceClient}'s dispatch pattern exactly: a dedicated {@code WebClient}
- * bean ({@code llmWebClient}), {@code .block(timeout)} with a per-provider timeout floor, and a
- * translate-on-catch step that never lets a raw upstream body, stack trace, or hostname escape
- * into the exception surfaced to the rest of the Backend.
+ * <p>Replica exactamente el patrón de dispatch de {@code AiServiceClient}: un bean {@code WebClient} dedicado
+ * ({@code llmWebClient}), {@code .block(timeout)} con un piso de timeout por proveedor, y un
+ * paso de traducción en el catch que nunca deja escapar un body upstream crudo, un stack trace ni un hostname
+ * hacia la excepción que se expone al resto del Backend.
  */
 @Component
 public class SelfHostedLlmProvider implements LlmProvider {
@@ -75,10 +75,10 @@ public class SelfHostedLlmProvider implements LlmProvider {
     }
 
     /**
-     * Fail-closed parsing of the provider's own response, mirroring
-     * {@code AiProductContractValidator}'s discipline: the first missing/malformed field throws
-     * immediately rather than being papered over with a default. A malformed provider response
-     * must never surface as if it were a real (if empty) answer.
+     * Parseo fail-closed de la respuesta propia del proveedor, en línea con la disciplina de
+     * {@code AiProductContractValidator}: el primer campo faltante/malformado lanza excepción
+     * de inmediato en lugar de taparse con un valor por defecto. Una respuesta malformada del proveedor
+     * nunca debe aparecer como si fuera una respuesta real (aunque vacía).
      */
     private LlmChatResult parseProviderResponse(Map<String, Object> raw) {
         if (raw == null) throw contractViolation();
@@ -99,7 +99,7 @@ public class SelfHostedLlmProvider implements LlmProvider {
         return upstreamError();
     }
 
-    /** Walks the full cause chain — a connector-level timeout usually arrives wrapped in a {@code WebClientRequestException}. */
+    /** Recorre toda la cadena de causas — un timeout a nivel de conector suele llegar envuelto en una {@code WebClientRequestException}. */
     private boolean isTimeout(Throwable unwrapped) {
         Throwable current = unwrapped;
         while (current != null) {
@@ -110,10 +110,10 @@ public class SelfHostedLlmProvider implements LlmProvider {
     }
 
     /**
-     * A GET to the OpenAI-compatible {@code /v1/models} endpoint — every vLLM/OpenAI-compatible
-     * server exposes it, it generates no tokens, and it is cheap enough to call from a
-     * diagnostics endpoint. Any failure (timeout, connection refused, non-2xx) is swallowed and
-     * reported as unavailable rather than propagated — this method must never throw.
+     * Un GET al endpoint {@code /v1/models} compatible con OpenAI — todo servidor compatible con vLLM/OpenAI
+     * lo expone, no genera tokens y es lo bastante barato como para llamarlo desde un
+     * endpoint de diagnóstico. Cualquier falla (timeout, conexión rechazada, no-2xx) se traga y
+     * se informa como no disponible en lugar de propagarse — este método nunca debe lanzar excepción.
      */
     @Override
     public boolean checkAvailability() {

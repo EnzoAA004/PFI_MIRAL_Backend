@@ -43,7 +43,7 @@ public class PostgresStudyCatalogService {
     }
   }
 
-  /** Test convenience: builds its own small pool from a raw JDBC/connection URL. */
+  /** Conveniencia para tests: arma su propio pool chico a partir de una URL JDBC/de conexión cruda. */
   public PostgresStudyCatalogService(String persistenceMode, String databaseUrl) {
     this(persistenceMode, buildDataSourceOrNull(databaseUrl));
   }

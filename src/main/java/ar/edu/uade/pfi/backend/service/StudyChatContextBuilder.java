@@ -17,14 +17,14 @@ import java.util.Map;
 import org.springframework.stereotype.Component;
 
 /**
- * Stage 80-D: builds the structured, minimal context {@code ChatService} hands to the LLM.
+ * Etapa 80-D: arma el contexto estructurado y mínimo que {@code ChatService} le entrega al LLM.
  *
- * <p>Never queries FastAPI or raw SQL directly — everything comes through {@link StudyRepository}
- * and the already-existing stage 76-79 services, exactly the same read paths their own GET
- * endpoints use. Never fabricates a fact: an unavailable analysis/comparison simply means a
- * {@code null}/empty section of the context, and the system prompt (not this class) is what tells
- * the LLM to say so (80-O: grounding lives in what's absent from the context, not in a special
- * "unavailable" sentence written here).
+ * <p>Nunca consulta FastAPI ni SQL crudo directamente — todo pasa por {@link StudyRepository}
+ * y los servicios ya existentes de las etapas 76-79, exactamente los mismos caminos de lectura que usan sus propios endpoints
+ * GET. Nunca fabrica un hecho: un análisis/comparación no disponible simplemente significa una
+ * sección {@code null}/vacía del contexto, y es el system prompt (no esta clase) lo que le dice
+ * al LLM que lo diga (80-O: el grounding vive en lo que está ausente del contexto, no en una oración especial de
+ * "no disponible" escrita acá).
  */
 @Component
 public class StudyChatContextBuilder {
@@ -48,12 +48,12 @@ public class StudyChatContextBuilder {
     }
 
     /**
-     * @param analysisId explicit analysis to ground the context in; when {@code null}, falls back
-     *                    to {@link EffectiveAnalysisRunSelector} (stage 79's own deterministic
-     *                    rule) — the two selection rules are intentionally the same one, never a
-     *                    second policy invented for chat.
-     * @param baselineCaseId when present, adds a longitudinal-comparison section computed by the
-     *                        existing stage-79 service — never recomputed here.
+     * @param analysisId análisis explícito en el cual fundamentar el contexto; cuando es {@code null}, recurre
+     *                    a {@link EffectiveAnalysisRunSelector} (la propia regla
+     *                    determinística de la etapa 79) — las dos reglas de selección son intencionalmente la misma, nunca una
+     *                    segunda política inventada para el chat.
+     * @param baselineCaseId cuando está presente, agrega una sección de comparación longitudinal calculada por el
+     *                        servicio existente de la etapa 79 — nunca se recalcula acá.
      */
     public ChatContextResult build(Study study, String analysisId, String baselineCaseId) {
         List<String> sources = new ArrayList<>();

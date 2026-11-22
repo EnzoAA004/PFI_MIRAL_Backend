@@ -13,14 +13,14 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
- * Single place that builds and (for servlet filters, which run outside Spring MVC's own response
- * serialization) writes the API's one error contract — see {@link ApiErrorResponse}. Used by {@code
- * ApiExceptionHandler} (body only — Spring MVC serializes it), and directly by {@code
- * AuthFilter}/{@code CorsResponseFilter} (which must write to the raw response themselves, before
- * any controller/handler runs).
+ * Único lugar que arma y (para los filtros de servlet, que corren por fuera de la propia serialización de
+ * respuestas de Spring MVC) escribe el único contrato de error de la API — ver {@link ApiErrorResponse}. Lo usan {@code
+ * ApiExceptionHandler} (solo el body — Spring MVC lo serializa), y directamente {@code
+ * AuthFilter}/{@code CorsResponseFilter} (que deben escribir ellos mismos en la respuesta cruda, antes de que
+ * corra cualquier controller/handler).
  *
- * <p>Deliberately narrow: never throws, never includes a stack trace, the original exception
- * message, the request body, the query string, or the Authorization header. Always sets
+ * <p>Deliberadamente acotado: nunca lanza excepción, nunca incluye un stack trace, el mensaje original de la excepción,
+ * el body del request, el query string ni el header Authorization. Siempre setea
  * Content-Type/Cache-Control/X-Trace-Id.
  */
 @Component
@@ -33,8 +33,8 @@ public class ApiErrorWriter {
   }
 
   /**
-   * Endpoints where a POST is presumed non-idempotent — retryable is always forced false there. See
-   * class docs on retryable.
+   * Endpoints donde se presume que un POST no es idempotente — retryable siempre se fuerza a false ahí. Ver
+   * los docs de clase sobre retryable.
    */
   private static boolean isNonIdempotentInferenceEndpoint(String method, String path) {
     if (!"POST".equalsIgnoreCase(method) || path == null) return false;
@@ -44,13 +44,13 @@ public class ApiErrorWriter {
   }
 
   /**
-   * retryable = true only for a known-transient code (DATABASE_UNAVAILABLE, AUTH_STATE_UNAVAILABLE,
-   * UPSTREAM_UNAVAILABLE, AI_TIMEOUT). An HTTP 502/503/504 is only used as a defensive fallback for
-   * a code this catalog doesn't recognize ({@link ApiErrorCode#UNKNOWN}) — a *known*,
-   * explicitly-classified non-transient code (e.g. AI_CONTRACT_VIOLATION, which is also mapped to
-   * 502) must never be upgraded to retryable just because of its HTTP status. Either way, a POST to
-   * a non-idempotent inference/upload endpoint always forces retryable back to false, since the
-   * backend cannot guarantee it is safe to retry the underlying AI Module side effect there.
+   * retryable = true solo para un código transitorio conocido (DATABASE_UNAVAILABLE, AUTH_STATE_UNAVAILABLE,
+   * UPSTREAM_UNAVAILABLE, AI_TIMEOUT). Un HTTP 502/503/504 solo se usa como fallback defensivo para
+   * un código que este catálogo no reconoce ({@link ApiErrorCode#UNKNOWN}) — un código *conocido*
+   * y explícitamente clasificado como no transitorio (p. ej. AI_CONTRACT_VIOLATION, que también se mapea a
+   * 502) nunca debe promoverse a retryable solo por su status HTTP. En cualquier caso, un POST a
+   * un endpoint de inferencia/upload no idempotente siempre fuerza retryable de vuelta a false, ya que el
+   * backend no puede garantizar que sea seguro reintentar allí el efecto secundario subyacente en el módulo de IA.
    */
   public boolean resolveRetryable(String code, int status, String method, String path) {
     ApiErrorCode errorCode = ApiErrorCode.fromCode(code);
@@ -61,7 +61,7 @@ public class ApiErrorWriter {
     return !isNonIdempotentInferenceEndpoint(method, path);
   }
 
-  /** Builds the canonical {@link ApiErrorResponse} for this error. */
+  /** Arma el {@link ApiErrorResponse} canónico para este error. */
   public ApiErrorResponse response(
       String code, String message, String traceId, String path, String method, int status) {
     ApiErrorCode errorCode = ApiErrorCode.fromCode(code);
@@ -80,8 +80,8 @@ public class ApiErrorWriter {
   }
 
   /**
-   * Same contract as {@link #response}, as an ordered Map — extensible for callers that add extra
-   * domain fields (e.g. runId/plane/assetName).
+   * El mismo contrato que {@link #response}, como un Map ordenado — extensible para llamantes que agregan campos
+   * de dominio extra (p. ej. runId/plane/assetName).
    */
   public Map<String, Object> body(
       String code, String message, String traceId, String path, String method, int status) {
@@ -102,8 +102,8 @@ public class ApiErrorWriter {
   }
 
   /**
-   * Direct servlet-response write for filters that run before/outside Spring MVC's own
-   * serialization. Never throws.
+   * Escritura directa a la respuesta del servlet para filtros que corren antes/por fuera de la
+   * serialización propia de Spring MVC. Nunca lanza excepción.
    */
   public void writeError(
       HttpServletRequest request,
@@ -121,8 +121,8 @@ public class ApiErrorWriter {
     try {
       objectMapper.writeValue(response.getWriter(), body);
     } catch (IOException ex) {
-      // The response is likely already committed/closed at this point — nothing safe
-      // to do beyond noting it happened; must not let this escape the filter chain.
+      // Es probable que la respuesta ya esté confirmada/cerrada en este punto — no hay nada seguro
+      // para hacer más allá de dejar constancia de que ocurrió; no debe dejar que esto escape de la cadena de filtros.
       log.warn("event=api_error_write_failed traceId={} status={}", traceId, status);
     }
   }

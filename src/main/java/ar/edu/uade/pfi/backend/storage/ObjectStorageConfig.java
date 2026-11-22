@@ -6,9 +6,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Builds the single {@link ObjectStorage} bean for the whole backend from
- * {@code pfi.storage.*}. No fallback: an unknown or misconfigured provider fails
- * application startup rather than silently defaulting to filesystem — see
+ * Construye el único bean {@link ObjectStorage} de todo el backend a partir de
+ * {@code pfi.storage.*}. Sin fallback: un proveedor desconocido o mal configurado hace fallar
+ * el arranque de la aplicación en lugar de asumir silenciosamente filesystem — ver
  * {@link #objectStorage(ObjectStorageProperties)}.
  */
 @Configuration

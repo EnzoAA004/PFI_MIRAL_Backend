@@ -60,10 +60,10 @@ public class TraceIdFilter extends OncePerRequestFilter {
   }
 
   /**
-   * Stable, greppable structured line. actorId/roles are added only when AuthFilter already placed
-   * them on the request (i.e. the caller was authenticated and revalidated) — never derived from
-   * the raw, unrevalidated token here. Never includes email, name, request body, query string, case
-   * metadata, file names, or the Authorization header.
+   * Línea estructurada estable y fácil de grepear. actorId/roles se agregan solo cuando AuthFilter ya los colocó
+   * en el request (es decir, el llamante estaba autenticado y revalidado) — nunca se derivan del
+   * token crudo sin revalidar acá. Nunca incluye email, nombre, body del request, query string, metadata
+   * de casos, nombres de archivo ni el header Authorization.
    */
   private void logRequest(HttpServletRequest request, String traceId, int status, long elapsedMs) {
     String outcome = outcomeFor(status);

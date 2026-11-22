@@ -5,10 +5,10 @@ import java.time.Instant;
 import java.util.Map;
 
 /**
- * EXT-07D/EXT-05: the public shape of a {@link ProfessionalFeedbackCandidate} — deliberately
- * omits {@code reviewedBy} AND {@code curatorId} (same rule EXT-04A already applies to reviewer
- * identity in the structured report: internal-only, verifiable at the database layer, never
- * serialized to an API response).
+ * EXT-07D/EXT-05: la forma pública de un {@link ProfessionalFeedbackCandidate} — deliberadamente
+ * omite {@code reviewedBy} Y {@code curatorId} (la misma regla que EXT-04A ya aplica a la identidad del
+ * revisor en el reporte estructurado: solo interna, verificable en la capa de base de datos, nunca
+ * serializada a una respuesta de la API).
  */
 public record ProfessionalFeedbackCandidateDto(
     String id,

@@ -54,20 +54,20 @@ import reactor.core.Exceptions;
 import reactor.core.publisher.Mono;
 
 /**
- * The only HTTP client for the AI Module. Never sends the user's JWT/refresh token,
- * email, or roles — this call is backend-to-AI-Module, not a passthrough of the
- * frontend's own credentials. Every call carries an X-Trace-Id header: the current
- * request's trace id (read from MDC, set by TraceIdFilter) when there is one, or a
- * freshly generated {@code technical-<uuid>} — resolved once per call, never stored
- * globally, never leaked across threads — for a background/non-HTTP-request process with
- * nothing in MDC. See docs/P10_B_ERRORS_AUDIT_OBSERVABILITY.md §9/§14.
+ * El único cliente HTTP del módulo de IA. Nunca envía el JWT/refresh token del usuario,
+ * ni su email ni sus roles — esta llamada es backend a módulo de IA, no un passthrough de
+ * las credenciales del propio frontend. Cada llamada lleva un header X-Trace-Id: el trace id del
+ * request actual (leído del MDC, seteado por TraceIdFilter) cuando existe, o uno
+ * recién generado {@code technical-<uuid>} — resuelto una vez por llamada, nunca guardado
+ * globalmente, nunca filtrado entre threads — para un proceso en background/sin request HTTP con
+ * nada en el MDC. Ver docs/P10_B_ERRORS_AUDIT_OBSERVABILITY.md §9/§14.
  *
- * P10-B.1: never builds a public exception message by concatenating the upstream
- * response body, an unwrapped exception's own message, a WebClientResponseException
- * body, or a host/URL — every public message here comes from
- * {@link ApiErrorCode#publicMessage()}. The upstream body is only ever used to
- * deserialize {@link AiStructuredErrorV2Dto} (the v2 structured-error contract); when it
- * isn't structured, it is discarded entirely — not even its length is logged unsanitized.
+ * P10-B.1: nunca arma un mensaje de excepción público concatenando el body de la respuesta
+ * upstream, el mensaje propio de una excepción desempaquetada, el body de una WebClientResponseException
+ * ni un host/URL — todo mensaje público de acá sale de
+ * {@link ApiErrorCode#publicMessage()}. El body upstream solo se usa para
+ * deserializar {@link AiStructuredErrorV2Dto} (el contrato de error estructurado v2); cuando
+ * no es estructurado, se descarta por completo — ni siquiera su longitud se loguea sin sanitizar.
  */
 @Component
 public class AiServiceClient implements AiServiceOperations {
@@ -131,9 +131,9 @@ public class AiServiceClient implements AiServiceOperations {
     }
 
     /**
-     * Current request's trace id from MDC, or a fresh {@code technical-<uuid>} — resolved
-     * once by the caller and reused for the whole logical call (header + v2 body, where
-     * applicable). Never written back to MDC — this is a per-call local value only.
+     * El trace id del request actual desde el MDC, o un {@code technical-<uuid>} nuevo — resuelto
+     * una vez por quien llama y reutilizado durante toda la llamada lógica (header + body v2, donde
+     * aplique). Nunca se vuelve a escribir en el MDC — es solo un valor local por llamada.
      */
     private String resolveTraceId() {
         String traceId = MDC.get(TraceIdFilter.TRACE_ID_MDC_KEY);
@@ -143,7 +143,7 @@ public class AiServiceClient implements AiServiceOperations {
         return "technical-" + UUID.randomUUID();
     }
 
-    /** Every AI Module call carries a trace id header — see class docs and {@link #resolveTraceId()}. */
+    /** Toda llamada al módulo de IA lleva un header de trace id — ver docs de clase y {@link #resolveTraceId()}. */
     private void applyTraceHeader(HttpHeaders headers) {
         headers.set(TraceIdFilter.TRACE_ID_HEADER, resolveTraceId());
     }
@@ -265,11 +265,11 @@ public class AiServiceClient implements AiServiceOperations {
     }
 
     /**
-     * One slice of a stored series, whether or not a model ever ran on it.
+     * Un slice de una serie almacenada, haya corrido o no un modelo sobre ella.
      *
-     * <p>Addressed by input and not by run because these series have no run: they are
-     * the ones the study carried and the AI does not analyse — the T1s, the axial T1
-     * with no model, the localizer — and the reader needs them all the same.
+     * <p>Se direcciona por input y no por corrida porque estas series no tienen corrida: son
+     * las que el estudio traía y la IA no analiza — los T1, el T1 axial
+     * sin modelo, el localizador — y el lector las necesita igual.
      */
     public ResponseEntity<byte[]> getSeriesSlice(String inputId, int index) {
         return execute(() -> aiWebClient.get()
@@ -325,10 +325,10 @@ public class AiServiceClient implements AiServiceOperations {
     }
 
     /**
-     * A-F: resolves the configured contract version, builds the appropriate request,
-     * calls exactly one endpoint, deserializes to the matching DTO, adapts to
-     * CanonicalMultiplanarRun and returns it. There is no fallback between contracts
-     * and no retry against the other endpoint on error.
+     * A-F: resuelve la versión de contrato configurada, arma el request apropiado,
+     * llama exactamente a un endpoint, deserializa al DTO correspondiente, adapta a
+     * CanonicalMultiplanarRun y lo devuelve. No hay fallback entre contratos
+     * ni reintento contra el otro endpoint ante un error.
      */
     @Override
     public CanonicalMultiplanarRun runMultiplanar(MultiplanarRunRequestDto request) {
@@ -338,10 +338,10 @@ public class AiServiceClient implements AiServiceOperations {
     }
 
     /**
-     * A call only counts as {@code aiCallsSucceeded} once the whole logical operation —
-     * HTTP, deserialization, adapter, contract validation — has completed and produced a
-     * usable canonical result (P10-B.1 §12). An HTTP 200 with an invalid contract is a
-     * failure, not a success; recorded exactly once, whichever stage throws.
+     * Una llamada solo cuenta como {@code aiCallsSucceeded} una vez que toda la operación lógica —
+     * HTTP, deserialización, adaptador, validación de contrato — se completó y produjo un
+     * resultado canónico utilizable (P10-B.1 §12). Un HTTP 200 con un contrato inválido es una
+     * falla, no un éxito; se registra exactamente una vez, sin importar en qué etapa se lance la excepción.
      */
     private CanonicalMultiplanarRun runMultiplanarV1(MultiplanarRunRequestDto request) {
         String traceId = resolveTraceId();
@@ -501,11 +501,11 @@ public class AiServiceClient implements AiServiceOperations {
     }
 
     /**
-     * Only ever deserializes the upstream body into {@link AiStructuredErrorV2Dto} — the
-     * raw body/message is never copied into the public exception. Technical details
-     * (structured code, upstream trace id) are kept only as internal fields on the
-     * resulting exception; the public message always comes from
-     * {@link ApiErrorCode#publicMessage()} via {@link AiMultiplanarV2ErrorCodeMapper}.
+     * Solo deserializa el body upstream en {@link AiStructuredErrorV2Dto} — el
+     * body/mensaje crudo nunca se copia a la excepción pública. Los detalles técnicos
+     * (código estructurado, trace id upstream) se guardan únicamente como campos internos de la
+     * excepción resultante; el mensaje público siempre sale de
+     * {@link ApiErrorCode#publicMessage()} vía {@link AiMultiplanarV2ErrorCodeMapper}.
      */
     private RuntimeException buildV2Error(String body, String traceId) {
         AiStructuredErrorV2Dto structured = tryParseStructuredError(body);
@@ -564,11 +564,11 @@ public class AiServiceClient implements AiServiceOperations {
     }
 
     /**
-     * POST /v1/product/analyze. Same shape as {@link #runMultiplanarV2}: trace id propagated by
-     * header, HTTP/transport failures translated to {@link AiProductUpstreamException}, and a
-     * success is only recorded once the whole pipeline — HTTP, deserialization, AND the 75-F
-     * contract/safety validation — has produced a result Spring is willing to hand back. A 200
-     * response that fails contract validation is a failure, not a success.
+     * POST /v1/product/analyze. Misma forma que {@link #runMultiplanarV2}: trace id propagado por
+     * header, fallas de HTTP/transporte traducidas a {@link AiProductUpstreamException}, y un
+     * éxito solo se registra una vez que todo el pipeline — HTTP, deserialización Y la validación de
+     * contrato/seguridad 75-F — produjo un resultado que Spring acepta devolver. Una respuesta 200
+     * que falla la validación de contrato es una falla, no un éxito.
      */
     @Override
     public AiProductAnalyzeResponseDto analyzeProduct(AiProductAnalyzeRequestDto request) {
@@ -604,7 +604,7 @@ public class AiServiceClient implements AiServiceOperations {
         return new AiProductAnalyzeRequestDto(request.caseId(), request.sagittalInputId(), request.axialInputId(), metadata);
     }
 
-    /** Preserves the upstream 4xx status as-is (same convention as {@link #mapResponseOrError}) — never surfaces the body. */
+    /** Preserva el status 4xx upstream tal cual (misma convención que {@link #mapResponseOrError}) — nunca expone el body. */
     private RuntimeException buildProductError(org.springframework.http.HttpStatusCode statusCode, String traceId) {
         if (statusCode.is4xxClientError()) {
             return new AiProductUpstreamException(HttpStatus.valueOf(statusCode.value()), ApiErrorCode.AI_INVALID_REQUEST.name(), ApiErrorCode.AI_INVALID_REQUEST.publicMessage(), traceId);
@@ -612,7 +612,7 @@ public class AiServiceClient implements AiServiceOperations {
         return new AiProductUpstreamException(HttpStatus.BAD_GATEWAY, ApiErrorCode.AI_MODULE_ERROR.name(), ApiErrorCode.AI_MODULE_ERROR.publicMessage(), traceId);
     }
 
-    /** Like {@link #dispatchV2Http}, for the product-analyze pipeline. */
+    /** Como {@link #dispatchV2Http}, para el pipeline de product-analyze. */
     private <T> T dispatchProductHttp(Supplier<T> supplier, String traceId) {
         try {
             return supplier.get();
@@ -657,7 +657,7 @@ public class AiServiceClient implements AiServiceOperations {
             .block(limit));
     }
 
-    /** Never surfaces the upstream body — a rejection just carries a fixed, safe public message. */
+    /** Nunca expone el body upstream — un rechazo solo lleva un mensaje público fijo y seguro. */
     private Mono<Map<String, Object>> mapResponseOrError(org.springframework.web.reactive.function.client.ClientResponse response) {
         if (response.statusCode().is2xxSuccessful()) {
             return response.bodyToMono(MAP_RESPONSE);
@@ -727,7 +727,7 @@ public class AiServiceClient implements AiServiceOperations {
         return metadata;
     }
 
-    /** Simple calls (health/models/assets/...) — the HTTP call itself is the whole logical operation, so success/failure is recorded automatically around it. */
+    /** Llamadas simples (health/models/assets/...) — la propia llamada HTTP es toda la operación lógica, así que el éxito/falla se registra automáticamente a su alrededor. */
     private <T> T execute(Supplier<T> supplier) {
         long startedAt = System.currentTimeMillis();
         try {
@@ -740,7 +740,7 @@ public class AiServiceClient implements AiServiceOperations {
         }
     }
 
-    /** Like {@link #execute}, but without metric recording — used inside {@link #runMultiplanarV1}, which records around the full HTTP+validate+adapt pipeline instead. */
+    /** Como {@link #execute}, pero sin registro de métricas — se usa dentro de {@link #runMultiplanarV1}, que registra alrededor de todo el pipeline HTTP+validación+adaptación. */
     private <T> T executeHttp(Supplier<T> supplier) {
         try {
             return supplier.get();
@@ -749,7 +749,7 @@ public class AiServiceClient implements AiServiceOperations {
         }
     }
 
-    /** Like {@link #executeHttp}, for the v2 dispatch — metric recording happens once, around the full pipeline, in {@link #runMultiplanarV2}. */
+    /** Como {@link #executeHttp}, para el dispatch v2 — el registro de métricas ocurre una sola vez, alrededor de todo el pipeline, en {@link #runMultiplanarV2}. */
     private <T> T dispatchV2Http(Supplier<T> supplier, String traceId) {
         try {
             return supplier.get();
@@ -778,10 +778,10 @@ public class AiServiceClient implements AiServiceOperations {
     }
 
     /**
-     * Translates a transport-level failure to a {@link ResponseStatusException} carrying
-     * only a fixed public message — never the upstream response body, an unwrapped
-     * exception's own message, a host, or a URL. A sanitized, DEBUG-only technical line
-     * is logged separately for troubleshooting.
+     * Traduce una falla a nivel de transporte en una {@link ResponseStatusException} que lleva
+     * solo un mensaje público fijo — nunca el body de la respuesta upstream, el mensaje propio de una
+     * excepción desempaquetada, un host ni una URL. Una línea técnica sanitizada, solo de nivel DEBUG,
+     * se loguea por separado para diagnóstico.
      */
     public ResponseStatusException translateException(RuntimeException ex) {
         Throwable unwrapped = Exceptions.unwrap(ex);
@@ -798,7 +798,7 @@ public class AiServiceClient implements AiServiceOperations {
         return new ResponseStatusException(HttpStatus.BAD_GATEWAY, ApiErrorCode.UPSTREAM_UNAVAILABLE.publicMessage(), unwrapped);
     }
 
-    /** DEBUG-only, sanitized — never at the default log level, never in a response body. */
+    /** Solo DEBUG y sanitizado — nunca en el nivel de log por defecto, nunca en el body de una respuesta. */
     private void logTechnicalDetail(Throwable unwrapped) {
         if (!log.isDebugEnabled()) return;
         log.debug("event=ai_module_call_failed exceptionType={} message={}",

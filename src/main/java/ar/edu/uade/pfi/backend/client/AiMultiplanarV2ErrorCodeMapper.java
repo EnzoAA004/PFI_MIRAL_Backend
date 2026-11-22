@@ -5,11 +5,11 @@ import java.util.Map;
 import org.springframework.http.HttpStatus;
 
 /**
- * Maps the pfi.multiplanar-run.v2 structured error codes (AiStructuredErrorV2Dto.code) to a stable
- * backend HTTP status + {@link ApiErrorCode} pair. Unknown codes are never surfaced as-is: they
- * collapse to a generic upstream-error bucket so the backend's public error contract stays stable
- * even if the AI Module adds new codes. The upstream code string itself is never used to build the
- * backend's public code or message — only this fixed mapping table is (P10-B.1 §3/§7).
+ * Mapea los códigos de error estructurados de pfi.multiplanar-run.v2 (AiStructuredErrorV2Dto.code) a un par estable
+ * de estado HTTP del backend + {@link ApiErrorCode}. Los códigos desconocidos nunca se exponen tal cual:
+ * se colapsan en un bucket genérico de error upstream para que el contrato público de errores del backend siga estable
+ * aunque el módulo de IA agregue códigos nuevos. El string del código upstream nunca se usa para construir el
+ * código ni el mensaje público del backend — solo se usa esta tabla de mapeo fija (P10-B.1 §3/§7).
  */
 final class AiMultiplanarV2ErrorCodeMapper {
   record Mapped(HttpStatus status, ApiErrorCode backendCode) {

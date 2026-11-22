@@ -71,10 +71,10 @@ public class AiMultiplanarV1ResponseAdapter {
   }
 
   /**
-   * v1's inputId lives on the plane DTO itself, while the shape/orientation/slice fields the legacy
-   * frontend needs (already legacy-named: inputShapeNative, selectedSlice, sliceCount, ...) live in
-   * plane.metadata(). Internal/local paths are excluded here defensively;
-   * MultiplanarRunResponsePresenter also sanitizes the final payload downstream.
+   * El inputId de v1 vive en el propio DTO del plano, mientras que los campos de shape/orientación/slice que necesita el frontend
+   * legacy (ya con nombres legacy: inputShapeNative, selectedSlice, sliceCount, ...) viven en
+   * plane.metadata(). Los paths internos/locales se excluyen acá de forma defensiva;
+   * MultiplanarRunResponsePresenter además sanitiza el payload final más adelante.
    */
   private Map<String, Object> inputMap(MultiplanarRunResponseDto.PlaneDto plane) {
     Map<String, Object> input = new LinkedHashMap<>();
@@ -110,10 +110,10 @@ public class AiMultiplanarV1ResponseAdapter {
   }
 
   /**
-   * The v1 contract does not expose model.availableForRealInference directly (that is a v2-only
-   * field). We derive it from plane.aiOutput().realInferenceAvailable, which the AI Module already
-   * reports for v1 runs, so CanonicalMultiplanarRunLegacyPresenter can compute
-   * realInferenceAvailable uniformly for both contract versions.
+   * El contrato v1 no expone model.availableForRealInference directamente (es un campo exclusivo de
+   * v2). Lo derivamos de plane.aiOutput().realInferenceAvailable, que el módulo de IA ya
+   * informa para las corridas v1, así CanonicalMultiplanarRunLegacyPresenter puede calcular
+   * realInferenceAvailable de forma uniforme para ambas versiones del contrato.
    */
   private Object availableForRealInference(MultiplanarRunResponseDto.PlaneDto plane) {
     if (plane.aiOutput() != null && plane.aiOutput().containsKey("realInferenceAvailable")) {

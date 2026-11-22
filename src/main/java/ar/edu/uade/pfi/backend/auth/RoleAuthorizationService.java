@@ -38,7 +38,7 @@ public class RoleAuthorizationService {
     requireStudyWrite(request, caseId);
   }
 
-  /** Requires a secondary resource to belong to the already-authorized study in the route/body. */
+  /** Exige que un recurso secundario pertenezca al estudio ya autorizado en la ruta/body. */
   public void requireResourceBelongsToStudy(HttpServletRequest request, String resourceId, String expectedCaseId, boolean write) {
     if (resourceId == null || resourceId.isBlank()) return;
     if (studyRepository == null) return;
@@ -51,8 +51,8 @@ public class RoleAuthorizationService {
     if (studyRepository == null) return;
     String principal = principal(request);
     if (studyRepository.hasStudyAccess(caseId, principal, true)) return;
-    // Legacy rows must be assigned through an explicit administrative/owner workflow; an upload
-    // endpoint can only claim a case before the first durable Study row exists.
+    // Las filas legacy deben asignarse mediante un workflow administrativo/de owner explícito; un endpoint
+    // de upload solo puede reclamar un caso antes de que exista la primera fila durable de Study.
     if (studyRepository.findStudyByCaseId(caseId).isPresent()
         || !studyRepository.claimStudyOwner(caseId, principal)) denyStudy(request, caseId);
   }
@@ -88,9 +88,9 @@ public class RoleAuthorizationService {
     if (studyRepository == null) return;
     if (caseId == null || caseId.isBlank()) denyStudy(request, "");
     if (studyRepository.findStudyByCaseId(caseId).isEmpty()) {
-      // Initial uploads reserve a new case by creating an OWNER grant before the study
-      // catalogue row exists. That one scoped owner may continue the upload workflow;
-      // absent/unassigned historical studies and arbitrary callers still fail closed.
+      // Las cargas iniciales reservan un caso nuevo creando un grant OWNER antes de que exista la fila del
+      // catálogo de estudios. Ese único owner acotado puede continuar el workflow de upload;
+      // los estudios históricos ausentes/sin asignar y los llamantes arbitrarios siguen fallando de forma cerrada.
       if (studyRepository.hasStudyAccess(caseId, principal(request), write)) return;
       denyStudy(request, caseId);
     }
@@ -156,7 +156,7 @@ public class RoleAuthorizationService {
               "roles", currentRoles,
               "method", request.getMethod()));
     } catch (RuntimeException ignored) {
-      // Authorization result must not depend on audit persistence availability.
+      // El resultado de la autorización no debe depender de la disponibilidad de la persistencia de auditoría.
     }
   }
 

@@ -5,10 +5,10 @@ import java.time.Instant;
 import java.util.Map;
 
 /**
- * EXT-04B5: public shape of a just-created/corrected {@link AiEvidenceRegion} — omits
- * {@code authoredBy}/{@code comment}'s reviewer identity is never in this record to begin with
- * (only {@code authoredBy} is, and it is deliberately excluded here), same rule EXT-04A/EXT-04B2
- * already apply to reviewer identity elsewhere in this product.
+ * EXT-04B5: forma pública de un {@link AiEvidenceRegion} recién creado/corregido — omite
+ * {@code authoredBy}/la identidad del revisor de {@code comment} nunca está en este record desde un principio
+ * (solo está {@code authoredBy}, y se excluye deliberadamente acá), la misma regla que EXT-04A/EXT-04B2
+ * ya aplican a la identidad del revisor en el resto de este producto.
  */
 public record EvidenceRegionResponseDto(
     String evidenceId,

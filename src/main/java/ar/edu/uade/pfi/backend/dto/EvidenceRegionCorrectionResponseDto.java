@@ -4,7 +4,7 @@ import ar.edu.uade.pfi.backend.domain.AiEvidenceRegionCorrection;
 import java.time.Instant;
 import java.util.Map;
 
-/** EXT-04B5: public shape of a just-appended correction — {@code reviewedBy} is never included. */
+/** EXT-04B5: forma pública de una corrección recién agregada — {@code reviewedBy} nunca se incluye. */
 public record EvidenceRegionCorrectionResponseDto(
     String correctionId,
     String evidenceRegionId,

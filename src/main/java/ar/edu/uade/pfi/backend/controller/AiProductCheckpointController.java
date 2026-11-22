@@ -26,7 +26,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
-/** Backend-facing P10.9 checkpoint. No frontend is required to exercise these routes. */
+/** Checkpoint P10.9 orientado al backend. No se requiere ningún frontend para ejercitar estas rutas. */
 @RestController
 @RequestMapping("/api/ai/v2/product")
 public class AiProductCheckpointController {
@@ -146,9 +146,9 @@ public class AiProductCheckpointController {
   @SuppressWarnings("unchecked")
   private Map<String, Object> predictDiscDegenerativeInternal(DiscDegenerativeProductRequestDto request) {
     Map<String, Object> prediction = aiClient.predictDiscDegenerativeFromSegmentation(request);
-    // Persist the full upstream prediction, probabilities included: validation,
-    // traceability, and audit need them. Only the public response below is
-    // projected -- persistImmutable never sees a sanitized copy.
+    // Persistir la predicción upstream completa, probabilidades incluidas: la validación,
+    // la trazabilidad y la auditoría las necesitan. Solo la respuesta pública de abajo se
+    // proyecta -- persistImmutable nunca recibe una copia sanitizada.
     persistence.persistImmutable(request.multiplanarRunId(), prediction);
 
     Map<String, Object> result = new LinkedHashMap<>(prediction);

@@ -4,17 +4,17 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * Stage 76-N / 78: what the Frontend actually receives from POST/GET on
- * {@code /api/studies/{caseId}/product-analys(is|es)} — built from the persisted
- * {@code AiProductAnalysisRun}/{@code AiDiscLevelResult}/{@code AiMeasurementResult} rows plus
- * their professional-review overlay (stage 78), never from the raw upstream response directly.
- * Deliberately excludes the AI Module's base URL, the resolved
- * {@code sagittalInputId}/{@code axialInputId}, and any model checkpoint SHA — none of those are
- * needed by the Frontend and are not re-exposed here.
+ * Etapa 76-N / 78: lo que el Frontend realmente recibe de POST/GET sobre
+ * {@code /api/studies/{caseId}/product-analys(is|es)} — construido a partir de las filas persistidas
+ * {@code AiProductAnalysisRun}/{@code AiDiscLevelResult}/{@code AiMeasurementResult} más
+ * su overlay de revisión profesional (etapa 78), nunca directamente de la respuesta upstream cruda.
+ * Deliberadamente excluye la URL base del módulo de IA, los
+ * {@code sagittalInputId}/{@code axialInputId} resueltos y cualquier SHA de checkpoint de modelo — nada de eso
+ * lo necesita el Frontend y no se vuelve a exponer acá.
  *
- * <p>{@code discLevelId}/{@code measurementId} ARE exposed (unlike the fields above) — they are
- * opaque, Backend-generated identifiers with no clinical/infrastructure meaning, and the
- * Frontend needs them to address the stage-78 review/correction endpoints.
+ * <p>{@code discLevelId}/{@code measurementId} SÍ se exponen (a diferencia de los campos de arriba) — son
+ * identificadores opacos generados por el Backend, sin significado clínico ni de infraestructura, y el
+ * Frontend los necesita para direccionar los endpoints de revisión/corrección de la etapa 78.
  */
 public record AiProductAnalysisResultDto(
     String analysisRunId,
@@ -61,7 +61,7 @@ public record AiProductAnalysisResultDto(
     ) {
     }
 
-    /** One field's current professional correction (stage 78-D) — the AI's original value is always preserved alongside it. */
+    /** La corrección profesional vigente de un campo (etapa 78-D) — el valor original de la IA siempre se preserva junto a ella. */
     public record MeasurementCorrectionView(
         String field,
         Double originalValue,
@@ -74,11 +74,11 @@ public record AiProductAnalysisResultDto(
     }
 
     /**
-     * Professional-review decision — reused as-is for both the run-level and each disc-level's
-     * review (stage 78-B/78-C). {@code status} is one of
-     * {@code pending|accepted|observed|rejected}; never a clinical vocabulary. This is always a
-     * distinct concept from the AI's own {@code localizationStatus}/{@code axialPairingStatus}/
-     * {@code validated} fields above — accepting a review here never changes those.
+     * Decisión de revisión profesional — reutilizada tal cual para la revisión a nivel de corrida y la de cada nivel de
+     * disco (etapa 78-B/78-C). {@code status} es uno de
+     * {@code pending|accepted|observed|rejected}; nunca un vocabulario clínico. Este es siempre un
+     * concepto distinto de los campos propios de la IA {@code localizationStatus}/{@code axialPairingStatus}/
+     * {@code validated} de arriba — aceptar una revisión acá nunca cambia esos.
      */
     public record ReviewView(boolean required, String status, String comment, String reviewedBy, Instant reviewedAt) {
     }

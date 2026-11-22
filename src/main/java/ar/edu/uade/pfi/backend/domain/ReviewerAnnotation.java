@@ -6,22 +6,22 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * A reviewer's own annotation on a run: a measurement they took, a marker they placed, or a note
- * they wrote.
+ * Una anotación propia del revisor sobre una corrida: una medición que tomó, un marcador que colocó, o una nota
+ * que escribió.
  *
- * <p>Distinct from {@link MeasurementCorrection}, which is always an AI value the reviewer changed
- * and therefore always has a measurementId plus a before/after pair. An annotation has neither — it
- * is geometry and text the reviewer produced, and it may not correspond to any measurement the
- * model emitted.
+ * <p>Distinta de {@link MeasurementCorrection}, que siempre es un valor de la IA que el revisor cambió
+ * y por lo tanto siempre tiene un measurementId más un par antes/después. Una anotación no tiene ninguno de los dos — es
+ * geometría y texto que produjo el revisor, y puede no corresponder a ninguna medición que
+ * haya emitido el modelo.
  *
- * <p>{@code scope} decides where the annotation is drawn, so the invariants that make it locatable
- * are enforced here as well as by the table's CHECK constraints: a slice-scoped annotation without
- * a plane and a slice index cannot be placed on any image, and a level-scoped one without a level
- * cannot be filed under any vertebral level.
+ * <p>{@code scope} decide dónde se dibuja la anotación, por lo que los invariantes que la hacen ubicable
+ * se aplican acá además de en los CHECK constraints de la tabla: una anotación de alcance slice sin
+ * un plano y un índice de slice no puede ubicarse en ninguna imagen, y una de alcance nivel sin un nivel
+ * no puede archivarse bajo ningún nivel vertebral.
  *
- * <p>{@code points} are in the normalised 0..256 basis shared with masks and landmarks — a
- * frame-relative space, not PNG pixels, so the geometry stays aligned regardless of the resolution
- * the slice is rendered at.
+ * <p>{@code points} están en la base normalizada 0..256 compartida con las máscaras y los landmarks — un
+ * espacio relativo al marco, no píxeles PNG, de modo que la geometría se mantiene alineada sin importar la resolución
+ * a la que se renderice el slice.
  */
 public record ReviewerAnnotation(
     String id,
@@ -29,12 +29,12 @@ public record ReviewerAnnotation(
     String scope,
     String kind,
     /**
-     * Which tool took the measurement, when {@code kind} is "measurement".
+     * Qué herramienta tomó la medición, cuando {@code kind} es "measurement".
      *
-     * <p>Separate from {@code kind} because they answer different questions: kind says whether this
-     * is a measurement at all, this says how it was measured. Without it the figure is lost on
-     * reload — an angle is four points and a listhesis is three, so a viewer that does not know the
-     * type redraws them as a distance between the first two, which is a measurement nobody took.
+     * <p>Separado de {@code kind} porque responden preguntas distintas: kind dice si esto
+     * es una medición en absoluto, esto dice cómo se midió. Sin esto la figura se pierde al
+     * recargar — un ángulo son cuatro puntos y una listesis son tres, así que un viewer que no conoce el
+     * tipo los redibuja como una distancia entre los dos primeros, que es una medición que nadie tomó.
      */
     String measurementKind,
     String plane,

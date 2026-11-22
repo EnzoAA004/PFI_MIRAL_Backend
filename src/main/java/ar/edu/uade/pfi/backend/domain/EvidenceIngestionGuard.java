@@ -1,23 +1,23 @@
 package ar.edu.uade.pfi.backend.domain;
 
 /**
- * EXT-04B2: guards that keep a not-yet-validated AI capability from being "laundered" into an
- * {@link AiEvidenceRegion} that looks as trustworthy as a validated one. Both conditions come
- * straight from the EXT-04B1 AI-repo audit — neither is invented here.
+ * EXT-04B2: guardas que evitan que una capacidad de IA aún no validada se "lave" hasta convertirse en un
+ * {@link AiEvidenceRegion} que parezca tan confiable como una validada. Ambas condiciones provienen
+ * directamente de la auditoría del repo de IA de EXT-04B1 — ninguna se inventó acá.
  */
 public final class EvidenceIngestionGuard {
-    /** {@code AiProductAnalyzeResponseDto.DegenerativeFindings#status()} when P10.7 is blocked. */
+    /** {@code AiProductAnalyzeResponseDto.DegenerativeFindings#status()} cuando P10.7 está bloqueado. */
     public static final String P10_7_BLOCKED_STATUS = "blocked_preprocessing_parity";
 
     private EvidenceIngestionGuard() {
     }
 
     /**
-     * P10.7 (automatic pathology inference) is blocked by preprocessing parity — per
-     * {@code AiProductAnalyzeResponseDto.DegenerativeFindings}'s own javadoc, its status "is
-     * currently always {@code blocked_preprocessing_parity} — never a negative finding". A
-     * blocked capability has no validated localized geometry to offer; ingesting a region
-     * "from" it would fabricate evidence P10.7 never actually produced.
+     * P10.7 (inferencia automática de patología) está bloqueado por la paridad de preprocesamiento — según el
+     * javadoc propio de {@code AiProductAnalyzeResponseDto.DegenerativeFindings}, su status "is
+     * currently always {@code blocked_preprocessing_parity} — never a negative finding". Una
+     * capacidad bloqueada no tiene geometría localizada validada para ofrecer; ingerir una región
+     * "a partir de" ella fabricaría evidencia que P10.7 nunca produjo realmente.
      */
     public static void requireNotBlockedPathologyInference(String degenerativeFindingsStatus) {
         if (P10_7_BLOCKED_STATUS.equals(degenerativeFindingsStatus)) {
@@ -29,10 +29,10 @@ public final class EvidenceIngestionGuard {
     }
 
     /**
-     * 67C (axial pairing) is experimental — {@code mappingValidated=false} upstream, per the
-     * EXT-04B1 AI audit. Any geometry sourced from an experimental axial pairing must be
-     * persisted with {@code experimental=true}; a caller may not present it as a validated
-     * region.
+     * 67C (emparejamiento axial) es experimental — {@code mappingValidated=false} upstream, según la
+     * auditoría de IA de EXT-04B1. Toda geometría proveniente de un emparejamiento axial experimental debe
+     * persistirse con {@code experimental=true}; quien llama no puede presentarla como una región
+     * validada.
      */
     public static void requireExperimentalFlagForAxialPairing(boolean axialPairingExperimental, boolean experimental) {
         if (axialPairingExperimental && !experimental) {

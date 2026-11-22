@@ -345,10 +345,10 @@ public class AuthController {
   }
 
   /**
-   * P10-B.2: adds the same controller-level RoleAuthorizationService.requireAdmin gate every other
-   * ADMIN-only endpoint uses, in addition to (not instead of) AuthService.listProfessionals' own
-   * internal requireAdmin(claims) check — authorization must be blocked as early as possible, not
-   * only proven safe by a service-layer check further down the call stack.
+   * P10-B.2: agrega el mismo gate a nivel controller RoleAuthorizationService.requireAdmin que usa todo otro
+   * endpoint solo-ADMIN, además de (no en lugar de) el chequeo interno requireAdmin(claims) de
+   * AuthService.listProfessionals — la autorización debe bloquearse lo antes posible, no
+   * demostrarse segura recién con un chequeo de la capa de servicio más abajo en el call stack.
    */
   @GetMapping("/admin/professionals")
   public List<UserResponse> listProfessionals(HttpServletRequest request) {
@@ -359,11 +359,11 @@ public class AuthController {
   }
 
   /**
-   * Legacy endpoint kept only because the current production frontend still calls it — see
-   * AuthService.approveProfessional. It now enforces exactly the same
-   * RoleAuthorizationService.requireAdmin gate as /activation (previously it only relied on
-   * AuthService's own internal role check). Deprecated: pending removal once the frontend migrates
-   * to /activation (P10-C).
+   * Endpoint legacy mantenido solo porque el frontend de producción actual todavía lo llama — ver
+   * AuthService.approveProfessional. Ahora aplica exactamente el mismo
+   * gate RoleAuthorizationService.requireAdmin que /activation (antes solo dependía del
+   * chequeo de rol interno de AuthService). Deprecado: se eliminará cuando el frontend migre
+   * a /activation (P10-C).
    */
   @Deprecated
   @PatchMapping("/admin/professionals/approval")
@@ -379,19 +379,19 @@ public class AuthController {
   private static final Pattern EMAIL_PATTERN = Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
 
   /**
-   * "Institutional manual activation": an ADMIN vouches for a professional account outside of any
-   * email-verification flow (there is no real email provider today).
-   * RoleAuthorizationService.requireAdmin is a mandatory constructor dependency — there is no
-   * null-check bypass here, unlike the legacy pattern this project used to have on some
+   * "Activación institucional manual": un ADMIN avala una cuenta profesional por fuera de cualquier
+   * flujo de verificación por email (hoy no hay un proveedor de email real).
+   * RoleAuthorizationService.requireAdmin es una dependencia obligatoria del constructor — acá no hay
+   * bypass por null-check, a diferencia del patrón legacy que este proyecto tenía en algunos
    * controllers.
    *
-   * <p>Deliberately does NOT bind straight to {@code @Valid @RequestBody
-   * ProfessionalActivationRequest}: under Spring Boot's actual auto-configured ObjectMapper (as
-   * opposed to a hand-built `new ObjectMapper()` in a standalone MockMvc test), a record's
-   * `@JsonIgnoreProperties(ignoreUnknown = false)` was empirically found to NOT reject extra fields
-   * (verified in ProfessionalActivationRealObjectMapperTest before this fix, where it failed) — so
-   * unknown fields ("roles", "admin", ...) are rejected explicitly here, against the raw JsonNode,
-   * before the DTO is even constructed.
+   * <p>Deliberadamente NO se bindea directo a {@code @Valid @RequestBody
+   * ProfessionalActivationRequest}: con el ObjectMapper autoconfigurado real de Spring Boot (a diferencia
+   * de un `new ObjectMapper()` armado a mano en un test MockMvc standalone), se comprobó empíricamente que el
+   * `@JsonIgnoreProperties(ignoreUnknown = false)` de un record NO rechaza campos extra
+   * (verificado en ProfessionalActivationRealObjectMapperTest antes de este fix, donde fallaba) — por eso
+   * los campos desconocidos ("roles", "admin", ...) se rechazan explícitamente acá, contra el JsonNode crudo,
+   * antes incluso de construir el DTO.
    */
   @Operation(
       summary = "Rechaza el registro de un profesional pendiente, con el motivo",

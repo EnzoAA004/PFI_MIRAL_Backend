@@ -3,14 +3,14 @@ package ar.edu.uade.pfi.backend.domain;
 import java.time.Instant;
 
 /**
- * Stage 80-S/80-T: one turn of a {@link ChatConversation}. Deliberately does NOT persist the
- * full structured context or the system prompt text — only {@code promptVersion} — since the
- * context is always reconstructible from already-persisted stage 76-79 data and re-embedding it
- * per message would duplicate sensitive-adjacent data for no benefit (80-T: "El contexto se
+ * Etapa 80-S/80-T: un turno de una {@link ChatConversation}. Deliberadamente NO persiste el
+ * contexto estructurado completo ni el texto del system prompt — solo {@code promptVersion} — ya que el
+ * contexto siempre es reconstruible a partir de datos ya persistidos de las etapas 76-79 y volver a embeberlo
+ * en cada mensaje duplicaría datos casi sensibles sin ningún beneficio (80-T: "El contexto se
  * puede reconstruir").
  *
- * <p>{@code model}/{@code provider} are {@code null} for a {@code USER} message (the caller
- * didn't choose either) and always populated for an {@code ASSISTANT} message.
+ * <p>{@code model}/{@code provider} son {@code null} para un mensaje {@code USER} (quien llama
+ * no eligió ninguno) y siempre están completos para un mensaje {@code ASSISTANT}.
  */
 public record ChatMessage(
     String id,

@@ -61,10 +61,10 @@ public class MultiplanarRealBaselineContractValidator {
   }
 
   /**
-   * The v2 contract is already strictly typed and validated at deserialization time
-   * (AiMultiplanarV2ResponseDto uses ignoreUnknown=false on critical fields), so the hardcoded v1
-   * field-shape assertions below (modelVersion, aiOutput map, metadata keys, etc.) do not apply.
-   * Here we only assert the governance guarantees that must hold regardless of contract version.
+   * El contrato v2 ya está estrictamente tipado y validado al momento de la deserialización
+   * (AiMultiplanarV2ResponseDto usa ignoreUnknown=false en los campos críticos), por lo que las
+   * aserciones hardcodeadas de forma de campos de v1 de más abajo (modelVersion, mapa aiOutput, keys de metadata, etc.) no aplican.
+   * Acá solo afirmamos las garantías de gobernanza que deben cumplirse sin importar la versión del contrato.
    */
   private void validateV2Strict(
       MultiplanarRunRequestDto request, MultiplanarRunResponseDto response) {

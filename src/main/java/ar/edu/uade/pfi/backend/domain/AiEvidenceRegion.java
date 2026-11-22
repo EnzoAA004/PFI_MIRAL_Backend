@@ -6,61 +6,61 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * EXT-04B2: a visual region of interest tied to an {@link AiProductAnalysisRun} — a bounding
- * box, ellipse, polygon, or mask reference, either suggested by AI or drawn directly by a
- * professional. This is the "root" row: it is never UPDATEd or DELETEd once created (the same
- * immutability guarantee {@link AiMeasurementResult} already gives the AI's original scalar
- * output). A professional correction of an {@code origin="ai"} region is a new, separate
- * {@link AiEvidenceRegionCorrection} row — the geometry here is never overwritten.
+ * EXT-04B2: una región visual de interés atada a un {@link AiProductAnalysisRun} — un bounding
+ * box, elipse, polígono o referencia a máscara, sugerida por la IA o dibujada directamente por un
+ * profesional. Esta es la fila "raíz": nunca se hace UPDATE ni DELETE una vez creada (la misma
+ * garantía de inmutabilidad que {@link AiMeasurementResult} ya da a la salida escalar original de la
+ * IA). Una corrección profesional de una región {@code origin="ai"} es una fila nueva y separada de
+ * {@link AiEvidenceRegionCorrection} — la geometría de acá nunca se sobrescribe.
  *
- * <p>Deliberately NOT a generalization of {@link ReviewerAnnotation}: that type's
- * {@code scope}/{@code kind} vocabulary is shaped for free-form reviewer notes/measurements
- * that may not correspond to any AI output, and it is edited in place rather than append-only
- * (EXT-04B1 section 6/12). This type instead follows the stage-78
- * {@code AiMeasurementResult}/{@code AiMeasurementCorrection} convention, because it must
- * preserve the original AI geometry forever for EXT-05.
+ * <p>Deliberadamente NO es una generalización de {@link ReviewerAnnotation}: el vocabulario
+ * {@code scope}/{@code kind} de ese tipo está pensado para notas/mediciones libres del revisor
+ * que pueden no corresponder a ninguna salida de la IA, y se edita en el lugar en vez de ser append-only
+ * (EXT-04B1 sección 6/12). Este tipo, en cambio, sigue la convención de la etapa 78
+ * {@code AiMeasurementResult}/{@code AiMeasurementCorrection}, porque debe
+ * preservar para siempre la geometría original de la IA para EXT-05.
  *
- * <p>Review state is intentionally NOT stored here: whether this region's AI suggestion is
- * pending/accepted/observed/rejected is answered by the existing {@code AiDiscLevelReview}
- * (when {@code discLevelResultId} is set) or {@code AiProductAnalysisRunReview} (run-level
- * fallback) — reused as-is (EXT-04B1 principle 3/6). {@code authoredBy} here is a different,
- * narrower concept: who drew this region directly, meaningful only when
- * {@code origin="professional"}, and never serialized to the structured report (EXT-04B1
- * section 9) — the same "no reviewer identity in the report" rule EXT-04A already enforces.
+ * <p>El estado de revisión intencionalmente NO se guarda acá: si la sugerencia de IA de esta región está
+ * pendiente/aceptada/observada/rechazada lo responde el {@code AiDiscLevelReview} existente
+ * (cuando {@code discLevelResultId} está seteado) o {@code AiProductAnalysisRunReview} (fallback a nivel de
+ * corrida) — reutilizados tal cual (EXT-04B1 principio 3/6). {@code authoredBy} acá es un concepto distinto y
+ * más acotado: quién dibujó esta región directamente, significativo solo cuando
+ * {@code origin="professional"}, y nunca se serializa al reporte estructurado (EXT-04B1
+ * sección 9) — la misma regla de "sin identidad del revisor en el reporte" que EXT-04A ya aplica.
  */
 public record AiEvidenceRegion(
     String id,
     String analysisRunId,
-    /** Nullable: a run-level region (not tied to a specific disc level) is valid. */
+    /** Admite null: una región a nivel de corrida (no atada a un nivel de disco específico) es válida. */
     String discLevelResultId,
-    /** Nullable: an evidence region does not need to illustrate one specific scalar measurement. */
+    /** Admite null: una región de evidencia no necesita ilustrar una medición escalar específica. */
     String measurementId,
     String plane,
     String level,
     String structure,
     Integer sliceIndex,
-    /** {@code "ai" | "professional"} — who produced the CURRENT geometry in this row. */
+    /** {@code "ai" | "professional"} — quién produjo la geometría ACTUAL de esta fila. */
     String origin,
     String geometryType,
     Map<String, Object> geometry,
     /**
-     * Nullable, {@code origin="ai"} only: the AI's own per-slice pixel frame
-     * (width/height/units/origin/axis directions/sourceSliceIndex), kept only for audit/
-     * reproducibility of the {@link EvidenceCoordinateNormalizer} conversion — never the
-     * basis {@code geometry} itself is expressed in (EXT-04B1 section 8).
+     * Admite null, solo con {@code origin="ai"}: el propio marco de píxeles por slice de la IA
+     * (width/height/units/origin/direcciones de ejes/sourceSliceIndex), conservado solo para auditoría/
+     * reproducibilidad de la conversión de {@link EvidenceCoordinateNormalizer} — nunca la
+     * base en la que se expresa la {@code geometry} misma (EXT-04B1 sección 8).
      */
     Map<String, Object> coordinateSpaceRef,
     String modelId,
     String modelSha256,
     String pipelineVersion,
-    /** Only ever non-null when the source model genuinely emits one — never fabricated. */
+    /** Solo es no-null cuando el modelo de origen realmente emite uno — nunca se fabrica. */
     Double confidence,
-    /** True for geometry sourced from an unvalidated/experimental capability (e.g. 67C). */
+    /** True para geometría proveniente de una capacidad no validada/experimental (p. ej. 67C). */
     boolean experimental,
-    /** Neutral, non-diagnostic label — e.g. "Región de interés". Never "patología confirmada". */
+    /** Etiqueta neutral, no diagnóstica — p. ej. "Región de interés". Nunca "patología confirmada". */
     String label,
     String comment,
-    /** Internal only; never serialized to the structured report. */
+    /** Solo interno; nunca se serializa al reporte estructurado. */
     String authoredBy,
     Instant createdAt
 ) {
@@ -78,9 +78,9 @@ public record AiEvidenceRegion(
         require(ORIGINS.contains(origin), "origin inválido: " + origin);
         require(plane == null || PLANES.contains(plane), "plane inválido: " + plane);
         require(sliceIndex == null || sliceIndex >= 0, "sliceIndex no puede ser negativo");
-        // Eagerly validates the geometry shape — an AiEvidenceRegion can never be constructed
-        // with a geometry that wouldn't parse back (mirrors ReviewerAnnotation's own
-        // compact-constructor validation, never left to the caller to check separately).
+        // Valida de forma anticipada la forma de la geometría — un AiEvidenceRegion nunca puede construirse
+        // con una geometría que no pueda volver a parsearse (replica la validación del compact constructor
+        // propio de ReviewerAnnotation, sin dejar que quien llama la chequee por separado).
         EvidenceGeometry.fromMap(geometryType, geometry);
         require(
             !"ai".equals(origin) || modelId != null || modelSha256 != null || pipelineVersion != null,

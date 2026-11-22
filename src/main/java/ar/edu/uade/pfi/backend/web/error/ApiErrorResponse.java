@@ -1,10 +1,10 @@
 package ar.edu.uade.pfi.backend.web.error;
 
 /**
- * The single, explicit error contract for this API. Field order here is preserved by {@link
- * ApiErrorWriter} when it serializes to the (still Map-based, for per-exception-extensible fields
- * like {@code runId}/{@code plane}/{@code assetName}) response body, so existing frontend field
- * order/shape is unaffected.
+ * El único contrato de error explícito de esta API. El orden de los campos acá lo preserva {@link
+ * ApiErrorWriter} cuando serializa al body de la respuesta (todavía basado en Map, para campos extensibles por excepción
+ * como {@code runId}/{@code plane}/{@code assetName}), de modo que el orden/forma de los campos
+ * existentes del frontend no se vea afectado.
  */
 public record ApiErrorResponse(
     String status,

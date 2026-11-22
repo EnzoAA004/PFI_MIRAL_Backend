@@ -4,9 +4,9 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * Stage 80-K/80-L: {@code humanReviewRequired}/{@code notClinicalDiagnosis} are always {@code
- * true} — set unconditionally by {@code ChatService}, never derived from the provider's response.
- * No internal infrastructure (LLM base URL, hostnames, checkpoint paths) is ever exposed here.
+ * Etapa 80-K/80-L: {@code humanReviewRequired}/{@code notClinicalDiagnosis} son siempre {@code
+ * true} — seteados incondicionalmente por {@code ChatService}, nunca derivados de la respuesta del proveedor.
+ * Nunca se expone acá infraestructura interna (URL base del LLM, hostnames, paths de checkpoints).
  */
 public record ChatResponseDto(
     String answer,

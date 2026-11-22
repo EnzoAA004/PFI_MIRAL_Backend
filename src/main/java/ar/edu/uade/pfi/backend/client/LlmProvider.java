@@ -1,22 +1,22 @@
 package ar.edu.uade.pfi.backend.client;
 
 /**
- * Stage 80: the one seam {@code ChatService} depends on. Swapping the underlying model/runtime —
- * self-hosted Qwen today, potentially {@code OpenAiLlmProvider}/{@code GeminiLlmProvider}/
- * {@code AnthropicLlmProvider} later — means adding a new implementation of this interface and
- * flipping {@code pfi.llm.provider}, never touching {@code ChatService} or the context-building
- * logic. No implementation may call FastAPI, the database, or the filesystem — a provider only
- * ever turns a domain request into a wire request and a wire response back into a domain result.
+ * Etapa 80: el único punto de unión del que depende {@code ChatService}. Cambiar el modelo/runtime subyacente —
+ * Qwen autoalojado hoy, potencialmente {@code OpenAiLlmProvider}/{@code GeminiLlmProvider}/
+ * {@code AnthropicLlmProvider} más adelante — implica agregar una nueva implementación de esta interfaz y
+ * cambiar {@code pfi.llm.provider}, sin tocar nunca {@code ChatService} ni la lógica de armado de contexto.
+ * Ninguna implementación puede llamar a FastAPI, a la base de datos ni al filesystem — un proveedor solo
+ * convierte un request de dominio en un request wire y una respuesta wire en un resultado de dominio.
  */
 public interface LlmProvider {
     LlmChatResult complete(LlmChatRequest request);
 
     /**
-     * Stage 81-T: a cheap, side-effect-free liveness probe — never generates tokens, never
-     * throws. Used only by {@code SystemDiagnosticsService} to distinguish
-     * enabled+reachable/enabled+unreachable in {@code /api/system/diagnostics}, so an operator
-     * can tell "LLM disabled" apart from "LLM enabled but the runtime is down" without waiting
-     * for a real chat request to fail first.
+     * Etapa 81-T: un probe de liveness barato y sin efectos secundarios — nunca genera tokens, nunca
+     * lanza excepción. Lo usa únicamente {@code SystemDiagnosticsService} para distinguir
+     * enabled+reachable/enabled+unreachable en {@code /api/system/diagnostics}, de modo que un operador
+     * pueda distinguir "LLM deshabilitado" de "LLM habilitado pero el runtime está caído" sin esperar a
+     * que falle primero un request de chat real.
      */
     boolean checkAvailability();
 }

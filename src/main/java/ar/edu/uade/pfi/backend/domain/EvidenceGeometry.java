@@ -6,16 +6,16 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Geometry of an {@link AiEvidenceRegion} — EXT-04B2. A closed union of the four shapes the
- * EXT-04B1 design settled on (BBOX / ELLIPSE / POLYGON / MASK_REFERENCE), always expressed in
- * the canonical normalised 0..256 basis already shared by {@link ReviewerAnnotation} and the
- * multiplanar masks/landmarks the Frontend viewer renders (EXT-04B1 audit, section 8) — never
- * DICOM-physical coordinates, which no part of this stack stores or validates today.
+ * Geometría de un {@link AiEvidenceRegion} — EXT-04B2. Una unión cerrada de las cuatro formas en las que
+ * se asentó el diseño EXT-04B1 (BBOX / ELLIPSE / POLYGON / MASK_REFERENCE), siempre expresada en
+ * la base normalizada canónica 0..256 ya compartida por {@link ReviewerAnnotation} y las
+ * máscaras/landmarks multiplanares que renderiza el viewer del Frontend (auditoría EXT-04B1, sección 8) — nunca
+ * coordenadas físicas DICOM, que ninguna parte de este stack guarda ni valida hoy.
  *
- * <p>A {@code MASK_REFERENCE} never carries pixel data inline: it only points at an
- * already-existing, already-authenticated asset — the same
- * {@code /api/ai/assets/{runId}/{plane}/{assetName}} the viewer already fetches — never a
- * filesystem path or a raw blob in this row (EXT-04B1 section 7/14).
+ * <p>Un {@code MASK_REFERENCE} nunca lleva datos de píxeles inline: solo apunta a un
+ * asset ya existente y ya autenticado — el mismo
+ * {@code /api/ai/assets/{runId}/{plane}/{assetName}} que el viewer ya consulta — nunca un
+ * path del filesystem ni un blob crudo en esta fila (EXT-04B1 sección 7/14).
  */
 public sealed interface EvidenceGeometry {
     double CANONICAL_MIN = 0.0;
@@ -26,7 +26,7 @@ public sealed interface EvidenceGeometry {
     String TYPE_POLYGON = "POLYGON";
     String TYPE_MASK_REFERENCE = "MASK_REFERENCE";
 
-    /** Serializes to the plain map shape persisted in the {@code geometry} JSONB column. */
+    /** Serializa al mapa plano persistido en la columna JSONB {@code geometry}. */
     Map<String, Object> toMap();
 
     static String typeOf(EvidenceGeometry geometry) {
@@ -38,10 +38,10 @@ public sealed interface EvidenceGeometry {
     }
 
     /**
-     * Parses a persisted/incoming {@code (geometryType, geometry)} pair back into a typed,
-     * validated shape. This is the single place shape validation happens (mirrored by every
-     * record's own compact constructor below) — an unknown {@code geometryType} or a
-     * malformed map is always rejected here, never silently accepted downstream.
+     * Parsea de vuelta un par {@code (geometryType, geometry)} persistido/entrante a una forma tipada y
+     * validada. Este es el único lugar donde ocurre la validación de forma (replicada por el
+     * compact constructor propio de cada record más abajo) — un {@code geometryType} desconocido o un
+     * mapa malformado siempre se rechaza acá, nunca se acepta en silencio más adelante.
      */
     @SuppressWarnings("unchecked")
     static EvidenceGeometry fromMap(String geometryType, Map<String, Object> geometry) {

@@ -14,23 +14,23 @@ import javax.imageio.ImageIO;
 import org.springframework.stereotype.Component;
 
 /**
- * EXT-04B4: composes one evidence base image + its geometry into a single raster PNG, entirely
- * in memory (Java2D {@link BufferedImage} — no temp files, no GUI/headful dependency, works the
- * same in a headless Docker container). Pure, stateless, and framework-free by design — no
- * Spring dependency needed here beyond the {@code @Component} annotation for wiring — so it is
- * trivially unit-testable without a Backend/Spring context.
+ * EXT-04B4: compone una imagen base de evidencia + su geometría en un único PNG raster, completamente
+ * en memoria (Java2D {@link BufferedImage} — sin archivos temporales, sin dependencia de GUI/headful, funciona igual
+ * en un contenedor Docker headless). Puro, sin estado y sin framework por diseño — sin
+ * dependencia de Spring necesaria acá más allá de la anotación {@code @Component} para el wiring — por lo que es
+ * trivialmente testeable de forma unitaria sin un contexto de Backend/Spring.
  *
- * <p>{@code geometry} is always already in the canonical normalised 0..256 basis (same rule
- * EXT-04B2/B3 already established); this class only ever scales those coordinates to the actual
- * decoded image's own pixel dimensions — it never re-derives or reinterprets the coordinate
- * system itself.
+ * <p>{@code geometry} ya está siempre en la base normalizada canónica 0..256 (la misma regla que
+ * EXT-04B2/B3 ya estableció); esta clase solo escala esas coordenadas a las dimensiones de píxeles de
+ * la imagen decodificada real — nunca vuelve a derivar ni reinterpreta el sistema de
+ * coordenadas en sí.
  *
- * <p>Color/style choice (Phase "COLOR"): a visible red stroke, no fill — the same visual
- * language a radiology workstation already uses to point at "look here," never a severity scale.
- * Red here means "región de interés señalada," nothing about gravity/malignancy/pathology/being
- * worse — documented here once so it is never silently reinterpreted while this file is touched
- * again. {@code MASK_REFERENCE} draws nothing on top: the fetched asset already IS the rendered
- * mask (same precedent {@code EvidenceRegionOverlay.tsx} already set on the Frontend).
+ * <p>Elección de color/estilo (Fase "COLOR"): un trazo rojo visible, sin relleno — el mismo lenguaje
+ * visual que una estación de trabajo de radiología ya usa para señalar "mirá acá", nunca una escala de severidad.
+ * Acá el rojo significa "región de interés señalada", nada sobre gravedad/malignidad/patología/estar
+ * peor — documentado acá una sola vez para que nunca se reinterprete en silencio cuando se vuelva a tocar este archivo.
+ * {@code MASK_REFERENCE} no dibuja nada encima: el asset obtenido ya ES la
+ * máscara renderizada (el mismo precedente que {@code EvidenceRegionOverlay.tsx} ya sentó en el Frontend).
  */
 @Component
 public class EvidenceOverlayComposer {
@@ -82,7 +82,7 @@ public class EvidenceOverlayComposer {
             }
             g.drawPolygon(xs, ys, points.size());
         }
-        // MASK_REFERENCE: nothing to draw — the fetched asset is already the rendered mask.
+        // MASK_REFERENCE: nada que dibujar — el asset obtenido ya es la máscara renderizada.
     }
 
     private int round(double value) {

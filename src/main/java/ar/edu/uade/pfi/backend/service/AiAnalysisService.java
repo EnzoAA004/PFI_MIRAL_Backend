@@ -9,17 +9,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * Stage 75-D — domain translation between the raw POST /v1/product/analyze DTO and the rest of
- * the Backend. Deliberately thin: {@code completed}/{@code partial}/{@code failed} are returned
- * exactly as the AI Module reported them, never reinterpreted into a clinical judgment.
+ * Etapa 75-D — traducción de dominio entre el DTO crudo de POST /v1/product/analyze y el resto de
+ * el Backend. Deliberadamente delgada: {@code completed}/{@code partial}/{@code failed} se devuelven
+ * exactamente como los informó el módulo de IA, nunca reinterpretados como un juicio clínico.
  *
- * <p>{@code partial} is a normal, successful call where some capability is
+ * <p>{@code partial} es una llamada normal y exitosa donde alguna capacidad está
  * {@code unavailable}/{@code adapter_pending}/{@code blocked}/{@code experimental}/
- * {@code abstained}/{@code parity_not_proven} — it is returned as a 200 with that status, never
- * converted into an HTTP error. Only a real upstream failure ({@link AiProductUpstreamException})
- * or a contract/safety violation ({@link AiProductContractViolationException} /
- * {@link AiProductSafetyViolationException}) propagates as an exception — those are exceptional;
- * an AI-reported {@code failed} analysis status is not.
+ * {@code abstained}/{@code parity_not_proven} — se devuelve como un 200 con ese status, nunca
+ * convertido en un error HTTP. Solo una falla upstream real ({@link AiProductUpstreamException})
+ * o una violación de contrato/seguridad ({@link AiProductContractViolationException} /
+ * {@link AiProductSafetyViolationException}) se propaga como excepción — esas son excepcionales;
+ * un estado de análisis {@code failed} informado por la IA no lo es.
  */
 @Service
 public class AiAnalysisService {

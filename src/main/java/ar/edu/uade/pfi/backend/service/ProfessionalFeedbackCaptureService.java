@@ -22,17 +22,17 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
- * EXT-07D: CAPTURE only — never training, never online/active learning, never a runtime
- * checkpoint change. This service reads professional corrections and professional-authored
- * findings that already exist (append-only, produced by review/correction flows this product
- * has had since Stage 78/EXT-04B2) and captures a structured, traceable
- * {@link ProfessionalFeedbackCandidate} row for each one it has not already captured.
+ * EXT-07D: solo CAPTURA — nunca entrenamiento, nunca aprendizaje online/activo, nunca un cambio de
+ * checkpoint en runtime. Este servicio lee las correcciones profesionales y los hallazgos de autoría profesional
+ * que ya existen (append-only, producidos por los flujos de revisión/corrección que este producto
+ * tiene desde la Etapa 78/EXT-04B2) y captura una fila estructurada y trazable de
+ * {@link ProfessionalFeedbackCandidate} por cada una que todavía no haya capturado.
  *
- * <p>Idempotent: capturing the same correction/new-finding twice is a no-op (checked here via
- * {@link StudyRepository#existsProfessionalFeedbackCandidate} and enforced again at the database
- * layer by a {@code UNIQUE(source, correctionId)} constraint). Every captured row starts at
- * {@code status="captured"} — this service never elevates a candidate's status; that is an
- * explicit, separate, human-issued action (see {@code ProfessionalFeedbackController}).
+ * <p>Idempotente: capturar la misma corrección/nuevo hallazgo dos veces es un no-op (se chequea acá vía
+ * {@link StudyRepository#existsProfessionalFeedbackCandidate} y se vuelve a reforzar en la capa de base de datos
+ * con un constraint {@code UNIQUE(source, correctionId)}). Cada fila capturada empieza en
+ * {@code status="captured"} — este servicio nunca eleva el estado de un candidato; eso es una
+ * acción explícita, separada y emitida por una persona (ver {@code ProfessionalFeedbackController}).
  */
 @Service
 public class ProfessionalFeedbackCaptureService {
@@ -136,10 +136,10 @@ public class ProfessionalFeedbackCaptureService {
             captured.add(repository.saveProfessionalFeedbackCandidate(candidate));
         }
 
-        // A professional-authored region the AI never suggested is feedback in its own right —
-        // "distinguirse de AI suggested/validated/corrected" (EXT-07 spec) — captured directly
-        // from the region row itself (there is no correction row for it), never forced into the
-        // model automatically.
+        // Una región de autoría profesional que la IA nunca sugirió es feedback por derecho propio —
+        // "distinguirse de AI suggested/validated/corrected" (spec EXT-07) — capturada directamente
+        // de la propia fila de la región (no hay fila de corrección para ella), nunca forzada hacia el
+        // modelo automáticamente.
         for (AiEvidenceRegion region : regionsById.values()) {
             if (!"professional".equals(region.origin())) continue;
             if (repository.existsProfessionalFeedbackCandidate("professional_new_finding", region.id())) continue;
@@ -172,13 +172,13 @@ public class ProfessionalFeedbackCaptureService {
             captured.add(repository.saveProfessionalFeedbackCandidate(candidate));
         }
 
-        // EXT-04B5: a professional REJECTING an AI suggestion (with no correction — a correction
-        // already takes the "evidence_region" branch above regardless of review status) is also
-        // feedback in its own right: a negative signal, distinct from "never reviewed at all"
-        // (AI_SUGGESTED, not effective, but still `pending` — never captured). Uses the same
-        // review-status resolution EffectiveAnnotationResolver already applies (disc-level
-        // review when the region names one, run-level review otherwise) rather than
-        // re-deriving it here.
+        // EXT-04B5: un profesional que RECHAZA una sugerencia de la IA (sin corrección — una corrección
+        // ya toma la rama "evidence_region" de arriba sin importar el estado de revisión) también es
+        // feedback por derecho propio: una señal negativa, distinta de "nunca revisada en absoluto"
+        // (AI_SUGGESTED, no efectiva, pero todavía `pending` — nunca capturada). Usa la misma
+        // resolución de estado de revisión que EffectiveAnnotationResolver ya aplica (revisión
+        // de nivel de disco cuando la región nombra uno, revisión a nivel de corrida en caso contrario) en lugar de
+        // volver a derivarla acá.
         Map<String, String> effectiveReviewStatusByRegionId = annotationResolver.effectiveAnnotations(run, true).stream()
             .collect(java.util.stream.Collectors.toMap(a -> a.region().id(), EffectiveAnnotationResolver.EffectiveAnnotation::reviewStatus, (a, b) -> a));
         for (AiEvidenceRegion region : regionsById.values()) {
@@ -216,7 +216,7 @@ public class ProfessionalFeedbackCaptureService {
         return captured;
     }
 
-    /** Same fallback order StudyReportService/EffectiveAnnotationResolver already use: disc-level review when the region names one, run-level review otherwise. */
+    /** El mismo orden de fallback que ya usan StudyReportService/EffectiveAnnotationResolver: revisión de nivel de disco cuando la región nombra uno, revisión a nivel de corrida en caso contrario. */
     private String rejectionReviewer(AiProductAnalysisRun run, AiEvidenceRegion region) {
         if (region.discLevelResultId() != null) {
             for (AiDiscLevelReview review : repository.findAiDiscLevelReviewsByAnalysisRunId(run.id())) {
@@ -231,9 +231,9 @@ public class ProfessionalFeedbackCaptureService {
     }
 
     /**
-     * EXT-05: same list as {@link #findByCase}, narrowed by whichever filters are non-null.
-     * Filtering happens in memory over the case's own (small, synthetic-scale) candidate set —
-     * no new SQL WHERE clause was needed for this stage's data volumes.
+     * EXT-05: la misma lista que {@link #findByCase}, acotada por los filtros que no sean null.
+     * El filtrado ocurre en memoria sobre el conjunto de candidatos del propio caso (chico, a escala sintética) —
+     * no hizo falta ninguna nueva cláusula SQL WHERE para los volúmenes de datos de esta etapa.
      */
     public List<ProfessionalFeedbackCandidate> findByCase(String caseId, FeedbackCandidateFilter filter) {
         return findByCase(caseId).stream().filter(filter::matches).toList();
@@ -261,11 +261,11 @@ public class ProfessionalFeedbackCaptureService {
     }
 
     /**
-     * The only way a candidate's status ever changes — always an explicit, human-issued call.
-     * {@code "ready_for_training"} is not a value this product models at all (see
-     * {@link ProfessionalFeedbackCandidate#ALLOWED_STATUSES}), so it is rejected the same as any
-     * other unrecognised status, never silently accepted. Every call appends a row to the
-     * separate status-change history table — never merely overwrites the candidate's status.
+     * La única forma en que cambia el estado de un candidato — siempre una llamada explícita emitida por una persona.
+     * {@code "ready_for_training"} no es un valor que este producto modele en absoluto (ver
+     * {@link ProfessionalFeedbackCandidate#ALLOWED_STATUSES}), así que se rechaza igual que cualquier
+     * otro estado no reconocido, nunca se acepta en silencio. Cada llamada agrega una fila a la
+     * tabla separada de historial de cambios de estado — nunca simplemente sobrescribe el estado del candidato.
      */
     public ProfessionalFeedbackCandidate curate(String candidateId, String status, String curatorId, String reason, String note) {
         if (!ProfessionalFeedbackCandidate.ALLOWED_STATUSES.contains(status)) {
@@ -277,16 +277,16 @@ public class ProfessionalFeedbackCaptureService {
     }
 
     /**
-     * EXT-05: an internal, curated export manifest — never an automatically-produced training
-     * dataset (see the class javadoc: this whole file only ever captures/curates, never trains).
-     * {@code sourceModelVersions} is the distinct, sorted set of non-null {@code modelId} values
-     * among the exported candidates; {@code manifestChecksum} is a SHA-256 over the exported
-     * records' own JSON so a later consumer can detect if the export file was altered.
+     * EXT-05: un manifiesto de exportación interno y curado — nunca un dataset de entrenamiento producido automáticamente
+     * (ver el javadoc de la clase: todo este archivo solo captura/cura, nunca entrena).
+     * {@code sourceModelVersions} es el conjunto distinto y ordenado de valores {@code modelId} no nulos
+     * entre los candidatos exportados; {@code manifestChecksum} es un SHA-256 sobre el
+     * JSON propio de los registros exportados para que un consumidor posterior pueda detectar si el archivo de exportación fue alterado.
      */
     public FeedbackDatasetExport exportForStudy(String caseId, FeedbackCandidateFilter filter, com.fasterxml.jackson.databind.ObjectMapper objectMapper) {
         List<ProfessionalFeedbackCandidate> candidates = filter == null ? findByCase(caseId) : findByCase(caseId, filter);
-        // Exported through the same public DTO every other endpoint uses — never the domain
-        // record directly, which would leak reviewedBy/curatorId into the export file.
+        // Exportado a través del mismo DTO público que usa cualquier otro endpoint — nunca el
+        // record de dominio directamente, que filtraría reviewedBy/curatorId al archivo de exportación.
         List<ar.edu.uade.pfi.backend.dto.ProfessionalFeedbackCandidateDto> records = candidates.stream()
             .map(ar.edu.uade.pfi.backend.dto.ProfessionalFeedbackCandidateDto::from)
             .toList();

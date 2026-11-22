@@ -19,20 +19,20 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 /**
- * EXT-04B5: the two write operations {@link EvidenceRegionIngestionService} deliberately does
- * NOT cover (that class is for {@code origin="ai"} geometry from the internal multiplanar
- * pipeline — a separate, still-unwired concern). This service is the professional-facing half:
- * creating a professional-authored region, and appending a correction to an existing one
- * (AI-origin or professional-origin). Review (accept/observe/reject) is deliberately NOT
- * duplicated here — {@code AiProductAnalysisController#reviewDiscLevel}/{@code #reviewRun}
- * already cover it at exactly the granularity an evidence region's own review status already
- * resolves from ({@link EffectiveAnnotationResolver}), so a region is reviewed through those
- * existing, already-tested endpoints, never a new one.
+ * EXT-04B5: las dos operaciones de escritura que {@link EvidenceRegionIngestionService} deliberadamente
+ * NO cubre (esa clase es para geometría {@code origin="ai"} del pipeline
+ * multiplanar interno — una preocupación separada, todavía sin conectar). Este servicio es la mitad orientada al profesional:
+ * crear una región de autoría profesional, y agregar una corrección a una existente
+ * (de origen IA o profesional). La revisión (aceptar/observar/rechazar) deliberadamente NO se
+ * duplica acá — {@code AiProductAnalysisController#reviewDiscLevel}/{@code #reviewRun}
+ * ya la cubren exactamente con la granularidad desde la que ya se resuelve el estado de revisión propio de una región de evidencia
+ * ({@link EffectiveAnnotationResolver}), así que una región se revisa mediante esos
+ * endpoints existentes y ya testeados, nunca uno nuevo.
  *
- * <p>{@code origin} is never accepted from the caller: professional creation hardcodes
- * {@code "professional"} here, server-side, exactly like {@link EvidenceRegionIngestionService}
- * hardcodes {@code "ai"} for its own case — a client can never fabricate either origin through
- * either endpoint.
+ * <p>{@code origin} nunca se acepta de quien llama: la creación profesional hardcodea
+ * {@code "professional"} acá, del lado del servidor, igual que {@link EvidenceRegionIngestionService}
+ * hardcodea {@code "ai"} para su propio caso — un cliente nunca puede fabricar ninguno de los dos orígenes a través de
+ * ninguno de los dos endpoints.
  */
 @Service
 public class ProfessionalAnnotationService {
@@ -55,9 +55,9 @@ public class ProfessionalAnnotationService {
         AiProductAnalysisRun run = requireRunOfStudy(caseId, analysisRunId);
         requireNotMaskReference(request.geometryType());
 
-        // AiEvidenceRegion's own compact constructor validates geometryType/geometry (via
-        // EvidenceGeometry.fromMap: 0..256 range, polygon >=3 points, bbox/ellipse positive
-        // size) and plane/sliceIndex — never re-validated here, never bypassed either.
+        // El compact constructor propio de AiEvidenceRegion valida geometryType/geometry (vía
+        // EvidenceGeometry.fromMap: rango 0..256, polígono >=3 puntos, bbox/elipse de tamaño
+        // positivo) y plane/sliceIndex — nunca se revalida acá, ni tampoco se elude.
         AiEvidenceRegion region = new AiEvidenceRegion(
             UUID.randomUUID().toString(),
             run.id(),
@@ -89,10 +89,10 @@ public class ProfessionalAnnotationService {
         requireNotMaskReference(request.geometryType());
         AiEvidenceRegion region = requireRegionOfRun(run, regionId);
 
-        // Snapshot the CURRENT effective geometry (the latest correction's, if one already
-        // exists — never the AI's original once superseded) as "originalGeometry" for this new
-        // correction row — same "each correction remembers what it replaced" rule
-        // AiMeasurementCorrection already follows, extended to a second-or-later correction.
+        // Tomar una instantánea de la geometría efectiva ACTUAL (la de la última corrección, si ya
+        // existe una — nunca la original de la IA una vez reemplazada) como "originalGeometry" de esta nueva
+        // fila de corrección — la misma regla de "cada corrección recuerda lo que reemplazó"
+        // que AiMeasurementCorrection ya sigue, extendida a una segunda corrección o posterior.
         var effective = annotationResolver.effectiveAnnotations(run, true).stream()
             .filter(annotation -> annotation.region().id().equals(regionId))
             .findFirst()
@@ -130,9 +130,9 @@ public class ProfessionalAnnotationService {
     }
 
     /**
-     * MASK_REFERENCE is never creatable/correctable through this professional-facing service —
-     * it points at an already-existing raster asset this service has no way to produce or
-     * verify (Phase "MASK_REFERENCE: NO editable gráficamente").
+     * MASK_REFERENCE nunca se puede crear/corregir a través de este servicio orientado al profesional —
+     * apunta a un asset raster ya existente que este servicio no tiene forma de producir ni
+     * verificar (Fase "MASK_REFERENCE: NO editable gráficamente").
      */
     private void requireNotMaskReference(String geometryType) {
         if (EvidenceGeometry.TYPE_MASK_REFERENCE.equals(geometryType)) {

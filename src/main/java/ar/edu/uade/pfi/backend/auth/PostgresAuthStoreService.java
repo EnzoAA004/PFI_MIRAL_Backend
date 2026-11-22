@@ -29,9 +29,9 @@ public class PostgresAuthStoreService {
   private final boolean enabled;
 
   /**
-   * The app-wide pooled DataSource only exists as a bean in postgres mode
-   * ({@code PfiDataSourceConfig}); {@link ObjectProvider} is how a bean that's always
-   * created (this one) tolerates that bean sometimes not existing.
+   * El DataSource con pool de toda la app solo existe como bean en modo postgres
+   * ({@code PfiDataSourceConfig}); {@link ObjectProvider} es la forma en que un bean que siempre se
+   * crea (este) tolera que ese bean a veces no exista.
    */
   @Autowired
   public PostgresAuthStoreService(
@@ -58,7 +58,7 @@ public class PostgresAuthStoreService {
     return (System.nanoTime() - startedNanos) / 1_000_000L;
   }
 
-  /** Test convenience: builds its own small pool from a raw JDBC/connection URL. */
+  /** Conveniencia para tests: arma su propio pool chico a partir de una URL JDBC/de conexión cruda. */
   public PostgresAuthStoreService(String persistenceMode, String databaseUrl) {
     this(persistenceMode, buildDataSourceOrNull(databaseUrl));
   }
@@ -148,7 +148,7 @@ public class PostgresAuthStoreService {
       statement.setBoolean(13, account.onboardingCompleted());
       statement.executeUpdate();
     } catch (Exception ignored) {
-      // Auth remains available through in-memory fallback.
+      // Auth sigue disponible mediante el fallback en memoria.
     }
     return account;
   }
@@ -164,7 +164,7 @@ public class PostgresAuthStoreService {
       statement.setString(1, email);
       statement.executeUpdate();
     } catch (Exception ignored) {
-      // In-memory account is still verified by AuthService.
+      // La cuenta en memoria sigue siendo verificada por AuthService.
     }
   }
 
@@ -183,7 +183,7 @@ public class PostgresAuthStoreService {
       statement.setString(3, email);
       statement.executeUpdate();
     } catch (Exception ignored) {
-      // In-memory account remains authoritative for this request.
+      // La cuenta en memoria sigue siendo la autoridad para este request.
     }
   }
 
@@ -209,7 +209,7 @@ public class PostgresAuthStoreService {
         }
       }
     } catch (Exception ignored) {
-      // In-memory update already happened in AuthService.
+      // La actualización en memoria ya ocurrió en AuthService.
     }
   }
 
@@ -231,7 +231,7 @@ public class PostgresAuthStoreService {
       statement.setTimestamp(3, Timestamp.from(expiresAt));
       statement.executeUpdate();
     } catch (Exception ignored) {
-      // In-memory refresh token fallback remains active.
+      // El fallback de refresh token en memoria sigue activo.
     }
   }
 
@@ -265,26 +265,26 @@ public class PostgresAuthStoreService {
       statement.setString(1, tokenHash(refreshToken));
       statement.executeUpdate();
     } catch (Exception ignored) {
-      // Logout is best-effort for persistence fallback.
+      // El logout es best-effort para el fallback de persistencia.
     }
   }
 
   /**
-   * Strict, fail-closed check used exclusively by admin bootstrap/activation-lockout logic: unlike
-   * every other method in this class, it never swallows an exception — if Postgres isn't enabled or
-   * the query fails, the caller (AdminBootstrapService) must treat that as "cannot safely determine
-   * ADMIN state" and refuse to start, rather than silently falling back to an in-memory answer.
+   * Chequeo estricto y fail-closed usado exclusivamente por la lógica de bootstrap de admin/bloqueo por activación: a diferencia de
+   * cualquier otro método de esta clase, nunca traga una excepción — si Postgres no está habilitado o
+   * la consulta falla, quien llama (AdminBootstrapService) debe tratarlo como "no se puede determinar con seguridad el
+   * estado de ADMIN" y negarse a arrancar, en lugar de recurrir silenciosamente a una respuesta en memoria.
    */
   public boolean hasNonDemoAdmin(String excludedEmail) {
     return findNonDemoAdmin(excludedEmail).isPresent();
   }
 
   /**
-   * See {@link #hasNonDemoAdmin(String)} — same fail-closed contract. The `roles LIKE '%ADMIN%'`
-   * clause is only an index-friendly SQL pre-filter (it would also match a hypothetical future role
-   * like "SUPERADMIN"); every candidate row is still re-checked in Java against the exact,
-   * comma-split role list plus verified/approved, so only a genuinely active, exact ADMIN account
-   * is ever accepted for bootstrap-skip purposes.
+   * Ver {@link #hasNonDemoAdmin(String)} — mismo contrato fail-closed. La cláusula `roles LIKE '%ADMIN%'`
+   * es solo un prefiltro SQL amigable al índice (también coincidiría con un hipotético rol futuro
+   * como "SUPERADMIN"); cada fila candidata se vuelve a chequear en Java contra la lista exacta de roles
+   * separada por comas más verified/approved, de modo que solo una cuenta ADMIN genuinamente activa y exacta
+   * se acepta para saltear el bootstrap.
    */
   public Optional<DoctorAccount> findNonDemoAdmin(String excludedEmail) {
     if (!enabled) {
@@ -317,13 +317,13 @@ public class PostgresAuthStoreService {
   }
 
   /**
-   * Idempotent, race-safe creation of the bootstrap ADMIN. Concurrency strategy: the INSERT relies
-   * on the existing UNIQUE(email) constraint with ON CONFLICT DO NOTHING — if two instances start
-   * concurrently and both attempt to create the same bootstrap email, exactly one INSERT succeeds
-   * and the other becomes a no-op rather than an error or a duplicate row. Either way, the caller
-   * (AdminBootstrapService) always re-reads the row afterwards via findByEmail(...) to get the
-   * single canonical persisted identity — so both instances converge on the same account without
-   * needing a distributed lock.
+   * Creación idempotente y a prueba de carreras del ADMIN de bootstrap. Estrategia de concurrencia: el INSERT se apoya
+   * en el constraint UNIQUE(email) existente con ON CONFLICT DO NOTHING — si dos instancias arrancan
+   * concurrentemente y ambas intentan crear el mismo email de bootstrap, exactamente un INSERT tiene éxito
+   * y el otro queda como no-op en lugar de un error o una fila duplicada. En cualquier caso, quien llama
+   * (AdminBootstrapService) siempre relee la fila después vía findByEmail(...) para obtener la
+   * única identidad persistida canónica — así ambas instancias convergen en la misma cuenta sin
+   * necesitar un lock distribuido.
    */
   public DoctorAccount createBootstrapAdmin(DoctorAccount account) {
     if (!enabled) {
@@ -359,8 +359,8 @@ public class PostgresAuthStoreService {
   }
 
   /**
-   * Same read as findByEmail, but throws instead of returning empty on any failure — used only for
-   * bootstrap verification.
+   * La misma lectura que findByEmail, pero lanza excepción en lugar de devolver vacío ante cualquier falla — se usa solo para
+   * la verificación del bootstrap.
    */
   private DoctorAccount findByEmailStrict(String email) {
     if (!enabled) {
@@ -392,10 +392,10 @@ public class PostgresAuthStoreService {
   }
 
   /**
-   * Single atomic UPDATE for institutional activation/deactivation — verified, approved, and roles
-   * are always written together so a persisted account is never observed in a half-updated state.
-   * Fail-closed like the bootstrap methods above: an error here must surface as a real failure to
-   * the caller, not a silent no-op.
+   * UPDATE único y atómico para la activación/desactivación institucional — verified, approved y roles
+   * se escriben siempre juntos, de modo que una cuenta persistida nunca se observe en un estado a medio actualizar.
+   * Fail-closed como los métodos de bootstrap de arriba: un error acá debe aflorar como una falla real para
+   * quien llama, no como un no-op silencioso.
    */
   public ProfessionalActivationResult updateProfessionalActivation(
       String email, boolean verified, boolean approved, List<String> roles) {
@@ -431,10 +431,10 @@ public class PostgresAuthStoreService {
       String email, boolean verified, boolean approved, List<String> roles) {}
 
   /**
-   * Fail-closed per-request account read used by AuthAccountStateService to revalidate a caller's
-   * persisted state on every protected request. Unlike findByEmail (which swallows errors and
-   * returns empty — fine for best-effort UI lookups), this throws on any infra failure; "account
-   * genuinely does not exist" is the only case that returns Optional.empty().
+   * Lectura de cuenta fail-closed por request, usada por AuthAccountStateService para revalidar el estado persistido
+   * de quien llama en cada request protegido. A diferencia de findByEmail (que traga errores y
+   * devuelve vacío — válido para búsquedas de UI best-effort), esto lanza excepción ante cualquier falla de infraestructura; "la cuenta
+   * realmente no existe" es el único caso que devuelve Optional.empty().
    */
   public Optional<DoctorAccount> findByEmailForAuthorization(String email) {
     if (!enabled) {
@@ -460,12 +460,12 @@ public class PostgresAuthStoreService {
   }
 
   /**
-   * Fail-closed, exact-role count used exclusively for the last-ADMIN lockout check. Deliberately
-   * does NOT rely on `roles LIKE '%ADMIN%'` alone — that SQL pre-filter is only used to keep the
-   * query index-friendly; the actual decision uses the exact, comma-split role list from
-   * readAccount() (List.contains("ADMIN")), so a hypothetical future role like "SUPERADMIN" could
-   * never be miscounted as "ADMIN". Only verified+approved+non-demo accounts with the exact ADMIN
-   * role count.
+   * Conteo fail-closed por rol exacto, usado exclusivamente para el chequeo de bloqueo del último ADMIN. Deliberadamente
+   * NO se apoya solo en `roles LIKE '%ADMIN%'` — ese prefiltro SQL solo se usa para que la
+   * consulta sea amigable al índice; la decisión real usa la lista exacta de roles separada por comas de
+   * readAccount() (List.contains("ADMIN")), de modo que un hipotético rol futuro como "SUPERADMIN" nunca
+   * se contabilice por error como "ADMIN". Solo cuentan las cuentas verified+approved+no demo con el rol
+   * ADMIN exacto.
    */
   public long countActiveNonDemoAdminsExcluding(String excludedEmail) {
     if (!enabled) {
@@ -496,11 +496,11 @@ public class PostgresAuthStoreService {
   }
 
   /**
-   * Transactional deactivation: the account row and its refresh tokens are updated inside one
-   * connection/transaction (autoCommit=false, explicit commit, rollback on any error) so a caller
-   * can never observe "deactivated but sessions still valid" or vice versa — either both writes
-   * land, or neither does. The in-memory cache in AuthService is only updated by the caller after
-   * this method returns successfully.
+   * Desactivación transaccional: la fila de la cuenta y sus refresh tokens se actualizan dentro de una
+   * misma conexión/transacción (autoCommit=false, commit explícito, rollback ante cualquier error) para que quien llame
+   * nunca pueda observar "desactivada pero con sesiones todavía válidas" ni lo contrario — o se aplican
+   * ambas escrituras, o ninguna. El cache en memoria de AuthService solo lo actualiza quien llama después de que
+   * este método retorna con éxito.
    */
   public ProfessionalActivationResult deactivateProfessionalAndRevokeSessions(
       String email, boolean verified, List<String> roles) {
@@ -549,11 +549,11 @@ public class PostgresAuthStoreService {
   }
 
   /**
-   * Bulk-revokes every still-active refresh token for one email — used to close out lingering
-   * demo-account sessions from a previous rollout without touching any other account's tokens (no
-   * DELETE, no wildcard, single-email WHERE clause only).
+   * Revoca en bloque todos los refresh tokens todavía activos de un email — se usa para cerrar las
+   * sesiones remanentes de la cuenta demo de un rollout anterior sin tocar los tokens de ninguna otra cuenta (sin
+   * DELETE, sin wildcard, solo con WHERE de un único email).
    */
-  /** Unlike the best-effort settings writes, a password change must never be lost silently. */
+  /** A diferencia de las escrituras de configuración best-effort, un cambio de contraseña nunca debe perderse en silencio. */
   public void updatePasswordHash(String email, String passwordHash) {
     if (!enabled) return;
     try (Connection connection = connection();
@@ -583,11 +583,11 @@ public class PostgresAuthStoreService {
       statement.setString(1, email);
       statement.executeUpdate();
     } catch (Exception ignored) {
-      // Best-effort; in-memory fallback in AuthService also clears its own map.
+      // Best-effort; el fallback en memoria de AuthService también limpia su propio mapa.
     }
   }
 
-  // ---- Profile change requests -------------------------------------------------------------
+  // ---- Solicitudes de cambio de perfil -------------------------------------------------------------
 
   public Optional<ProfileChange> findProfileChange(String email) {
     if (!enabled) return Optional.empty();
@@ -896,7 +896,7 @@ public class PostgresAuthStoreService {
                 )
                 """);
     } catch (Exception ignored) {
-      // Service stays available with in-memory fallback.
+      // El servicio sigue disponible con el fallback en memoria.
     }
   }
 

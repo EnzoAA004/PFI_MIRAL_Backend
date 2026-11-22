@@ -71,9 +71,9 @@ public final class AuthDtos {
   public record ApprovalRequest(@Email @NotBlank String email, boolean approved) {}
 
   /**
-   * Strict-by-design: ignoreUnknown=false rejects (400) any extra field — in particular
+   * Estricto por diseño: ignoreUnknown=false rechaza (400) cualquier campo extra — en particular
    * "roles"/"admin"/"authorities"/"permissions"/"verified"/"approved"/ "password"/"passwordHash" —
-   * instead of silently ignoring them. Only email and activated are ever accepted.
+   * en lugar de ignorarlos silenciosamente. Solo se aceptan email y activated.
    */
   @JsonIgnoreProperties(ignoreUnknown = false)
   public record ProfessionalActivationRequest(@Email @NotBlank String email, boolean activated) {}

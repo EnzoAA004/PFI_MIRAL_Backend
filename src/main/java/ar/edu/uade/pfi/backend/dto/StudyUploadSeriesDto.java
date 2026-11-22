@@ -2,27 +2,27 @@ package ar.edu.uade.pfi.backend.dto;
 
 public record StudyUploadSeriesDto(
     /**
-     * Identifier of the stored series, so the reader can display it.
+     * Identificador de la serie almacenada, para que el lector pueda mostrarla.
      *
-     * <p>Every series of the study is kept now, not only the two the models run on. A lumbar study
-     * carries sagittal T1 and T2, axial T1 and T2, sometimes coronals and a localizer; the AI reads
-     * two of them and the doctor reads all of them. This is what lets the viewer ask for the slices
-     * of the other five.
+     * <p>Ahora se conserva cada serie del estudio, no solo las dos sobre las que corren los modelos. Un estudio lumbar
+     * trae T1 y T2 sagitales, T1 y T2 axiales, a veces coronales y un localizador; la IA lee
+     * dos de ellas y el médico las lee todas. Esto es lo que le permite al viewer pedir los slices
+     * de las otras cinco.
      */
     String inputId,
     String plane,
     String description,
     String weighting,
     Integer sliceCount,
-    /** Series whose slices do not share a plane: a localizer. Not a volume. */
+    /** Series cuyos slices no comparten un plano: un localizador. No es un volumen. */
     boolean multiplanar,
-    /** A console screenshot or reformat rather than acquired image data. */
+    /** Una captura de consola o un reformateo en lugar de datos de imagen adquiridos. */
     boolean derived,
     /**
-     * Whether this series could be the input of an inference run.
+     * Si esta serie podría ser el input de una corrida de inferencia.
      *
-     * <p>False covers three different reasons that look the same on screen and are not: there is no
-     * model for its weighting (axial T1), it is not a single-plane volume (a localizer), or it is
-     * not acquired data (a console capture).
+     * <p>False cubre tres motivos distintos que se ven igual en pantalla y no lo son: no hay un
+     * modelo para su ponderación (T1 axial), no es un volumen de un solo plano (un localizador), o
+     * no son datos adquiridos (una captura de consola).
      */
     boolean analyzable) {}

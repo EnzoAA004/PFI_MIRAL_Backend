@@ -18,16 +18,16 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
 
 /**
- * Stage 76-C/76-E/76-F, extended in stage 78: translates a validated
- * {@link AiProductAnalyzeResponseDto} into the structured persistence records, and translates
- * persisted records — together with their professional-review overlay (stage 78) — back into the
- * Frontend-facing {@link AiProductAnalysisResultDto}.
+ * Etapa 76-C/76-E/76-F, ampliada en la etapa 78: traduce un
+ * {@link AiProductAnalyzeResponseDto} validado a los registros de persistencia estructurados, y traduce los
+ * registros persistidos — junto con su overlay de revisión profesional (etapa 78) — de vuelta al
+ * {@link AiProductAnalysisResultDto} orientado al Frontend.
  *
- * <p>Never reinterprets a value: a {@code null} {@code level} stays {@code null}, a {@code null}
- * boolean from the AI Module is treated as {@code false} (its absence is not evidence of a
- * negative finding, it is simply "not asserted"), and {@code status}/{@code structure} strings are
- * copied verbatim. The stage-78 review/correction overlay is purely additive — it never rewrites
- * an {@link AiDiscLevelResult}/{@link AiMeasurementResult} field.
+ * <p>Nunca reinterpreta un valor: un {@code level} {@code null} sigue siendo {@code null}, un
+ * boolean {@code null} del módulo de IA se trata como {@code false} (su ausencia no es evidencia de un
+ * hallazgo negativo, es simplemente "no afirmado"), y los strings {@code status}/{@code structure} se
+ * copian textualmente. El overlay de revisión/corrección de la etapa 78 es puramente aditivo — nunca reescribe
+ * un campo de {@link AiDiscLevelResult}/{@link AiMeasurementResult}.
  */
 @Component
 public class AiProductAnalysisMapper {
@@ -103,9 +103,9 @@ public class AiProductAnalysisMapper {
     }
 
     /**
-     * Stage 78: {@code runReview}/{@code discLevelReviews}/{@code corrections} may be empty/null
-     * (a freshly-persisted run has no review yet) — an absent review renders as
-     * {@code status="pending"}, never as an error or an omitted section.
+     * Etapa 78: {@code runReview}/{@code discLevelReviews}/{@code corrections} pueden estar vacíos/null
+     * (una corrida recién persistida todavía no tiene revisión) — una revisión ausente se renderiza como
+     * {@code status="pending"}, nunca como un error ni como una sección omitida.
      */
     public AiProductAnalysisResultDto toResultDto(
         AiProductAnalysisRun run,
@@ -188,7 +188,7 @@ public class AiProductAnalysisMapper {
         return new AiProductAnalysisResultDto.ReviewView(required, status == null ? "pending" : status, comment, reviewedBy, reviewedAt);
     }
 
-    /** One correction per {@code field} — the latest by {@code createdAt} when a field was corrected more than once. */
+    /** Una corrección por {@code field} — la última por {@code createdAt} cuando un campo se corrigió más de una vez. */
     private List<AiProductAnalysisResultDto.MeasurementCorrectionView> latestCorrectionsPerField(List<AiMeasurementCorrection> measurementCorrections) {
         return measurementCorrections.stream()
             .collect(Collectors.groupingBy(AiMeasurementCorrection::field))

@@ -8,9 +8,9 @@ import org.springframework.lang.NonNull;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
- * Wraps bytes read back from durable storage as a {@link MultipartFile} so a
- * reprocess request can reuse {@code AiServiceOperations.uploadStudy} unchanged,
- * exactly as if the client had uploaded the file again.
+ * Envuelve bytes leídos de vuelta desde el almacenamiento durable como un {@link MultipartFile} para que un
+ * request de reprocesamiento pueda reutilizar {@code AiServiceOperations.uploadStudy} sin cambios,
+ * exactamente como si el cliente hubiera subido el archivo de nuevo.
  */
 final class ByteArrayMultipartFile implements MultipartFile {
 

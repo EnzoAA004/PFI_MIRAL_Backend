@@ -13,17 +13,17 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Fail-closed startup gate for production profiles. This never runs (and never blocks
- * `mvn test`) unless SPRING_PROFILES_ACTIVE explicitly contains "production"/"prod" —
- * default/dev/test runs are unaffected. In production it refuses to let the context
- * finish starting if any of: the JWT signing key, auth being enabled, demo mode being
- * disabled, dev verification codes being hidden, PostgreSQL persistence being enabled,
- * or CORS being pinned to real HTTPS origins (no wildcard) does not hold.
+ * Gate de arranque fail-closed para perfiles de producción. Nunca corre (ni bloquea
+ * `mvn test`) salvo que SPRING_PROFILES_ACTIVE contenga explícitamente "production"/"prod" —
+ * las corridas default/dev/test no se ven afectadas. En producción se niega a dejar que el contexto
+ * termine de arrancar si no se cumple alguna de estas condiciones: la clave de firma JWT, auth habilitada, el modo demo
+ * deshabilitado, los códigos de verificación de desarrollo ocultos, la persistencia PostgreSQL habilitada,
+ * o CORS fijado a origins HTTPS reales (sin wildcard).
  */
 @Component
 public class SecurityStartupValidator {
     private static final Logger log = LoggerFactory.getLogger(SecurityStartupValidator.class);
-    /** Must match TokenService's own default so we can detect "nobody configured a real secret". */
+    /** Debe coincidir con el default propio de TokenService para poder detectar que "nadie configuró un secreto real". */
     static final String DEMO_DEFAULT_SECRET = "pfi-demo-change-me-2026";
     static final int MIN_SECRET_BYTES = 32;
 

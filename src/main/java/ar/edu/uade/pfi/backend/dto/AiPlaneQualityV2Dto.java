@@ -12,35 +12,35 @@ public record AiPlaneQualityV2Dto(
     Double meanForegroundConfidence,
     Double foregroundRatio,
     /**
-     * How many slices of the series have a persisted preview. May be lower than the series' slice
-     * count: a run made before the preview catalog existed only kept the inferred slice's image,
-     * and the viewer needs the difference to avoid promising a frame that was never written.
+     * Cuántos slices de la serie tienen un preview persistido. Puede ser menor que la cantidad de
+     * slices de la serie: una corrida hecha antes de que existiera el catálogo de previews solo conservó la imagen del
+     * slice inferido, y el viewer necesita la diferencia para no prometer un frame que nunca se escribió.
      */
     Integer slicePreviewCount,
     /**
-     * Volume geometry in patient space: origin, direction, spacing, slice axis and frame of
+     * Geometría del volumen en el espacio del paciente: origen, dirección, spacing, eje de slices y frame of
      * reference.
      *
-     * <p>Carried opaquely. It is what would let a viewer place one plane's slice on the other;
-     * without it a reference line between sagittal and axial would be an invented coordinate. The
-     * frame of reference travels with it because two studies have perfectly well-formed geometries
-     * that are not comparable to each other.
+     * <p>Se transporta de forma opaca. Es lo que le permitiría a un viewer ubicar el slice de un plano sobre el otro;
+     * sin esto una línea de referencia entre sagital y axial sería una coordenada inventada. El
+     * frame of reference viaja con ella porque dos estudios tienen geometrías perfectamente bien formadas
+     * que no son comparables entre sí.
      */
     java.util.Map<String, Object> volumeGeometry,
     /**
-     * Raw per-slice pixel metadata: count, width, height, dtype, byteOrder, min, max. Carried
-     * opaquely — it is what lets the viewer window real intensities instead of filtering brightness
-     * over an already-windowed 8-bit PNG.
+     * Metadatos crudos de píxeles por slice: count, width, height, dtype, byteOrder, min, max. Se transporta
+     * de forma opaca — es lo que le permite al viewer aplicar windowing sobre intensidades reales en vez de filtrar el brillo
+     * sobre un PNG de 8 bits ya ventaneado.
      */
     java.util.Map<String, Object> slicePixels,
     /**
-     * Craniocaudal extent of each disc space: {@code [{level, worldTop, worldBottom}]}.
+     * Extensión craneocaudal de cada espacio discal: {@code [{level, worldTop, worldBottom}]}.
      *
-     * <p>Carried opaquely, and only the sagittal plane publishes it — that is the plane where the
-     * disc spaces are seen whole and can be counted up from the lumbosacral junction. The AI module
-     * uses it to name the level of the axial slice, which the axial run cannot do on its own: its
-     * model segments nothing countable, so every axial measurement used to arrive with no level and
-     * land under "could not be assigned".
+     * <p>Se transporta de forma opaca, y solo el plano sagital la publica — es el plano donde los
+     * espacios discales se ven completos y pueden contarse hacia arriba desde la unión lumbosacra. El módulo de IA
+     * la usa para nombrar el nivel del slice axial, cosa que la corrida axial no puede hacer por sí sola: su
+     * modelo no segmenta nada contable, así que toda medición axial llegaba antes sin nivel y
+     * terminaba bajo "no se pudo asignar".
      */
     List<java.util.Map<String, Object>> discLevels,
     /**

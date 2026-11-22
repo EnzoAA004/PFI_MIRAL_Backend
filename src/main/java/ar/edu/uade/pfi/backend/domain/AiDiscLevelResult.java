@@ -1,13 +1,13 @@
 package ar.edu.uade.pfi.backend.domain;
 
 /**
- * One entry of {@code discLevels[]} from an {@link AiProductAnalysisRun}, persisted structurally.
- * {@code rankIndex} preserves the original array order (0-based) since {@code level} alone cannot
- * — a study can have more than one {@code null}-level entry.
+ * Una entrada de {@code discLevels[]} de un {@link AiProductAnalysisRun}, persistida de forma estructurada.
+ * {@code rankIndex} preserva el orden original del array (base 0) ya que {@code level} por sí solo no puede
+ * — un estudio puede tener más de una entrada con nivel {@code null}.
  *
- * <p>{@code level} is nullable BY CONTRACT: {@code null} is the valid, expected shape when
- * {@code localizationStatus} is {@code unavailable} or {@code abstained}. Never coerced to a
- * placeholder string, here or anywhere this record is read.
+ * <p>{@code level} admite null POR CONTRATO: {@code null} es la forma válida y esperada cuando
+ * {@code localizationStatus} es {@code unavailable} o {@code abstained}. Nunca se fuerza a un
+ * string placeholder, ni acá ni en ningún lugar donde se lea este record.
  */
 public record AiDiscLevelResult(
     String id,

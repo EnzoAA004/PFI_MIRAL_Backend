@@ -12,17 +12,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * Stage 76: orchestrates a product-analysis run so the Frontend only has to know {@code caseId}.
+ * Etapa 76: orquesta una corrida de product-analysis para que el Frontend solo tenga que conocer {@code caseId}.
  *
- * <p>Sequence: resolve inputs from the Study's own registered series
- * ({@link AiStudyInputResolver}) → call the AI Module ({@link AiAnalysisService}, which already
- * runs the Stage-75 contract/safety validation) → map the validated response into structured
- * records → persist them in one short transaction
+ * <p>Secuencia: resolver los inputs a partir de las series registradas del propio Study
+ * ({@link AiStudyInputResolver}) → llamar al módulo de IA ({@link AiAnalysisService}, que ya
+ * corre la validación de contrato/seguridad de la Etapa 75) → mapear la respuesta validada a registros
+ * estructurados → persistirlos en una transacción corta
  * ({@link StudyRepository#saveAiProductAnalysisRun}).
  *
- * <p>The ~180s AI call happens entirely before any database write starts (stage 76-K) — this
- * class holds no long-lived transaction, and the only write is the single, already-transactional
- * repository call at the end.
+ * <p>La llamada a la IA de ~180s ocurre por completo antes de que empiece cualquier escritura en la base de datos (etapa 76-K) — esta
+ * clase no mantiene ninguna transacción de larga duración, y la única escritura es la llamada única, ya transaccional, al
+ * repositorio al final.
  */
 @Service
 public class AiProductAnalysisPersistenceService {
@@ -53,7 +53,7 @@ public class AiProductAnalysisPersistenceService {
         );
         AiProductAnalysisMapper.Mapped mapped = mapper.toDomain(resolved.studyId(), response, resolved.sagittalInputId(), resolved.axialInputId());
         repository.saveAiProductAnalysisRun(mapped.run(), mapped.discLevels(), mapped.measurements());
-        // Freshly persisted: no review/correction can exist yet for this run.
+        // Recién persistida: todavía no puede existir revisión/corrección para esta corrida.
         return mapper.toResultDto(mapped.run(), mapped.discLevels(), mapped.measurements(), null, List.of(), List.of());
     }
 
@@ -69,10 +69,10 @@ public class AiProductAnalysisPersistenceService {
     }
 
     /**
-     * Stage 78: shared IDOR-safe lookup — an {@code analysisId} that exists but belongs to a
-     * different Study's {@code caseId} 404s exactly like one that doesn't exist at all, never
-     * leaking cross-Study existence. Reused by {@link AiProductAnalysisReviewService} so the
-     * review/correction endpoints enforce the identical rule rather than a second copy of it.
+     * Etapa 78: lookup compartido a prueba de IDOR — un {@code analysisId} que existe pero pertenece al
+     * {@code caseId} de otro Study devuelve 404 exactamente igual que uno que no existe en absoluto, sin
+     * filtrar nunca la existencia entre Studies. Reutilizado por {@link AiProductAnalysisReviewService} para que los
+     * endpoints de revisión/corrección apliquen la misma regla en lugar de una segunda copia.
      */
     public AiProductAnalysisRun resolveAnalysisRun(String caseId, String analysisId) {
         String studyId = resolveStudyId(caseId);

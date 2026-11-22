@@ -12,8 +12,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * System-wide audit trail search (arbitrary traceId/entityId lookups across all users and cases) is
- * an administrative capability, not a clinical/academic one, so it requires ADMIN.
+ * La búsqueda del audit trail a nivel de todo el sistema (consultas arbitrarias por traceId/entityId entre todos los usuarios y casos) es
+ * una capacidad administrativa, no clínica/académica, por lo que requiere ADMIN.
  */
 @RestController
 @RequestMapping("/api/ai/audit-events")

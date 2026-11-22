@@ -22,9 +22,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * EXT-07D: structured CAPTURE of professional feedback — never training, never online/active
- * learning, never a checkpoint change. See {@link ProfessionalFeedbackCaptureService}'s own
- * javadoc for the full rationale.
+ * EXT-07D: CAPTURA estructurada de feedback profesional — nunca entrenamiento, nunca aprendizaje
+ * online/activo, nunca un cambio de checkpoint. Ver el javadoc propio de {@link ProfessionalFeedbackCaptureService}
+ * para el fundamento completo.
  */
 @RestController
 public class ProfessionalFeedbackController {
@@ -39,10 +39,10 @@ public class ProfessionalFeedbackController {
     }
 
     /**
-     * Scans the Study's existing (already-persisted, append-only) corrections and
-     * professional-authored regions and captures any not already captured. Idempotent — calling
-     * this twice in a row without any new correction in between returns an empty list the second
-     * time.
+     * Recorre las correcciones existentes del Study (ya persistidas, append-only) y las
+     * regiones de autoría profesional, y captura las que todavía no se hayan capturado. Idempotente — llamarlo
+     * dos veces seguidas sin ninguna corrección nueva en el medio devuelve una lista vacía la segunda
+     * vez.
      */
     @PostMapping("/api/studies/{caseId}/feedback/capture")
     public List<ProfessionalFeedbackCandidateDto> capture(@PathVariable String caseId, HttpServletRequest request) {
@@ -51,8 +51,8 @@ public class ProfessionalFeedbackController {
     }
 
     /**
-     * EXT-05: all filters optional. {@code from}/{@code to} are ISO-8601 instants filtering on
-     * {@code correctedAt} (when the underlying correction/finding was made, not when captured).
+     * EXT-05: todos los filtros son opcionales. {@code from}/{@code to} son instantes ISO-8601 que filtran por
+     * {@code correctedAt} (cuándo se hizo la corrección/hallazgo subyacente, no cuándo se capturó).
      */
     @GetMapping("/api/studies/{caseId}/feedback-candidates")
     public List<ProfessionalFeedbackCandidateDto> list(
@@ -71,7 +71,7 @@ public class ProfessionalFeedbackController {
         return captureService.findByCase(caseId, filter).stream().map(ProfessionalFeedbackCandidateDto::from).toList();
     }
 
-    /** EXT-05: one candidate's full detail — the list endpoint already carries every field this needs, this is a convenience single-item lookup. */
+    /** EXT-05: detalle completo de un candidato — el endpoint de listado ya trae todos los campos que esto necesita; esta es una consulta de un solo ítem por conveniencia. */
     @GetMapping("/api/feedback-candidates/{id}")
     public ProfessionalFeedbackCandidateDto detail(@PathVariable String id, HttpServletRequest request) {
         authorizationService.requireProfessional(request, id);
@@ -82,7 +82,7 @@ public class ProfessionalFeedbackController {
     public record CandidateStatusChangeDto(String fromStatus, String toStatus, String reason, String note, Instant changedAt) {
     }
 
-    /** EXT-05: full append-only curation history for one candidate — never includes curatorId (internal only, same rule as reviewedBy). */
+    /** EXT-05: historial completo append-only de curación de un candidato — nunca incluye curatorId (solo interno, misma regla que reviewedBy). */
     @GetMapping("/api/feedback-candidates/{id}/history")
     public List<CandidateStatusChangeDto> history(@PathVariable String id, HttpServletRequest request) {
         authorizationService.requireProfessional(request, id);
@@ -95,11 +95,11 @@ public class ProfessionalFeedbackController {
     }
 
     /**
-     * The only way a candidate's status ever changes — always this explicit, human-issued call.
-     * {@code "ready_for_training"} (or any value outside {@code captured|eligible_for_curation|
-     * excluded|curated}) is rejected with 400 — never silently accepted or auto-assigned. Curator
-     * identity is always derived from the JWT, never the request body — same pattern as
-     * `EvidenceRegionAnnotationController`'s `authoredBy`/`reviewedBy` derivation.
+     * La única forma en que cambia el estado de un candidato — siempre esta llamada explícita, emitida por una persona.
+     * {@code "ready_for_training"} (o cualquier valor fuera de {@code captured|eligible_for_curation|
+     * excluded|curated}) se rechaza con 400 — nunca se acepta ni se asigna automáticamente en silencio. La identidad del
+     * curador siempre se deriva del JWT, nunca del body del request — mismo patrón que la derivación de
+     * `authoredBy`/`reviewedBy` de `EvidenceRegionAnnotationController`.
      */
     @PatchMapping("/api/feedback-candidates/{id}")
     public ProfessionalFeedbackCandidateDto curate(@PathVariable String id, @RequestBody UpdateStatusRequest body, HttpServletRequest request) {
@@ -108,10 +108,10 @@ public class ProfessionalFeedbackController {
     }
 
     /**
-     * EXT-05: internal curated export manifest — see {@code FeedbackDatasetExport}'s own javadoc.
-     * Never produces or triggers a training dataset; this is a read-only snapshot of whatever the
-     * filters select, wrapped with a schema version, count, and a checksum over the exported
-     * records so a later consumer can detect tampering.
+     * EXT-05: manifiesto interno de exportación curada — ver el javadoc propio de {@code FeedbackDatasetExport}.
+     * Nunca produce ni dispara un dataset de entrenamiento; es una instantánea de solo lectura de lo que
+     * seleccionen los filtros, envuelta con una versión de esquema, un conteo y un checksum sobre los
+     * registros exportados para que un consumidor posterior pueda detectar manipulaciones.
      */
     @GetMapping("/api/studies/{caseId}/feedback/export")
     public FeedbackDatasetExport export(
@@ -134,7 +134,7 @@ public class ProfessionalFeedbackController {
         return value == null || value.isBlank() ? null : Instant.parse(value);
     }
 
-    /** Same JWT-claims-only identity derivation `EvidenceRegionAnnotationController` already uses — never the request body. */
+    /** La misma derivación de identidad solo desde claims JWT que ya usa `EvidenceRegionAnnotationController` — nunca el body del request. */
     private String curatorId(HttpServletRequest request) {
         Object claims = request.getAttribute(AuthFilter.AUTH_CLAIMS_ATTRIBUTE);
         if (!(claims instanceof TokenService.Claims tokenClaims)) return null;

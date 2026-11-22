@@ -3,11 +3,11 @@ package ar.edu.uade.pfi.backend.domain;
 import java.time.Instant;
 
 /**
- * Stage 80-S: one chat exchange thread for a Study. A Study can have many conversations
- * (80-U) — this stage creates exactly one new conversation per {@code POST .../chat} call
- * (single-turn per conversation; a future stage could add an optional {@code conversationId} to
- * the request to continue one, but that is not built here — documented as a deliberate
- * simplification, not an oversight).
+ * Etapa 80-S: un hilo de intercambio de chat para un Study. Un Study puede tener muchas conversaciones
+ * (80-U) — esta etapa crea exactamente una conversación nueva por cada llamada {@code POST .../chat}
+ * (un solo turno por conversación; una etapa futura podría agregar un {@code conversationId} opcional a
+ * el request para continuar una, pero eso no está construido acá — documentado como una simplificación
+ * deliberada, no como un descuido).
  */
 public record ChatConversation(String id, String studyId, Instant createdAt) {
 }

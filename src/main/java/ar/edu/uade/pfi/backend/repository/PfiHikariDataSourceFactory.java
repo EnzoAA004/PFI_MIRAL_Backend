@@ -7,20 +7,20 @@ import java.util.concurrent.ConcurrentHashMap;
 import javax.sql.DataSource;
 
 /**
- * The one place a pooled {@link DataSource} gets built in this backend -- used by
- * {@code PfiDataSourceConfig} for the application-wide pool, and by each
- * {@code PostgresXxx} class's test-only {@code (databaseUrl, applyMigrations)}
- * constructor so tests get a small pool of their own against their Testcontainers
- * instance instead of a second, different pooling mechanism.
+ * El único lugar donde se construye un {@link DataSource} con pool en este backend -- lo usa
+ * {@code PfiDataSourceConfig} para el pool de toda la aplicación, y cada constructor
+ * {@code (databaseUrl, applyMigrations)} exclusivo para tests de las clases {@code PostgresXxx}
+ * para que los tests obtengan un pool chico propio contra su instancia de Testcontainers
+ * en lugar de un segundo mecanismo de pooling distinto.
  *
- * <p>Memoized per {@code (jdbcUrl, maximumPoolSize)}: a test class whose several
- * methods each build "their own" repository/service against the same Testcontainers
- * URL get back the *same* pool, not a fresh one per call. Without this, a test class
- * with N methods opened N short-lived pools that nothing ever closed -- fine in
- * isolation, but the accumulated held-open sockets against Docker Desktop's port
- * forwarding measurably degraded new-connection latency as more piled up within one
- * JVM test run (minutes, not milliseconds, confirmed empirically before this fix).
- * Production is unaffected: {@code PfiDataSourceConfig} calls this exactly once.
+ * <p>Memoizado por {@code (jdbcUrl, maximumPoolSize)}: una clase de test cuyos varios
+ * métodos construyen cada uno "su propio" repositorio/servicio contra la misma URL de Testcontainers
+ * recibe de vuelta el *mismo* pool, no uno nuevo por llamada. Sin esto, una clase de test
+ * con N métodos abría N pools de corta vida que nadie cerraba nunca -- sin problema
+ * en aislamiento, pero los sockets abiertos acumulados contra el port forwarding de Docker Desktop
+ * degradaban medible la latencia de nuevas conexiones a medida que se apilaban dentro de una misma
+ * corrida de tests de JVM (minutos, no milisegundos, confirmado empíricamente antes de este fix).
+ * Producción no se ve afectada: {@code PfiDataSourceConfig} llama a esto exactamente una vez.
  */
 public final class PfiHikariDataSourceFactory {
 
@@ -44,24 +44,24 @@ public final class PfiHikariDataSourceFactory {
         config.setJdbcUrl(jdbcUrl);
         config.setPoolName("pfi-postgres-pool");
         config.setMaximumPoolSize(maximumPoolSize);
-        // 0: a Cloud Run instance can sit idle for long stretches (min-instances=0);
-        // an idle-but-open connection just ages toward maxLifetime for no benefit.
+        // 0: una instancia de Cloud Run puede quedar inactiva por largos períodos (min-instances=0);
+        // una conexión inactiva pero abierta solo envejece hacia maxLifetime sin ningún beneficio.
         config.setMinimumIdle(0);
-        // Fail fast rather than queuing requests indefinitely behind a starved pool --
-        // a bounded pool under real overload should surface as a clear timeout, not a
-        // request that hangs until the container's own request timeout fires.
+        // Fallar rápido en lugar de encolar requests indefinidamente detrás de un pool desbordado --
+        // un pool acotado bajo sobrecarga real debe aflorar como un timeout claro, no como un
+        // request que se cuelga hasta que se dispara el timeout propio del contenedor.
         config.setConnectionTimeout(30_000);
         config.setIdleTimeout(600_000);
-        // Cloud SQL rotates the Java Connector's ephemeral certs on its own schedule;
-        // recycling pooled connections well under an hour keeps this pool from ever
-        // holding one past that rotation.
+        // Cloud SQL rota por su cuenta los certificados efímeros del Java Connector;
+        // reciclar las conexiones del pool bastante antes de una hora evita que este pool
+        // mantenga alguna más allá de esa rotación.
         config.setMaxLifetime(1_700_000);
-        // -1: don't validate connectivity while the pool itself is being constructed.
-        // Every PostgresXxx class historically failed lazily, on the first real
-        // DriverManager.getConnection() call inside a method -- eager validation here
-        // would turn that into a constructor-time failure instead, a behavior change
-        // several tests rely on not happening (e.g. a bean built once at Spring
-        // startup, but Cloud SQL only unreachable later).
+        // -1: no validar la conectividad mientras se construye el pool mismo.
+        // Todas las clases PostgresXxx históricamente fallaron de forma diferida, en la primera llamada real a
+        // DriverManager.getConnection() dentro de un método -- la validación anticipada acá
+        // convertiría eso en una falla en el constructor, un cambio de comportamiento del que
+        // varios tests dependen que no ocurra (p. ej. un bean construido una vez al arranque de
+        // Spring, pero con Cloud SQL inalcanzable solo más tarde).
         config.setInitializationFailTimeout(-1);
         return new HikariDataSource(config);
     }
